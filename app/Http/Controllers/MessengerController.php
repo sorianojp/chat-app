@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Team;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -14,15 +16,12 @@ class MessengerController extends Controller
     /**
      * Display the messenger web app.
      */
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, Team $current_team): Response
     {
         $user = $request->user();
-        $team = $user->currentTeam ?? $user->teams()->orderBy('teams.name')->first();
-
-        abort_if($team === null, 404);
 
         $conversations = $user->conversations()
-            ->where('conversations.team_id', $team->id)
+            ->where('conversations.team_id', $current_team->id)
             ->with(['latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->withCount('messages')
             ->orderByDesc('last_message_at')
@@ -30,7 +29,10 @@ class MessengerController extends Controller
             ->get()
             ->map(fn (Conversation $conversation) => $this->conversationPayload($conversation, $user->id));
 
-        $activeConversationId = $conversations->first()['id'] ?? null;
+        $requestedConversationId = $request->integer('conversation');
+        $hasRequestedConversation = $requestedConversationId > 0
+            && $conversations->contains(fn (array $conversation) => $conversation['id'] === $requestedConversationId);
+        $activeConversationId = $hasRequestedConversation ? $requestedConversationId : null;
 
         $messages = $activeConversationId
             ? Message::query()
@@ -43,7 +45,22 @@ class MessengerController extends Controller
             : collect();
 
         return Inertia::render('messenger', [
-            'apiBaseUrl' => "/api/teams/{$team->slug}",
+            'apiBaseUrl' => "/api/teams/{$current_team->slug}",
+            'workspace' => [
+                'id' => $current_team->id,
+                'name' => $current_team->name,
+                'slug' => $current_team->slug,
+            ],
+            'contacts' => $current_team->members()
+                ->where('users.id', '!=', $user->id)
+                ->orderBy('name')
+                ->get()
+                ->map(fn (User $contact) => [
+                    'id' => $contact->id,
+                    'name' => $contact->name,
+                    'email' => $contact->email,
+                    'school_role' => $contact->school_role->value,
+                ]),
             'conversations' => $conversations,
             'initialMessages' => $messages,
         ]);

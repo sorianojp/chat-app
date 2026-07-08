@@ -5,9 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreConversationRequest;
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\Team;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class ConversationController extends Controller
 {
@@ -37,14 +41,28 @@ class ConversationController extends Controller
         abort_unless($this->belongsToTeam($request, $team), 403);
 
         $data = $request->validated();
-        $participantIds = [];
+        $requestedParticipantIds = collect($data['participant_ids'])
+            ->map(fn (mixed $participantId): int => (int) $participantId)
+            ->unique()
+            ->values();
 
-        foreach ($data['participant_ids'] as $participantId) {
-            $participantIds[] = (int) $participantId;
+        $teamParticipantIds = $team->members()
+            ->whereKey($requestedParticipantIds)
+            ->pluck('users.id')
+            ->map(fn (mixed $participantId): int => (int) $participantId)
+            ->values();
+
+        if ($teamParticipantIds->count() !== $requestedParticipantIds->count()) {
+            throw ValidationException::withMessages([
+                'participant_ids' => __('All conversation participants must belong to this team.'),
+            ]);
         }
 
-        $participantIds[] = $request->user()->id;
-        $participantIds = array_values(array_unique($participantIds));
+        $participantIds = $requestedParticipantIds
+            ->push($request->user()->id)
+            ->unique()
+            ->values()
+            ->all();
 
         $conversation = $team->conversations()->create([
             'school_class_id' => $data['school_class_id'] ?? null,
@@ -61,8 +79,11 @@ class ConversationController extends Controller
             [],
         ));
 
+        $conversation->load(['latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+            ->loadCount('messages');
+
         return response()->json([
-            'data' => $conversation->load(['participants:id,name,email,school_role', 'schoolClass']),
+            'data' => $this->conversationPayload($conversation, $request->user()->id),
         ], 201);
     }
 
@@ -88,5 +109,62 @@ class ConversationController extends Controller
     {
         return $conversation->team_id === $team->id
             && $conversation->participants()->whereKey($request->user()->id)->exists();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function conversationPayload(Conversation $conversation, int $userId): array
+    {
+        /** @var Collection<int, User> $participants */
+        $participants = $conversation->participants;
+        $participant = $participants->firstWhere('id', '!=', $userId);
+        $latestMessage = $conversation->latestMessage;
+        $displayName = $conversation->title;
+
+        if ($displayName === null && $participant !== null) {
+            $displayName = $participant->name;
+        }
+
+        return [
+            'id' => $conversation->id,
+            'type' => $conversation->type->value,
+            'title' => $conversation->title,
+            'display_name' => $displayName ?? 'Conversation',
+            'school_class' => $conversation->schoolClass ? [
+                'id' => $conversation->schoolClass->id,
+                'name' => $conversation->schoolClass->name,
+            ] : null,
+            'participants' => $participants->map(fn ($participant) => [
+                'id' => $participant->id,
+                'name' => $participant->name,
+                'email' => $participant->email,
+                'school_role' => $participant->school_role->value,
+            ])->values(),
+            'latest_message' => $latestMessage ? $this->messagePayload($latestMessage) : null,
+            'messages_count' => $conversation->messages_count,
+            'unread_count' => 0,
+            'last_message_at' => $conversation->last_message_at?->toISOString(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function messagePayload(Message $message): array
+    {
+        return [
+            'id' => $message->id,
+            'conversation_id' => $message->conversation_id,
+            'sender' => $message->sender ? [
+                'id' => $message->sender->id,
+                'name' => $message->sender->name,
+                'school_role' => $message->sender->school_role->value,
+            ] : null,
+            'type' => $message->type,
+            'body' => $message->body,
+            'metadata' => $message->metadata,
+            'created_at' => $message->created_at?->toISOString(),
+        ];
     }
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\SchoolRole;
 use App\Enums\TeamRole;
 use App\Models\Team;
 use App\Models\User;
@@ -15,8 +16,8 @@ test('the teams index page can be rendered', function () {
     $response->assertOk();
 });
 
-test('teams can be created', function () {
-    $user = User::factory()->create();
+test('teams can be created by super admins', function () {
+    $user = User::factory()->create(['school_role' => SchoolRole::SuperAdmin]);
 
     $response = $this
         ->actingAs($user)
@@ -32,8 +33,29 @@ test('teams can be created', function () {
     ]);
 });
 
+test('teams cannot be created by non super admins', function (SchoolRole $role) {
+    $user = User::factory()->create(['school_role' => $role]);
+
+    $response = $this
+        ->actingAs($user)
+        ->post(route('teams.store'), [
+            'name' => 'Test Team',
+        ]);
+
+    $response->assertForbidden();
+
+    $this->assertDatabaseMissing('teams', [
+        'name' => 'Test Team',
+        'is_personal' => false,
+    ]);
+})->with([
+    SchoolRole::Admin,
+    SchoolRole::Teacher,
+    SchoolRole::Parent,
+]);
+
 test('team slug uses next available suffix', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['school_role' => SchoolRole::SuperAdmin]);
 
     Team::factory()->create(['name' => 'Acme', 'slug' => 'acme']);
     Team::factory()->create(['name' => 'Acme One', 'slug' => 'acme-1']);
@@ -52,7 +74,7 @@ test('team slug uses next available suffix', function () {
 });
 
 test('the team edit page can be rendered', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $team = Team::factory()->create();
 
     $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -71,7 +93,7 @@ test('the team edit page can be rendered', function () {
 });
 
 test('teams can be updated by owners', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $team = Team::factory()->create(['name' => 'Original Name']);
 
     $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -90,8 +112,34 @@ test('teams can be updated by owners', function () {
     ]);
 });
 
+test('teachers cannot manage teams even when assigned owner team role', function () {
+    $teacher = User::factory()->create(['school_role' => SchoolRole::Teacher]);
+    $team = Team::factory()->create(['name' => 'Original Name']);
+
+    $team->members()->attach($teacher, ['role' => TeamRole::Owner->value]);
+
+    $this
+        ->actingAs($teacher)
+        ->get(route('teams.edit', $team))
+        ->assertForbidden();
+
+    $this
+        ->actingAs($teacher)
+        ->patch(route('teams.update', $team), [
+            'name' => 'Updated Name',
+        ])
+        ->assertForbidden();
+
+    $this
+        ->actingAs($teacher)
+        ->delete(route('teams.destroy', $team), [
+            'name' => $team->name,
+        ])
+        ->assertForbidden();
+});
+
 test('teams cannot be updated by members', function () {
-    $owner = User::factory()->create();
+    $owner = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
@@ -108,7 +156,7 @@ test('teams cannot be updated by members', function () {
 });
 
 test('teams can be deleted by owners', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $team = Team::factory()->create();
 
     $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -127,7 +175,7 @@ test('teams can be deleted by owners', function () {
 });
 
 test('team deletion requires name confirmation', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $team = Team::factory()->create();
 
     $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -147,7 +195,7 @@ test('team deletion requires name confirmation', function () {
 });
 
 test('deleting current team switches to alphabetically first remaining team', function () {
-    $user = User::factory()->create(['name' => 'Mike']);
+    $user = User::factory()->create(['name' => 'Mike', 'school_role' => SchoolRole::Admin]);
 
     $zuluTeam = Team::factory()->create(['name' => 'Zulu Team']);
     $zuluTeam->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -176,7 +224,7 @@ test('deleting current team switches to alphabetically first remaining team', fu
 });
 
 test('deleting current team falls back to personal team when alphabetically first', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $personalTeam = $user->personalTeam();
     $team = Team::factory()->create(['name' => 'Zulu Team']);
     $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -199,7 +247,7 @@ test('deleting current team falls back to personal team when alphabetically firs
 });
 
 test('deleting non current team leaves current team unchanged', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $personalTeam = $user->personalTeam();
     $team = Team::factory()->create();
     $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -305,7 +353,7 @@ test('users cannot leave teams they dont belong to', function () {
 });
 
 test('deleting team switches other affected users to their personal team', function () {
-    $owner = User::factory()->create();
+    $owner = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $member = User::factory()->create();
 
     $team = Team::factory()->create();

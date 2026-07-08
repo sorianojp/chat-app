@@ -1,11 +1,12 @@
 <?php
 
+use App\Enums\SchoolRole;
 use App\Enums\TeamRole;
 use App\Models\Team;
 use App\Models\User;
 
 test('team member roles can be updated by owners', function () {
-    $owner = User::factory()->create();
+    $owner = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
@@ -24,8 +25,8 @@ test('team member roles can be updated by owners', function () {
 });
 
 test('team member roles cannot be updated by non owners', function () {
-    $owner = User::factory()->create();
-    $admin = User::factory()->create();
+    $owner = User::factory()->create(['school_role' => SchoolRole::Admin]);
+    $admin = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
@@ -43,7 +44,7 @@ test('team member roles cannot be updated by non owners', function () {
 });
 
 test('team members can be removed by owners', function () {
-    $owner = User::factory()->create();
+    $owner = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
@@ -60,8 +61,8 @@ test('team members can be removed by owners', function () {
 });
 
 test('team members cannot be removed by non owners', function () {
-    $owner = User::factory()->create();
-    $admin = User::factory()->create();
+    $owner = User::factory()->create(['school_role' => SchoolRole::Admin]);
+    $admin = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
@@ -77,7 +78,7 @@ test('team members cannot be removed by non owners', function () {
 });
 
 test('team owner cannot be removed', function () {
-    $owner = User::factory()->create();
+    $owner = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $team = Team::factory()->create();
 
     $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -92,7 +93,7 @@ test('team owner cannot be removed', function () {
 });
 
 test('team member role cannot be set to owner', function () {
-    $owner = User::factory()->create();
+    $owner = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
@@ -111,7 +112,7 @@ test('team member role cannot be set to owner', function () {
 });
 
 test('removed member current team is set to personal team', function () {
-    $owner = User::factory()->create();
+    $owner = User::factory()->create(['school_role' => SchoolRole::Admin]);
     $member = User::factory()->create();
     $personalTeam = $member->personalTeam();
     $team = Team::factory()->create();

@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\SchoolRole;
 use App\Enums\TeamPermission;
 use App\Models\Team;
 use App\Models\User;
@@ -29,7 +30,7 @@ class TeamPolicy
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->school_role === SchoolRole::SuperAdmin;
     }
 
     /**
@@ -37,7 +38,7 @@ class TeamPolicy
      */
     public function update(User $user, Team $team): bool
     {
-        return $user->hasTeamPermission($team, TeamPermission::UpdateTeam);
+        return $this->canManageTeam($user, $team, TeamPermission::UpdateTeam);
     }
 
     /**
@@ -55,7 +56,7 @@ class TeamPolicy
      */
     public function addMember(User $user, Team $team): bool
     {
-        return $user->hasTeamPermission($team, TeamPermission::AddMember);
+        return $this->canManageTeam($user, $team, TeamPermission::AddMember);
     }
 
     /**
@@ -63,7 +64,7 @@ class TeamPolicy
      */
     public function updateMember(User $user, Team $team): bool
     {
-        return $user->hasTeamPermission($team, TeamPermission::UpdateMember);
+        return $this->canManageTeam($user, $team, TeamPermission::UpdateMember);
     }
 
     /**
@@ -71,7 +72,7 @@ class TeamPolicy
      */
     public function removeMember(User $user, Team $team): bool
     {
-        return $user->hasTeamPermission($team, TeamPermission::RemoveMember);
+        return $this->canManageTeam($user, $team, TeamPermission::RemoveMember);
     }
 
     /**
@@ -79,7 +80,7 @@ class TeamPolicy
      */
     public function inviteMember(User $user, Team $team): bool
     {
-        return $user->hasTeamPermission($team, TeamPermission::CreateInvitation);
+        return $this->canManageTeam($user, $team, TeamPermission::CreateInvitation);
     }
 
     /**
@@ -87,7 +88,7 @@ class TeamPolicy
      */
     public function cancelInvitation(User $user, Team $team): bool
     {
-        return $user->hasTeamPermission($team, TeamPermission::CancelInvitation);
+        return $this->canManageTeam($user, $team, TeamPermission::CancelInvitation);
     }
 
     /**
@@ -95,6 +96,15 @@ class TeamPolicy
      */
     public function delete(User $user, Team $team): bool
     {
-        return ! $team->is_personal && $user->hasTeamPermission($team, TeamPermission::DeleteTeam);
+        return ! $team->is_personal && $this->canManageTeam($user, $team, TeamPermission::DeleteTeam);
+    }
+
+    /**
+     * Determine whether the user has school-level authority and team permission.
+     */
+    private function canManageTeam(User $user, Team $team, TeamPermission $permission): bool
+    {
+        return in_array($user->school_role, [SchoolRole::SuperAdmin, SchoolRole::Admin], true)
+            && $user->hasTeamPermission($team, $permission);
     }
 }

@@ -2,12 +2,15 @@ import { Head, usePage } from '@inertiajs/react';
 import { echo } from '@laravel/echo-react';
 import {
     CheckCheck,
+    Check,
     Info,
     MessageCircle,
     Paperclip,
+    PencilLine,
     Search,
     Send,
     UsersRound,
+    X,
 } from 'lucide-react';
 import {
     FormEvent,
@@ -25,6 +28,8 @@ type Participant = {
     email: string;
     school_role: string;
 };
+
+type Contact = Participant;
 
 type Conversation = {
     id: number;
@@ -58,6 +63,12 @@ type MessengerMessage = {
 
 type Props = {
     apiBaseUrl: string;
+    workspace: {
+        id: number;
+        name: string;
+        slug: string;
+    };
+    contacts: Contact[];
     conversations: Conversation[];
     initialMessages: MessengerMessage[];
 };
@@ -66,16 +77,26 @@ type MessageCreatedPayload = {
     message: MessengerMessage;
 };
 
+type NewConversationPayload = {
+    type: 'direct' | 'group';
+    title: string | null;
+    participant_ids: number[];
+};
+
 export default function Messenger({
     apiBaseUrl,
+    contacts,
     conversations: initialConversations,
     initialMessages,
+    workspace,
 }: Props) {
     const { auth } = usePage<{ auth: { user: User } }>().props;
+    const initialConversationId =
+        getConversationIdFromUrl(initialConversations);
     const [conversations, setConversations] = useState(initialConversations);
-    const [activeConversationId, setActiveConversationId] = useState(
-        initialConversations[0]?.id ?? null,
-    );
+    const [activeConversationId, setActiveConversationId] = useState<
+        number | null
+    >(initialConversationId);
     const [messagesByConversation, setMessagesByConversation] = useState<
         Record<number, MessengerMessage[]>
     >(() =>
@@ -88,6 +109,7 @@ export default function Messenger({
     const [messageBody, setMessageBody] = useState('');
     const [search, setSearch] = useState('');
     const [sending, setSending] = useState(false);
+    const [composerOpen, setComposerOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const activeConversationIdRef = useRef(activeConversationId);
     const currentUserIdRef = useRef(auth.user.id);
@@ -95,7 +117,11 @@ export default function Messenger({
         new Set(initialMessages.map((message) => message.id)),
     );
     const loadedConversationIdsRef = useRef(
-        new Set(activeConversationId ? [activeConversationId] : []),
+        new Set(
+            initialConversationId && initialMessages.length > 0
+                ? [initialConversationId]
+                : [],
+        ),
     );
 
     const activeConversation = useMemo(
@@ -159,6 +185,48 @@ export default function Messenger({
             ),
         );
     }, []);
+
+    const selectConversation = (conversationId: number) => {
+        setActiveConversationId(conversationId);
+        window.history.replaceState(
+            {},
+            '',
+            `${window.location.pathname}?conversation=${conversationId}`,
+        );
+    };
+
+    const createConversation = async (payload: NewConversationPayload) => {
+        const response = await fetch(`${apiBaseUrl}/conversations`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const created = (await response.json()) as { data: Conversation };
+        const conversation = created.data;
+
+        setConversations((items) => [
+            conversation,
+            ...items.filter((item) => item.id !== conversation.id),
+        ]);
+        setMessagesByConversation((messages) => ({
+            ...messages,
+            [conversation.id]: [],
+        }));
+        loadedConversationIdsRef.current.add(conversation.id);
+        selectConversation(conversation.id);
+
+        return true;
+    };
 
     useEffect(() => {
         activeConversationIdRef.current = activeConversationId;
@@ -312,19 +380,45 @@ export default function Messenger({
             <div className="flex h-[calc(100vh-6.5rem)] min-h-[680px] flex-col overflow-hidden bg-white">
                 <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
                     <div className="min-w-0">
+                        <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                            {workspace.name}
+                        </p>
                         <h1 className="truncate text-2xl font-bold text-slate-950">
                             Chats
                         </h1>
                     </div>
-                    <div className="hidden items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 sm:flex">
-                        <span className="size-2 rounded-full bg-emerald-500" />
-                        Realtime ready
+                    <div className="flex items-center gap-2">
+                        <div className="hidden items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 sm:flex">
+                            <span className="size-2 rounded-full bg-emerald-500" />
+                            Realtime ready
+                        </div>
+                        <button
+                            aria-label="New message"
+                            className="grid size-10 place-items-center rounded-full bg-[#0054b8] text-white shadow-sm transition hover:bg-[#004996]"
+                            onClick={() => setComposerOpen(true)}
+                            type="button"
+                        >
+                            <PencilLine className="size-5" />
+                        </button>
                     </div>
                 </div>
 
                 <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_320px]">
                     <aside className="hidden min-h-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
                         <div className="border-b border-slate-100 p-4">
+                            <div className="mb-3 flex items-center justify-between">
+                                <h2 className="text-lg font-bold text-slate-950">
+                                    Chats
+                                </h2>
+                                <button
+                                    aria-label="New message"
+                                    className="grid size-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100"
+                                    onClick={() => setComposerOpen(true)}
+                                    type="button"
+                                >
+                                    <PencilLine className="size-4" />
+                                </button>
+                            </div>
                             <label className="flex h-10 items-center gap-2 rounded-lg bg-slate-100 px-3 text-slate-400">
                                 <Search className="size-4" />
                                 <input
@@ -350,9 +444,7 @@ export default function Messenger({
                                         }`}
                                         key={conversation.id}
                                         onClick={() =>
-                                            setActiveConversationId(
-                                                conversation.id,
-                                            )
+                                            selectConversation(conversation.id)
                                         }
                                         type="button"
                                     >
@@ -390,7 +482,7 @@ export default function Messenger({
                                 <EmptyState
                                     icon={<MessageCircle className="size-6" />}
                                     title="No conversations"
-                                    body="Create a conversation from the API or seed data to start messaging."
+                                    body="Start a direct message or create a group chat."
                                 />
                             )}
                         </div>
@@ -457,7 +549,7 @@ export default function Messenger({
                             <EmptyState
                                 icon={<MessageCircle className="size-6" />}
                                 title="Messenger is ready"
-                                body="Seed or create a conversation to begin using the web app."
+                                body="Start a conversation to begin using the web app."
                             />
                         )}
                     </section>
@@ -478,8 +570,223 @@ export default function Messenger({
                         </div>
                     </aside>
                 </div>
+                {composerOpen && (
+                    <ConversationComposer
+                        contacts={contacts}
+                        onClose={() => setComposerOpen(false)}
+                        onCreate={createConversation}
+                    />
+                )}
             </div>
         </>
+    );
+}
+
+function ConversationComposer({
+    contacts,
+    onClose,
+    onCreate,
+}: {
+    contacts: Contact[];
+    onClose: () => void;
+    onCreate: (payload: NewConversationPayload) => Promise<boolean>;
+}) {
+    const [mode, setMode] = useState<'direct' | 'group'>('direct');
+    const [query, setQuery] = useState('');
+    const [title, setTitle] = useState('');
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const filteredContacts = contacts.filter((contact) => {
+        const haystack = `${contact.name} ${contact.email} ${contact.school_role}`;
+
+        return haystack.toLowerCase().includes(query.toLowerCase());
+    });
+    const canSubmit =
+        selectedIds.length > 0 && (mode === 'direct' || title.trim() !== '');
+
+    const chooseMode = (nextMode: 'direct' | 'group') => {
+        setMode(nextMode);
+        setError(null);
+
+        if (nextMode === 'direct' && selectedIds.length > 1) {
+            setSelectedIds([selectedIds[0]]);
+        }
+    };
+
+    const toggleContact = (contactId: number) => {
+        setError(null);
+
+        if (mode === 'direct') {
+            setSelectedIds((ids) =>
+                ids.includes(contactId) ? [] : [contactId],
+            );
+
+            return;
+        }
+
+        setSelectedIds((ids) =>
+            ids.includes(contactId)
+                ? ids.filter((id) => id !== contactId)
+                : [...ids, contactId],
+        );
+    };
+
+    const submit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!canSubmit || submitting) {
+            return;
+        }
+
+        setSubmitting(true);
+        setError(null);
+
+        try {
+            const created = await onCreate({
+                type: mode,
+                title: mode === 'group' ? title.trim() : null,
+                participant_ids: selectedIds,
+            });
+
+            if (created) {
+                onClose();
+
+                return;
+            }
+
+            setError('Could not create that conversation.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+            <form
+                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                onSubmit={submit}
+            >
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
+                    <h2 className="text-base font-semibold text-slate-950">
+                        New message
+                    </h2>
+                    <button
+                        aria-label="Close"
+                        className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                        onClick={onClose}
+                        type="button"
+                    >
+                        <X className="size-5" />
+                    </button>
+                </div>
+
+                <div className="shrink-0 space-y-3 border-b border-slate-100 p-4">
+                    <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+                        {(['direct', 'group'] as const).map((item) => (
+                            <button
+                                className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                                    mode === item
+                                        ? 'bg-white text-[#0054b8] shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                                key={item}
+                                onClick={() => chooseMode(item)}
+                                type="button"
+                            >
+                                {item === 'direct' ? 'Direct' : 'Group'}
+                            </button>
+                        ))}
+                    </div>
+
+                    {mode === 'group' && (
+                        <input
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#0054b8]"
+                            onChange={(event) => setTitle(event.target.value)}
+                            placeholder="Group name"
+                            value={title}
+                        />
+                    )}
+
+                    <label className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 px-3 text-slate-400">
+                        <Search className="size-4" />
+                        <input
+                            className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search people"
+                            type="search"
+                            value={query}
+                        />
+                    </label>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                    {filteredContacts.length > 0 ? (
+                        filteredContacts.map((contact) => {
+                            const selected = selectedIds.includes(contact.id);
+
+                            return (
+                                <button
+                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
+                                    key={contact.id}
+                                    onClick={() => toggleContact(contact.id)}
+                                    type="button"
+                                >
+                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-rose-500 text-sm font-bold text-white">
+                                        {initials(contact.name)}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-semibold text-slate-950">
+                                            {contact.name}
+                                        </span>
+                                        <span className="block truncate text-xs text-slate-500 capitalize">
+                                            {contact.school_role}
+                                        </span>
+                                    </span>
+                                    <span
+                                        className={`grid size-6 shrink-0 place-items-center rounded-full border ${
+                                            selected
+                                                ? 'border-[#0054b8] bg-[#0054b8] text-white'
+                                                : 'border-slate-300 text-transparent'
+                                        }`}
+                                    >
+                                        <Check className="size-4" />
+                                    </span>
+                                </button>
+                            );
+                        })
+                    ) : (
+                        <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
+                            <span className="grid size-12 place-items-center rounded-full bg-slate-100 text-slate-400">
+                                <UsersRound className="size-6" />
+                            </span>
+                            <h3 className="mt-3 text-sm font-semibold text-slate-900">
+                                No people found
+                            </h3>
+                            <p className="mt-1 max-w-72 text-sm leading-6 text-slate-500">
+                                Team members will appear here when they are
+                                added to this school.
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="shrink-0 border-t border-slate-200 p-4">
+                    {error && (
+                        <p className="mb-3 text-sm font-medium text-rose-600">
+                            {error}
+                        </p>
+                    )}
+                    <button
+                        className="h-11 w-full rounded-xl bg-[#0054b8] px-4 text-sm font-semibold text-white transition hover:bg-[#004996] disabled:cursor-not-allowed disabled:bg-slate-300"
+                        disabled={!canSubmit || submitting}
+                        type="submit"
+                    >
+                        {submitting ? 'Creating...' : 'Create'}
+                    </button>
+                </div>
+            </form>
+        </div>
     );
 }
 
@@ -672,6 +979,26 @@ function getCookie(name: string) {
     return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
 }
 
+function getConversationIdFromUrl(conversations: Conversation[]) {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    const conversationId = Number(
+        new URLSearchParams(window.location.search).get('conversation'),
+    );
+
+    if (!Number.isInteger(conversationId)) {
+        return null;
+    }
+
+    return conversations.some(
+        (conversation) => conversation.id === conversationId,
+    )
+        ? conversationId
+        : null;
+}
+
 function initials(label: string) {
     return label
         .split(' ')
@@ -681,11 +1008,11 @@ function initials(label: string) {
         .toUpperCase();
 }
 
-Messenger.layout = () => ({
+Messenger.layout = (props: { workspace?: { slug: string } }) => ({
     breadcrumbs: [
         {
             title: 'Messenger',
-            href: '/messenger',
+            href: props.workspace ? `/${props.workspace.slug}/messenger` : '/',
         },
     ],
 });

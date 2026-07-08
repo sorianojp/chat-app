@@ -8,14 +8,11 @@ use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
 
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('messenger', MessengerController::class)->name('messenger');
-});
-
 Route::prefix('{current_team}')
     ->middleware(['auth', 'verified', EnsureTeamMembership::class])
     ->group(function () {
         Route::get('dashboard', DashboardController::class)->name('dashboard');
+        Route::get('messenger', MessengerController::class)->name('messenger');
     });
 
 Route::middleware(['auth'])->group(function () {
