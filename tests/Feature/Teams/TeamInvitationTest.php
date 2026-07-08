@@ -48,7 +48,7 @@ test('invitation email for existing users uses login route', function () {
     $mail = (new TeamInvitationNotification($invitation))->toMail($invitedUser);
 
     expect($mail->actionUrl)->toBe(route('login', ['invitation' => $invitation->code]));
-    $this->assertStringContainsString('dashboard', implode(' ', $mail->introLines));
+    $this->assertStringContainsString('invitations page', implode(' ', $mail->introLines));
 });
 
 test('invitation email for unknown users uses login route', function () {
@@ -190,7 +190,7 @@ test('team invitations can be accepted', function () {
         ->actingAs($invitedUser)
         ->get(route('invitations.accept', $invitation));
 
-    $response->assertRedirect(route('dashboard'));
+    $response->assertRedirect(route('messenger', ['current_team' => $team->slug]));
     $response->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Invitation accepted.']);
 
     expect($invitedUser->fresh()->belongsToTeam($team))->toBeTrue();
@@ -214,7 +214,7 @@ test('team invitations can be declined by the invited user', function () {
         ->actingAs($invitedUser)
         ->delete(route('invitations.decline', $invitation));
 
-    $response->assertRedirect(route('dashboard'));
+    $response->assertRedirect(route('invitations.index'));
 
     $this->assertDatabaseMissing('team_invitations', [
         'id' => $invitation->id,

@@ -1,11 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import {
-    BookOpen,
-    FolderGit2,
-    Inbox,
-    LayoutGrid,
-    MessageCircle,
-} from 'lucide-react';
+import { BookOpen, FolderGit2, Inbox, MessageCircle } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -20,26 +14,19 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes';
+import { messenger } from '@/routes';
 import type { NavItem } from '@/types';
 
 export function AppSidebar() {
     const page = usePage();
-    const dashboardUrl = page.props.currentTeam
-        ? dashboard(page.props.currentTeam.slug)
+    const messengerUrl = page.props.currentTeam
+        ? messenger(page.props.currentTeam.slug)
         : '/';
 
     const mainNavItems: NavItem[] = [
         {
-            title: 'Dashboard',
-            href: dashboardUrl,
-            icon: LayoutGrid,
-        },
-        {
             title: 'Messenger',
-            href: page.props.currentTeam
-                ? `/${page.props.currentTeam.slug}/messenger`
-                : '/',
+            href: messengerUrl,
             icon: MessageCircle,
         },
         {
@@ -50,16 +37,16 @@ export function AppSidebar() {
     ];
 
     const footerNavItems: NavItem[] = [
-        {
-            title: 'Repository',
-            href: 'https://github.com/laravel/react-starter-kit',
-            icon: FolderGit2,
-        },
-        {
-            title: 'Documentation',
-            href: 'https://laravel.com/docs/starter-kits#react',
-            icon: BookOpen,
-        },
+        // {
+        //     title: 'Repository',
+        //     href: 'https://github.com/laravel/react-starter-kit',
+        //     icon: FolderGit2,
+        // },
+        // {
+        //     title: 'Documentation',
+        //     href: 'https://laravel.com/docs/starter-kits#react',
+        //     icon: BookOpen,
+        // },
     ];
 
     return (
@@ -68,7 +55,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboardUrl} prefetch>
+                            <Link href={messengerUrl} prefetch>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>

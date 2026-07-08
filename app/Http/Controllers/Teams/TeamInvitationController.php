@@ -112,7 +112,7 @@ class TeamInvitationController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Invitation accepted.')]);
 
-        return to_route('dashboard');
+        return to_route('messenger', ['current_team' => $invitation->team->slug]);
     }
 
     /**
@@ -124,6 +124,6 @@ class TeamInvitationController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Invitation declined.')]);
 
-        return to_route('dashboard');
+        return to_route('invitations.index');
     }
 }
