@@ -16,6 +16,7 @@ Route::prefix('{current_team}')
     });
 
 Route::middleware(['auth'])->group(function () {
+    Route::get('invitations', [TeamInvitationController::class, 'index'])->name('invitations.index');
     Route::get('invitations/{invitation}/accept', [TeamInvitationController::class, 'accept'])->name('invitations.accept');
     Route::delete('invitations/{invitation}', [TeamInvitationController::class, 'decline'])->name('invitations.decline');
 });

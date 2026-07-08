@@ -388,10 +388,6 @@ export default function Messenger({
                         </h1>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="hidden items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 sm:flex">
-                            <span className="size-2 rounded-full bg-emerald-500" />
-                            Realtime ready
-                        </div>
                         <button
                             aria-label="New message"
                             className="grid size-10 place-items-center rounded-full bg-[#0054b8] text-white shadow-sm transition hover:bg-[#004996]"
@@ -406,18 +402,10 @@ export default function Messenger({
                 <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_320px]">
                     <aside className="hidden min-h-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
                         <div className="border-b border-slate-100 p-4">
-                            <div className="mb-3 flex items-center justify-between">
+                            <div className="mb-3 flex items-center">
                                 <h2 className="text-lg font-bold text-slate-950">
                                     Chats
                                 </h2>
-                                <button
-                                    aria-label="New message"
-                                    className="grid size-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100"
-                                    onClick={() => setComposerOpen(true)}
-                                    type="button"
-                                >
-                                    <PencilLine className="size-4" />
-                                </button>
                             </div>
                             <label className="flex h-10 items-center gap-2 rounded-lg bg-slate-100 px-3 text-slate-400">
                                 <Search className="size-4" />
@@ -701,7 +689,7 @@ function ConversationComposer({
 
                     {mode === 'group' && (
                         <input
-                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#0054b8]"
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm transition outline-none focus:border-[#0054b8]"
                             onChange={(event) => setTitle(event.target.value)}
                             placeholder="Group name"
                             value={title}

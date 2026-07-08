@@ -10,13 +10,48 @@ use App\Models\Team;
 use App\Models\TeamInvitation;
 use App\Notifications\Teams\TeamInvitation as TeamInvitationNotification;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class TeamInvitationController extends Controller
 {
+    /**
+     * Display invitations for the authenticated user's email address.
+     */
+    public function index(Request $request): Response
+    {
+        $email = strtolower($request->user()->email);
+
+        $invitations = TeamInvitation::query()
+            ->with(['inviter', 'team'])
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->latest()
+            ->get()
+            ->map(fn (TeamInvitation $invitation) => [
+                'code' => $invitation->code,
+                'email' => $invitation->email,
+                'inviterName' => $invitation->inviter->name,
+                'roleLabel' => $invitation->role->label(),
+                'status' => $invitation->isAccepted()
+                    ? 'accepted'
+                    : ($invitation->isExpired() ? 'expired' : 'pending'),
+                'team' => [
+                    'name' => $invitation->team->name,
+                    'slug' => $invitation->team->slug,
+                ],
+                'createdAt' => $invitation->created_at?->toISOString(),
+                'expiresAt' => $invitation->expires_at?->toISOString(),
+            ]);
+
+        return Inertia::render('invitations/index', [
+            'invitations' => $invitations,
+        ]);
+    }
+
     /**
      * Store a newly created invitation.
      */

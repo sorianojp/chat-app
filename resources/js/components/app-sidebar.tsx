@@ -1,5 +1,11 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, FolderGit2, LayoutGrid, MessageCircle } from 'lucide-react';
+import {
+    BookOpen,
+    FolderGit2,
+    Inbox,
+    LayoutGrid,
+    MessageCircle,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -35,6 +41,11 @@ export function AppSidebar() {
                 ? `/${page.props.currentTeam.slug}/messenger`
                 : '/',
             icon: MessageCircle,
+        },
+        {
+            title: 'Invitations',
+            href: '/invitations',
+            icon: Inbox,
         },
     ];
 

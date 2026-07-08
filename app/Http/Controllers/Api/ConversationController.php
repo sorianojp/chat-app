@@ -41,7 +41,7 @@ class ConversationController extends Controller
         abort_unless($this->belongsToTeam($request, $team), 403);
 
         $data = $request->validated();
-        $requestedParticipantIds = collect($data['participant_ids'])
+        $requestedParticipantIds = $request->collect('participant_ids')
             ->map(fn (mixed $participantId): int => (int) $participantId)
             ->unique()
             ->values();

@@ -41,6 +41,14 @@ export type DashboardInvitation = {
     };
 };
 
+export type ReceivedInvitation = DashboardInvitation & {
+    email: string;
+    roleLabel: string;
+    status: 'pending' | 'accepted' | 'expired';
+    createdAt: string | null;
+    expiresAt: string | null;
+};
+
 export type TeamPermissions = {
     canUpdateTeam: boolean;
     canDeleteTeam: boolean;
