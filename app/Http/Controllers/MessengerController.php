@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\MessagePayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -22,7 +23,7 @@ class MessengerController extends Controller
 
         $conversations = $user->conversations()
             ->where('conversations.team_id', $current_team->id)
-            ->with(['latestMessage.attachments', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->withCount('messages')
             ->orderByDesc('last_message_at')
             ->orderByDesc('conversations.updated_at')
@@ -37,11 +38,11 @@ class MessengerController extends Controller
         $messages = $activeConversationId
             ? Message::query()
                 ->where('conversation_id', $activeConversationId)
-                ->with(['attachments', 'conversation.team', 'sender:id,name,school_role'])
+                ->with(['attachments', 'conversation.team', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
                 ->oldest()
                 ->limit(80)
                 ->get()
-                ->map(fn (Message $message) => $this->messagePayload($message))
+                ->map(fn (Message $message) => MessagePayload::from($message, $user->id))
             : collect();
 
         return Inertia::render('messenger', [
@@ -99,41 +100,13 @@ class MessengerController extends Controller
                 'email' => $participant->email,
                 'school_role' => $participant->school_role->value,
             ])->values(),
-            'latest_message' => $latestMessage ? $this->messagePayload($latestMessage) : null,
+            'latest_message' => $latestMessage ? MessagePayload::from($latestMessage, $userId) : null,
             'messages_count' => $conversation->messages_count,
             'unread_count' => $conversation->messages()
                 ->when($lastReadAt, fn ($query) => $query->where('created_at', '>', $lastReadAt))
                 ->where('sender_id', '!=', $userId)
                 ->count(),
             'last_message_at' => $conversation->last_message_at?->toISOString(),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function messagePayload(Message $message): array
-    {
-        return [
-            'id' => $message->id,
-            'conversation_id' => $message->conversation_id,
-            'sender' => $message->sender ? [
-                'id' => $message->sender->id,
-                'name' => $message->sender->name,
-                'school_role' => $message->sender->school_role->value,
-            ] : null,
-            'type' => $message->type,
-            'body' => $message->body,
-            'metadata' => $message->metadata,
-            'attachments' => $message->attachments->map(fn ($attachment) => [
-                'id' => $attachment->id,
-                'name' => $attachment->original_name,
-                'mime_type' => $attachment->mime_type,
-                'size' => $attachment->size,
-                'url' => $attachment->downloadUrl($message),
-                'preview_url' => $attachment->previewUrl($message),
-            ])->values(),
-            'created_at' => $message->created_at?->toISOString(),
         ];
     }
 }

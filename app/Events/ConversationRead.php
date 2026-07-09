@@ -2,52 +2,46 @@
 
 namespace App\Events;
 
-use App\Models\Message;
-use App\Support\MessagePayload;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class MessageCreated implements ShouldBroadcastNow
+class ConversationRead implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public Message $message)
-    {
-        $this->message->loadMissing(['attachments', 'conversation.team', 'sender', 'reactions.user', 'readers']);
-    }
+    public function __construct(
+        public int $conversationId,
+        public int $userId,
+        public ?string $readAt,
+    ) {}
 
     /**
-     * Get the channels the event should broadcast on.
-     *
      * @return array<int, PrivateChannel>
      */
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel("conversations.{$this->message->conversation_id}"),
+            new PrivateChannel("conversations.{$this->conversationId}"),
         ];
     }
 
-    /**
-     * The event's broadcast name.
-     */
     public function broadcastAs(): string
     {
-        return 'message.created';
+        return 'conversation.read';
     }
 
     /**
-     * Get the data to broadcast.
-     *
      * @return array<string, mixed>
      */
     public function broadcastWith(): array
     {
         return [
-            'message' => MessagePayload::from($this->message),
+            'conversation_id' => $this->conversationId,
+            'user_id' => $this->userId,
+            'read_at' => $this->readAt,
         ];
     }
 }

@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property-read Collection<int, MessageAttachment> $attachments
  * @property-read Conversation $conversation
+ * @property-read Collection<int, MessageReaction> $reactions
  * @property-read Collection<int, User> $readers
  * @property-read User|null $sender
  */
@@ -59,6 +60,16 @@ class Message extends Model
     public function readers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'message_reads')->withPivot('read_at');
+    }
+
+    /**
+     * Get reactions attached to this message.
+     *
+     * @return HasMany<MessageReaction, $this>
+     */
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(MessageReaction::class);
     }
 
     /**

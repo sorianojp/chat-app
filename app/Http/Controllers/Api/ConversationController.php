@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreConversationRequest;
 use App\Models\Conversation;
-use App\Models\Message;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\MessagePayload;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -79,7 +79,7 @@ class ConversationController extends Controller
             [],
         ));
 
-        $conversation->load(['latestMessage.attachments', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+        $conversation->load(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->loadCount('messages');
 
         return response()->json([
@@ -141,38 +141,10 @@ class ConversationController extends Controller
                 'email' => $participant->email,
                 'school_role' => $participant->school_role->value,
             ])->values(),
-            'latest_message' => $latestMessage ? $this->messagePayload($latestMessage) : null,
+            'latest_message' => $latestMessage ? MessagePayload::from($latestMessage, $userId) : null,
             'messages_count' => $conversation->messages_count,
             'unread_count' => 0,
             'last_message_at' => $conversation->last_message_at?->toISOString(),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function messagePayload(Message $message): array
-    {
-        return [
-            'id' => $message->id,
-            'conversation_id' => $message->conversation_id,
-            'sender' => $message->sender ? [
-                'id' => $message->sender->id,
-                'name' => $message->sender->name,
-                'school_role' => $message->sender->school_role->value,
-            ] : null,
-            'type' => $message->type,
-            'body' => $message->body,
-            'metadata' => $message->metadata,
-            'attachments' => $message->attachments->map(fn ($attachment) => [
-                'id' => $attachment->id,
-                'name' => $attachment->original_name,
-                'mime_type' => $attachment->mime_type,
-                'size' => $attachment->size,
-                'url' => $attachment->downloadUrl($message),
-                'preview_url' => $attachment->previewUrl($message),
-            ])->values(),
-            'created_at' => $message->created_at?->toISOString(),
         ];
     }
 }

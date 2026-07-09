@@ -1,7 +1,6 @@
 import { Head, usePage } from '@inertiajs/react';
 import { echo } from '@laravel/echo-react';
 import {
-    CheckCheck,
     Check,
     FileText,
     ImageIcon,
@@ -12,6 +11,7 @@ import {
     PencilLine,
     Search,
     Send,
+    Smile,
     UsersRound,
     Video,
     X,
@@ -63,7 +63,25 @@ type MessengerMessage = {
     body: string;
     metadata: Record<string, unknown> | null;
     attachments: MessageAttachment[];
+    reactions: MessageReactionSummary[];
+    read_by: MessageReadReceipt[];
     created_at: string | null;
+};
+
+type MessageReactionSummary = {
+    emoji: string;
+    count: number;
+    reacted_by_me: boolean;
+    users: {
+        id: number;
+        name: string;
+    }[];
+};
+
+type MessageReadReceipt = {
+    id: number;
+    name: string;
+    read_at: string;
 };
 
 type MessageAttachment = {
@@ -91,11 +109,24 @@ type MessageCreatedPayload = {
     message: MessengerMessage;
 };
 
+type MessageReactionUpdatedPayload = {
+    message_id: number;
+    reactions: MessageReactionSummary[];
+};
+
+type ConversationReadPayload = {
+    conversation_id: number;
+    user_id: number;
+    read_at: string | null;
+};
+
 type NewConversationPayload = {
     type: 'direct' | 'group';
     title: string | null;
     participant_ids: number[];
 };
+
+const REACTION_OPTIONS = ['👍', '❤️', '😂', '😮', '🙏', '✅'];
 
 export default function Messenger({
     apiBaseUrl,
@@ -122,6 +153,11 @@ export default function Messenger({
     );
     const [messageBody, setMessageBody] = useState('');
     const [search, setSearch] = useState('');
+    const [messageSearch, setMessageSearch] = useState('');
+    const [messageSearchResults, setMessageSearchResults] = useState<
+        MessengerMessage[]
+    >([]);
+    const [searchingMessages, setSearchingMessages] = useState(false);
     const [sending, setSending] = useState(false);
     const [composerOpen, setComposerOpen] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -150,6 +186,11 @@ export default function Messenger({
     const activeMessages = activeConversationId
         ? (messagesByConversation[activeConversationId] ?? [])
         : [];
+    const messageSearchTerm = messageSearch.trim();
+    const visibleMessages = messageSearchTerm
+        ? messageSearchResults
+        : activeMessages;
+    const seenMessageId = latestSeenMessageId(visibleMessages, auth.user.id);
     const filteredConversations = conversations.filter((conversation) =>
         conversation.display_name.toLowerCase().includes(search.toLowerCase()),
     );
@@ -201,6 +242,101 @@ export default function Messenger({
             ),
         );
     }, []);
+
+    const updateMessageReactions = useCallback(
+        (messageId: number, reactions: MessageReactionSummary[]) => {
+            const personalizedReactions = personalizeReactions(
+                reactions,
+                currentUserIdRef.current,
+            );
+
+            setMessagesByConversation((messages) =>
+                mapMessages(messages, (message) =>
+                    message.id === messageId
+                        ? {
+                              ...message,
+                              reactions: personalizedReactions,
+                          }
+                        : message,
+                ),
+            );
+            setMessageSearchResults((messages) =>
+                messages.map((message) =>
+                    message.id === messageId
+                        ? {
+                              ...message,
+                              reactions: personalizedReactions,
+                          }
+                        : message,
+                ),
+            );
+            setConversations((items) =>
+                items.map((conversation) =>
+                    conversation.latest_message?.id === messageId
+                        ? {
+                              ...conversation,
+                              latest_message: {
+                                  ...conversation.latest_message,
+                                  reactions: personalizedReactions,
+                              },
+                          }
+                        : conversation,
+                ),
+            );
+        },
+        [],
+    );
+
+    const applyConversationRead = useCallback(
+        (payload: ConversationReadPayload) => {
+            if (!payload.read_at) {
+                return;
+            }
+
+            const conversation = conversations.find(
+                (item) => item.id === payload.conversation_id,
+            );
+            const reader = conversation?.participants.find(
+                (participant) => participant.id === payload.user_id,
+            );
+
+            if (!reader) {
+                return;
+            }
+
+            const readAt = payload.read_at;
+
+            setMessagesByConversation((messages) =>
+                mapMessages(messages, (message) => {
+                    if (
+                        message.conversation_id !== payload.conversation_id ||
+                        message.sender?.id !== currentUserIdRef.current ||
+                        message.created_at === null ||
+                        new Date(message.created_at).getTime() >
+                            new Date(readAt).getTime() ||
+                        message.read_by.some(
+                            (receipt) => receipt.id === payload.user_id,
+                        )
+                    ) {
+                        return message;
+                    }
+
+                    return {
+                        ...message,
+                        read_by: [
+                            ...message.read_by,
+                            {
+                                id: reader.id,
+                                name: reader.name,
+                                read_at: readAt,
+                            },
+                        ],
+                    };
+                }),
+            );
+        },
+        [conversations],
+    );
 
     const selectConversation = (conversationId: number) => {
         setActiveConversationId(conversationId);
@@ -266,6 +402,21 @@ export default function Messenger({
                     (payload: MessageCreatedPayload) => {
                         appendMessage(payload.message);
                     },
+                )
+                .listen(
+                    '.message.reaction.updated',
+                    (payload: MessageReactionUpdatedPayload) => {
+                        updateMessageReactions(
+                            payload.message_id,
+                            payload.reactions,
+                        );
+                    },
+                )
+                .listen(
+                    '.conversation.read',
+                    (payload: ConversationReadPayload) => {
+                        applyConversationRead(payload);
+                    },
                 );
         });
 
@@ -274,7 +425,12 @@ export default function Messenger({
                 echo().leave(`conversations.${conversationId}`);
             });
         };
-    }, [appendMessage, conversationIdsKey]);
+    }, [
+        appendMessage,
+        applyConversationRead,
+        conversationIdsKey,
+        updateMessageReactions,
+    ]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -298,6 +454,26 @@ export default function Messenger({
 
         void fetchMessages(activeConversationId);
     }, [activeConversationId, apiBaseUrl]);
+
+    useEffect(() => {
+        setMessageSearch('');
+        setMessageSearchResults([]);
+    }, [activeConversationId]);
+
+    useEffect(() => {
+        if (!activeConversationId || !messageSearchTerm) {
+            setMessageSearchResults([]);
+            setSearchingMessages(false);
+
+            return;
+        }
+
+        const timeout = window.setTimeout(() => {
+            void searchMessages(activeConversationId, messageSearchTerm);
+        }, 250);
+
+        return () => window.clearTimeout(timeout);
+    }, [activeConversationId, messageSearchTerm]);
 
     const fetchMessages = async (conversationId: number) => {
         const response = await fetch(
@@ -347,6 +523,69 @@ export default function Messenger({
                 'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
             },
         });
+    };
+
+    const searchMessages = async (conversationId: number, query: string) => {
+        setSearchingMessages(true);
+
+        try {
+            const params = new URLSearchParams({ search: query });
+            const response = await fetch(
+                `${apiBaseUrl}/conversations/${conversationId}/messages?${params.toString()}`,
+                {
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = (await response.json()) as {
+                data: MessengerMessage[];
+            };
+
+            setMessageSearchResults([...payload.data].reverse());
+        } finally {
+            setSearchingMessages(false);
+        }
+    };
+
+    const toggleReaction = async (message: MessengerMessage, emoji: string) => {
+        const existingReaction = message.reactions.find(
+            (reaction) => reaction.reacted_by_me,
+        );
+        const removingSameReaction = existingReaction?.emoji === emoji;
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/reaction`,
+            {
+                method: removingSameReaction ? 'DELETE' : 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: removingSameReaction
+                    ? undefined
+                    : JSON.stringify({ emoji }),
+            },
+        );
+
+        if (!response.ok) {
+            return;
+        }
+
+        const payload = (await response.json()) as {
+            data: {
+                reactions: MessageReactionSummary[];
+            };
+        };
+
+        updateMessageReactions(message.id, payload.data.reactions);
     };
 
     const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
@@ -515,15 +754,47 @@ export default function Messenger({
                                 <ConversationHeader
                                     conversation={activeConversation}
                                 />
+                                <div className="border-b border-slate-200 bg-white px-4 py-3 md:px-6">
+                                    <label className="flex h-10 items-center gap-2 rounded-lg bg-slate-100 px-3 text-slate-400">
+                                        <Search className="size-4" />
+                                        <input
+                                            className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                                            onChange={(event) =>
+                                                setMessageSearch(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="Search messages"
+                                            type="search"
+                                            value={messageSearch}
+                                        />
+                                    </label>
+                                </div>
                                 <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 md:px-6">
-                                    {activeMessages.length > 0 ? (
-                                        activeMessages.map((message) => (
+                                    {visibleMessages.length > 0 ? (
+                                        visibleMessages.map((message) => (
                                             <MessageBubble
                                                 currentUserId={auth.user.id}
+                                                showSeen={
+                                                    message.id === seenMessageId
+                                                }
                                                 key={message.id}
                                                 message={message}
+                                                onReact={toggleReaction}
                                             />
                                         ))
+                                    ) : searchingMessages ? (
+                                        <EmptyState
+                                            icon={<Search className="size-6" />}
+                                            title="Searching messages"
+                                            body="Looking through this conversation."
+                                        />
+                                    ) : messageSearchTerm ? (
+                                        <EmptyState
+                                            icon={<Search className="size-6" />}
+                                            title="No messages found"
+                                            body="Try another word or file name."
+                                        />
                                     ) : (
                                         <EmptyState
                                             icon={
@@ -951,51 +1222,127 @@ function ChatDetails({ conversation }: { conversation: Conversation }) {
 function MessageBubble({
     currentUserId,
     message,
+    onReact,
+    showSeen,
 }: {
     currentUserId: number;
     message: MessengerMessage;
+    onReact: (message: MessengerMessage, emoji: string) => void;
+    showSeen: boolean;
 }) {
+    const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
     const mine = message.sender?.id === currentUserId;
+    const latestReadReceipt = message.read_by
+        .filter((receipt) => receipt.id !== currentUserId)
+        .sort(
+            (first, second) =>
+                new Date(second.read_at).getTime() -
+                new Date(first.read_at).getTime(),
+        )[0];
+    const handleReaction = (emoji: string) => {
+        onReact(message, emoji);
+        setReactionPickerOpen(false);
+    };
 
     return (
-        <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-            <div
-                className={`max-w-[min(72%,42rem)] rounded-2xl px-4 py-3 shadow-sm ${
-                    mine
-                        ? 'rounded-br-md bg-[#cfe8ff] text-slate-950'
-                        : 'rounded-bl-md bg-white text-slate-950'
-                }`}
-            >
-                {!mine && message.sender && (
-                    <p className="mb-1 text-xs font-semibold text-[#0054b8]">
-                        {message.sender.name}
-                    </p>
-                )}
-                {message.body && (
-                    <p className="text-sm leading-6 whitespace-pre-wrap">
-                        {message.body}
-                    </p>
-                )}
-                {message.attachments.length > 0 && (
+        <div
+            className={`group flex flex-col ${mine ? 'items-end' : 'items-start'}`}
+        >
+            <div className="relative">
+                <div
+                    className={`relative max-w-[min(72vw,42rem)] rounded-2xl px-4 py-3 shadow-sm ${
+                        mine
+                            ? 'rounded-br-md bg-[#cfe8ff] text-slate-950'
+                            : 'rounded-bl-md bg-white text-slate-950'
+                    } mb-3`}
+                >
+                    {!mine && message.sender && (
+                        <p className="mb-1 text-xs font-semibold text-[#0054b8]">
+                            {message.sender.name}
+                        </p>
+                    )}
+                    {message.body && (
+                        <p className="text-sm leading-6 whitespace-pre-wrap">
+                            {message.body}
+                        </p>
+                    )}
+                    {message.attachments.length > 0 && (
+                        <div
+                            className={
+                                message.body ? 'mt-3 space-y-2' : 'space-y-2'
+                            }
+                        >
+                            {message.attachments.map((attachment) => (
+                                <MessageAttachmentPreview
+                                    attachment={attachment}
+                                    key={attachment.id}
+                                    mine={mine}
+                                />
+                            ))}
+                        </div>
+                    )}
+                    <div className="mt-2 text-right text-[11px] text-slate-500">
+                        {formatTime(message.created_at)}
+                    </div>
+                    <div className="absolute -right-1 -bottom-3 flex max-w-[90%] flex-wrap justify-end gap-1">
+                        {message.reactions.map((reaction) => (
+                            <button
+                                aria-label={`Reacted with ${reaction.emoji}`}
+                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs shadow-sm ${
+                                    reaction.reacted_by_me
+                                        ? 'border-[#0054b8] bg-white text-[#0054b8]'
+                                        : 'border-slate-200 bg-white text-slate-600'
+                                }`}
+                                key={reaction.emoji}
+                                onClick={() => handleReaction(reaction.emoji)}
+                                title={reaction.users
+                                    .map((user) => user.name)
+                                    .join(', ')}
+                                type="button"
+                            >
+                                <span>{reaction.emoji}</span>
+                                <span>{reaction.count}</span>
+                            </button>
+                        ))}
+                        <button
+                            aria-label="Add reaction"
+                            className="grid size-7 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-100 shadow-sm transition hover:scale-105 hover:text-[#0054b8] md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                            onClick={() =>
+                                setReactionPickerOpen((open) => !open)
+                            }
+                            type="button"
+                        >
+                            <Smile className="size-3.5" />
+                        </button>
+                    </div>
+                </div>
+
+                {reactionPickerOpen && (
                     <div
-                        className={
-                            message.body ? 'mt-3 space-y-2' : 'space-y-2'
-                        }
+                        className={`absolute bottom-11 z-10 flex gap-1 rounded-full border border-slate-200 bg-white p-1.5 shadow-xl ${
+                            mine ? 'right-0' : 'left-0'
+                        }`}
                     >
-                        {message.attachments.map((attachment) => (
-                            <MessageAttachmentPreview
-                                attachment={attachment}
-                                key={attachment.id}
-                                mine={mine}
-                            />
+                        {REACTION_OPTIONS.map((emoji) => (
+                            <button
+                                aria-label={`React with ${emoji}`}
+                                className="grid size-9 place-items-center rounded-full text-lg transition hover:scale-125 hover:bg-slate-100"
+                                key={emoji}
+                                onClick={() => handleReaction(emoji)}
+                                type="button"
+                            >
+                                {emoji}
+                            </button>
                         ))}
                     </div>
                 )}
-                <div className="mt-2 flex items-center justify-end gap-1 text-[11px] text-slate-500">
-                    {formatTime(message.created_at)}
-                    {mine && <CheckCheck className="size-3.5 text-[#0054b8]" />}
-                </div>
             </div>
+
+            {showSeen && latestReadReceipt && (
+                <p className="mt-1 text-right text-[11px] font-medium text-slate-500">
+                    {formatSeenAt(latestReadReceipt.read_at)}
+                </p>
+            )}
         </div>
     );
 }
@@ -1229,6 +1576,73 @@ function formatFileSize(size: number) {
     }
 
     return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatSeenAt(value: string) {
+    const seconds = Math.max(
+        0,
+        Math.floor((Date.now() - new Date(value).getTime()) / 1000),
+    );
+
+    if (seconds < 60) {
+        return 'Seen Just Now';
+    }
+
+    const minutes = Math.floor(seconds / 60);
+
+    if (minutes < 60) {
+        return `Seen ${minutes} ${minutes === 1 ? 'Minute' : 'Minutes'} Ago`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) {
+        return `Seen ${hours} ${hours === 1 ? 'Hour' : 'Hours'} Ago`;
+    }
+
+    const days = Math.floor(hours / 24);
+
+    return `Seen ${days} ${days === 1 ? 'Day' : 'Days'} Ago`;
+}
+
+function latestSeenMessageId(
+    messages: MessengerMessage[],
+    currentUserId: number,
+) {
+    for (const message of [...messages].reverse()) {
+        if (
+            message.sender?.id === currentUserId &&
+            message.read_by.some((receipt) => receipt.id !== currentUserId)
+        ) {
+            return message.id;
+        }
+    }
+
+    return null;
+}
+
+function personalizeReactions(
+    reactions: MessageReactionSummary[],
+    currentUserId: number,
+) {
+    return reactions.map((reaction) => ({
+        ...reaction,
+        reacted_by_me: reaction.users.some((user) => user.id === currentUserId),
+    }));
+}
+
+function mapMessages(
+    messagesByConversation: Record<number, MessengerMessage[]>,
+    mapper: (message: MessengerMessage) => MessengerMessage,
+) {
+    return Object.fromEntries(
+        Object.entries(messagesByConversation).map(
+            ([conversationId, messages]) => [
+                conversationId,
+                messages.map(mapper),
+            ],
+        ),
+    );
 }
 
 function getCookie(name: string) {
