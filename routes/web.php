@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\MessageController as ApiMessageController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
@@ -13,6 +14,15 @@ Route::prefix('{current_team}')
     ->group(function () {
         Route::get('dashboard', fn (Team $current_team) => to_route('messenger', ['current_team' => $current_team->slug]))->name('dashboard');
         Route::get('messenger', MessengerController::class)->name('messenger');
+    });
+
+Route::prefix('teams/{team:slug}')
+    ->middleware(['auth', 'verified', EnsureTeamMembership::class])
+    ->group(function () {
+        Route::get('conversations/{conversation}/messages/{message}/attachments/{attachment}', [ApiMessageController::class, 'downloadAttachment'])
+            ->name('messenger.attachments.download');
+        Route::get('conversations/{conversation}/messages/{message}/attachments/{attachment}/preview', [ApiMessageController::class, 'previewAttachment'])
+            ->name('messenger.attachments.preview');
     });
 
 Route::middleware(['auth'])->group(function () {

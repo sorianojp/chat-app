@@ -82,10 +82,25 @@ class MessageController extends Controller
     public function downloadAttachment(Request $request, Team $team, Conversation $conversation, Message $message, MessageAttachment $attachment): StreamedResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
-        abort_unless($message->conversation_id === $conversation->id && $attachment->message_id === $message->id, 404);
-        abort_unless(Storage::disk($attachment->disk)->exists($attachment->path), 404);
+        $this->ensureAttachmentBelongsToMessage($conversation, $message, $attachment);
 
         return Storage::disk($attachment->disk)->download(
+            $attachment->path,
+            $attachment->original_name,
+            ['Content-Type' => $attachment->mime_type ?? 'application/octet-stream'],
+        );
+    }
+
+    /**
+     * Preview supported media attachments inside a conversation.
+     */
+    public function previewAttachment(Request $request, Team $team, Conversation $conversation, Message $message, MessageAttachment $attachment): StreamedResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureAttachmentBelongsToMessage($conversation, $message, $attachment);
+        abort_unless($attachment->isPreviewableMedia(), 404);
+
+        return Storage::disk($attachment->disk)->response(
             $attachment->path,
             $attachment->original_name,
             ['Content-Type' => $attachment->mime_type ?? 'application/octet-stream'],
@@ -112,6 +127,12 @@ class MessageController extends Controller
             && $conversation->participants()->whereKey($request->user()->id)->exists();
     }
 
+    private function ensureAttachmentBelongsToMessage(Conversation $conversation, Message $message, MessageAttachment $attachment): void
+    {
+        abort_unless($message->conversation_id === $conversation->id && $attachment->message_id === $message->id, 404);
+        abort_unless(Storage::disk($attachment->disk)->exists($attachment->path), 404);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -133,7 +154,8 @@ class MessageController extends Controller
                 'name' => $attachment->original_name,
                 'mime_type' => $attachment->mime_type,
                 'size' => $attachment->size,
-                'url' => url("/api/teams/{$message->conversation->team->slug}/conversations/{$message->conversation_id}/messages/{$message->id}/attachments/{$attachment->id}"),
+                'url' => $attachment->downloadUrl($message),
+                'preview_url' => $attachment->previewUrl($message),
             ])->values(),
             'created_at' => $message->created_at?->toISOString(),
         ];

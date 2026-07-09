@@ -23,6 +23,50 @@ use Illuminate\Support\Carbon;
 class MessageAttachment extends Model
 {
     /**
+     * Determine if the attachment can be previewed directly in the messenger.
+     */
+    public function isPreviewableMedia(): bool
+    {
+        return str_starts_with((string) $this->mime_type, 'image/')
+            || str_starts_with((string) $this->mime_type, 'video/')
+            || str_starts_with((string) $this->mime_type, 'audio/');
+    }
+
+    /**
+     * Get the authenticated download URL for the attachment.
+     */
+    public function downloadUrl(?Message $message = null): string
+    {
+        $message ??= $this->message;
+
+        return route('messenger.attachments.download', [
+            'team' => $message->conversation->team,
+            'conversation' => $message->conversation_id,
+            'message' => $message->id,
+            'attachment' => $this->id,
+        ]);
+    }
+
+    /**
+     * Get the authenticated inline preview URL for supported media.
+     */
+    public function previewUrl(?Message $message = null): ?string
+    {
+        if (! $this->isPreviewableMedia()) {
+            return null;
+        }
+
+        $message ??= $this->message;
+
+        return route('messenger.attachments.preview', [
+            'team' => $message->conversation->team,
+            'conversation' => $message->conversation_id,
+            'message' => $message->id,
+            'attachment' => $this->id,
+        ]);
+    }
+
+    /**
      * Get the message that owns the attachment.
      *
      * @return BelongsTo<Message, $this>

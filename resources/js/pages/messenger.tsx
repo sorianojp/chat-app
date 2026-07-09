@@ -4,13 +4,16 @@ import {
     CheckCheck,
     Check,
     FileText,
+    ImageIcon,
     Info,
     MessageCircle,
+    Mic,
     Paperclip,
     PencilLine,
     Search,
     Send,
     UsersRound,
+    Video,
     X,
 } from 'lucide-react';
 import {
@@ -69,6 +72,7 @@ type MessageAttachment = {
     mime_type: string | null;
     size: number;
     url: string;
+    preview_url: string | null;
 };
 
 type Props = {
@@ -979,29 +983,11 @@ function MessageBubble({
                         }
                     >
                         {message.attachments.map((attachment) => (
-                            <a
-                                className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
-                                    mine
-                                        ? 'border-sky-200 bg-white/60 hover:bg-white'
-                                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
-                                }`}
-                                href={attachment.url}
+                            <MessageAttachmentPreview
+                                attachment={attachment}
                                 key={attachment.id}
-                                rel="noreferrer"
-                                target="_blank"
-                            >
-                                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-[#0054b8]">
-                                    <FileText className="size-4" />
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-sm font-medium">
-                                        {attachment.name}
-                                    </span>
-                                    <span className="block text-xs text-slate-500">
-                                        {formatFileSize(attachment.size)}
-                                    </span>
-                                </span>
-                            </a>
+                                mine={mine}
+                            />
                         ))}
                     </div>
                 )}
@@ -1011,6 +997,127 @@ function MessageBubble({
                 </div>
             </div>
         </div>
+    );
+}
+
+function MessageAttachmentPreview({
+    attachment,
+    mine,
+}: {
+    attachment: MessageAttachment;
+    mine: boolean;
+}) {
+    const mimeType = attachment.mime_type ?? '';
+    const canPreview = attachment.preview_url !== null;
+    const isImage = canPreview && mimeType.startsWith('image/');
+    const isVideo = canPreview && mimeType.startsWith('video/');
+    const isAudio = canPreview && mimeType.startsWith('audio/');
+    const shellClass = mine
+        ? 'border-sky-200 bg-white/60'
+        : 'border-slate-200 bg-slate-50';
+
+    if (isImage) {
+        return (
+            <div className="space-y-1.5">
+                <a
+                    className={`block overflow-hidden rounded-xl border ${shellClass}`}
+                    href={attachment.preview_url ?? attachment.url}
+                    rel="noreferrer"
+                    target="_blank"
+                >
+                    <img
+                        alt={attachment.name}
+                        className="max-h-80 w-full object-contain"
+                        loading="lazy"
+                        src={attachment.preview_url ?? attachment.url}
+                    />
+                </a>
+                <AttachmentCaption
+                    attachment={attachment}
+                    icon={<ImageIcon className="size-3.5" />}
+                />
+            </div>
+        );
+    }
+
+    if (isVideo) {
+        return (
+            <div className="space-y-1.5">
+                <video
+                    className={`max-h-80 w-full rounded-xl border ${shellClass}`}
+                    controls
+                    preload="metadata"
+                    src={attachment.preview_url ?? attachment.url}
+                />
+                <AttachmentCaption
+                    attachment={attachment}
+                    icon={<Video className="size-3.5" />}
+                />
+            </div>
+        );
+    }
+
+    if (isAudio) {
+        return (
+            <div className={`rounded-xl border px-3 py-2 ${shellClass}`}>
+                <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-600">
+                    <Mic className="size-3.5 text-[#0054b8]" />
+                    <span className="min-w-0 truncate">{attachment.name}</span>
+                </div>
+                <audio
+                    className="w-full"
+                    controls
+                    preload="metadata"
+                    src={attachment.preview_url ?? attachment.url}
+                />
+            </div>
+        );
+    }
+
+    return (
+        <a
+            className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
+                mine
+                    ? 'border-sky-200 bg-white/60 hover:bg-white'
+                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+            }`}
+            href={attachment.url}
+            rel="noreferrer"
+            target="_blank"
+        >
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-[#0054b8]">
+                <FileText className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">
+                    {attachment.name}
+                </span>
+                <span className="block text-xs text-slate-500">
+                    {formatFileSize(attachment.size)}
+                </span>
+            </span>
+        </a>
+    );
+}
+
+function AttachmentCaption({
+    attachment,
+    icon,
+}: {
+    attachment: MessageAttachment;
+    icon: React.ReactNode;
+}) {
+    return (
+        <a
+            className="flex max-w-full items-center gap-1.5 text-xs text-slate-500 hover:text-[#0054b8]"
+            href={attachment.url}
+            rel="noreferrer"
+            target="_blank"
+        >
+            {icon}
+            <span className="min-w-0 truncate">{attachment.name}</span>
+            <span className="shrink-0">{formatFileSize(attachment.size)}</span>
+        </a>
     );
 }
 

@@ -48,7 +48,16 @@ test('conversation participants can send messages with attachments', function ()
         ->assertJsonPath('data.attachments.0.name', 'report.pdf')
         ->assertJsonPath('data.attachments.0.mime_type', 'application/pdf');
 
-    $attachment = Message::firstOrFail()->attachments()->firstOrFail();
+    $message = Message::firstOrFail();
+    $attachment = $message->attachments()->firstOrFail();
+
+    expect($response->json('data.attachments.0.url'))->toBe(route('messenger.attachments.download', [
+        'team' => $team,
+        'conversation' => $conversation,
+        'message' => $message,
+        'attachment' => $attachment,
+    ]));
+    expect($response->json('data.attachments.0.preview_url'))->toBeNull();
 
     Storage::disk('local')->assertExists($attachment->path);
 });
@@ -103,11 +112,60 @@ test('attachment downloads require conversation access', function () {
 
     $this
         ->actingAs($recipient)
-        ->get("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}/attachments/{$attachment->id}")
+        ->get(route('messenger.attachments.download', [
+            'team' => $team,
+            'conversation' => $conversation,
+            'message' => $message,
+            'attachment' => $attachment,
+        ]))
         ->assertOk();
 
     $this
         ->actingAs($outsider)
-        ->get("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}/attachments/{$attachment->id}")
+        ->get(route('messenger.attachments.download', [
+            'team' => $team,
+            'conversation' => $conversation,
+            'message' => $message,
+            'attachment' => $attachment,
+        ]))
         ->assertForbidden();
+});
+
+test('media attachments include an inline preview url', function () {
+    Storage::fake('local');
+
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForUsers($sender, $recipient, $team);
+
+    $response = $this
+        ->actingAs($sender)
+        ->post("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'attachments' => [
+                UploadedFile::fake()->create('voice.mp3', 16, 'audio/mpeg'),
+            ],
+        ]);
+
+    $message = Message::firstOrFail();
+    $attachment = $message->attachments()->firstOrFail();
+
+    expect($response->json('data.attachments.0.preview_url'))->toBe(route('messenger.attachments.preview', [
+        'team' => $team,
+        'conversation' => $conversation,
+        'message' => $message,
+        'attachment' => $attachment,
+    ]));
+
+    $preview = $this
+        ->actingAs($recipient)
+        ->get(route('messenger.attachments.preview', [
+            'team' => $team,
+            'conversation' => $conversation,
+            'message' => $message,
+            'attachment' => $attachment,
+        ]));
+
+    $preview->assertOk();
+    expect($preview->headers->get('content-disposition'))->toContain('inline');
 });
