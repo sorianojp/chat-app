@@ -15,7 +15,7 @@ class MessageCreated implements ShouldBroadcastNow
 
     public function __construct(public Message $message)
     {
-        $this->message->loadMissing(['conversation', 'sender']);
+        $this->message->loadMissing(['attachments', 'conversation.team', 'sender']);
     }
 
     /**
@@ -52,10 +52,18 @@ class MessageCreated implements ShouldBroadcastNow
                 'sender' => $this->message->sender ? [
                     'id' => $this->message->sender->id,
                     'name' => $this->message->sender->name,
+                    'school_role' => $this->message->sender->school_role->value,
                 ] : null,
                 'type' => $this->message->type,
                 'body' => $this->message->body,
                 'metadata' => $this->message->metadata,
+                'attachments' => $this->message->attachments->map(fn ($attachment) => [
+                    'id' => $attachment->id,
+                    'name' => $attachment->original_name,
+                    'mime_type' => $attachment->mime_type,
+                    'size' => $attachment->size,
+                    'url' => url("/api/teams/{$this->message->conversation->team->slug}/conversations/{$this->message->conversation_id}/messages/{$this->message->id}/attachments/{$attachment->id}"),
+                ])->values(),
                 'created_at' => $this->message->created_at?->toISOString(),
             ],
         ];

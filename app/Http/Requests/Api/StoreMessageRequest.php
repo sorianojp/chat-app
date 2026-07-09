@@ -22,9 +22,11 @@ class StoreMessageRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'body' => ['required', 'string', 'max:5000'],
+            'body' => ['nullable', 'required_without:attachments', 'string', 'max:5000'],
             'type' => ['nullable', 'string', 'max:40'],
             'metadata' => ['nullable', 'array'],
+            'attachments' => ['nullable', 'array', 'max:5'],
+            'attachments.*' => ['file', 'max:10240'],
         ];
     }
 }

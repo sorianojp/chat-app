@@ -3,6 +3,7 @@ import { echo } from '@laravel/echo-react';
 import {
     CheckCheck,
     Check,
+    FileText,
     Info,
     MessageCircle,
     Paperclip,
@@ -58,7 +59,16 @@ type MessengerMessage = {
     type: string;
     body: string;
     metadata: Record<string, unknown> | null;
+    attachments: MessageAttachment[];
     created_at: string | null;
+};
+
+type MessageAttachment = {
+    id: number;
+    name: string;
+    mime_type: string | null;
+    size: number;
+    url: string;
 };
 
 type Props = {
@@ -110,6 +120,8 @@ export default function Messenger({
     const [search, setSearch] = useState('');
     const [sending, setSending] = useState(false);
     const [composerOpen, setComposerOpen] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const activeConversationIdRef = useRef(activeConversationId);
     const currentUserIdRef = useRef(auth.user.id);
@@ -336,13 +348,27 @@ export default function Messenger({
     const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        if (!activeConversationId || !messageBody.trim() || sending) {
+        if (
+            !activeConversationId ||
+            (!messageBody.trim() && selectedFiles.length === 0) ||
+            sending
+        ) {
             return;
         }
 
         setSending(true);
 
         try {
+            const formData = new FormData();
+
+            if (messageBody.trim()) {
+                formData.append('body', messageBody.trim());
+            }
+
+            selectedFiles.forEach((file) => {
+                formData.append('attachments[]', file);
+            });
+
             const response = await fetch(
                 `${apiBaseUrl}/conversations/${activeConversationId}/messages`,
                 {
@@ -350,12 +376,9 @@ export default function Messenger({
                     credentials: 'same-origin',
                     headers: {
                         Accept: 'application/json',
-                        'Content-Type': 'application/json',
                         'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
                     },
-                    body: JSON.stringify({
-                        body: messageBody.trim(),
-                    }),
+                    body: formData,
                 },
             );
 
@@ -369,6 +392,11 @@ export default function Messenger({
 
             appendMessage(payload.data);
             setMessageBody('');
+            setSelectedFiles([]);
+
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         } finally {
             setSending(false);
         }
@@ -455,8 +483,9 @@ export default function Messenger({
                                                 )}
                                             </div>
                                             <p className="mt-1 truncate text-xs text-slate-500">
-                                                {conversation.latest_message
-                                                    ?.body ?? 'No messages yet'}
+                                                {conversationPreview(
+                                                    conversation.latest_message,
+                                                )}
                                             </p>
                                             <p className="mt-2 text-[11px] font-medium text-slate-400">
                                                 {formatTime(
@@ -503,34 +532,103 @@ export default function Messenger({
                                     <div ref={messagesEndRef} />
                                 </div>
                                 <form
-                                    className="flex shrink-0 items-center gap-3 border-t border-slate-200 bg-white p-4"
+                                    className="shrink-0 border-t border-slate-200 bg-white p-4"
                                     onSubmit={sendMessage}
                                 >
-                                    <button
-                                        aria-label="Attach file"
-                                        className="grid size-10 place-items-center rounded-full text-slate-400 hover:bg-slate-100"
-                                        type="button"
-                                    >
-                                        <Paperclip className="size-5" />
-                                    </button>
-                                    <input
-                                        className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm transition outline-none focus:border-[#0054b8] focus:bg-white"
-                                        onChange={(event) =>
-                                            setMessageBody(event.target.value)
-                                        }
-                                        placeholder="Type a message..."
-                                        value={messageBody}
-                                    />
-                                    <button
-                                        aria-label="Send message"
-                                        className="grid size-11 place-items-center rounded-full bg-[#0054b8] text-white shadow-sm transition hover:bg-[#004996] disabled:cursor-not-allowed disabled:bg-slate-300"
-                                        disabled={
-                                            !messageBody.trim() || sending
-                                        }
-                                        type="submit"
-                                    >
-                                        <Send className="size-5" />
-                                    </button>
+                                    {selectedFiles.length > 0 && (
+                                        <div className="mb-3 flex flex-wrap gap-2">
+                                            {selectedFiles.map(
+                                                (file, index) => (
+                                                    <span
+                                                        className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700"
+                                                        key={`${file.name}-${file.lastModified}-${index}`}
+                                                    >
+                                                        <FileText className="size-3.5 shrink-0" />
+                                                        <span className="max-w-48 truncate">
+                                                            {file.name}
+                                                        </span>
+                                                        <span className="text-slate-400">
+                                                            {formatFileSize(
+                                                                file.size,
+                                                            )}
+                                                        </span>
+                                                        <button
+                                                            aria-label={`Remove ${file.name}`}
+                                                            className="grid size-5 place-items-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                                                            onClick={() =>
+                                                                setSelectedFiles(
+                                                                    (files) =>
+                                                                        files.filter(
+                                                                            (
+                                                                                _file,
+                                                                                fileIndex,
+                                                                            ) =>
+                                                                                fileIndex !==
+                                                                                index,
+                                                                        ),
+                                                                )
+                                                            }
+                                                            type="button"
+                                                        >
+                                                            <X className="size-3" />
+                                                        </button>
+                                                    </span>
+                                                ),
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            className="sr-only"
+                                            multiple
+                                            onChange={(event) =>
+                                                setSelectedFiles((files) =>
+                                                    [
+                                                        ...files,
+                                                        ...Array.from(
+                                                            event.target
+                                                                .files ?? [],
+                                                        ),
+                                                    ].slice(0, 5),
+                                                )
+                                            }
+                                            ref={fileInputRef}
+                                            type="file"
+                                        />
+                                        <button
+                                            aria-label="Attach file"
+                                            className="grid size-10 place-items-center rounded-full text-slate-400 hover:bg-slate-100"
+                                            onClick={() =>
+                                                fileInputRef.current?.click()
+                                            }
+                                            type="button"
+                                        >
+                                            <Paperclip className="size-5" />
+                                        </button>
+                                        <input
+                                            className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm transition outline-none focus:border-[#0054b8] focus:bg-white"
+                                            onChange={(event) =>
+                                                setMessageBody(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="Type a message..."
+                                            value={messageBody}
+                                        />
+                                        <button
+                                            aria-label="Send message"
+                                            className="grid size-11 place-items-center rounded-full bg-[#0054b8] text-white shadow-sm transition hover:bg-[#004996] disabled:cursor-not-allowed disabled:bg-slate-300"
+                                            disabled={
+                                                (!messageBody.trim() &&
+                                                    selectedFiles.length ===
+                                                        0) ||
+                                                sending
+                                            }
+                                            type="submit"
+                                        >
+                                            <Send className="size-5" />
+                                        </button>
+                                    </div>
                                 </form>
                             </>
                         ) : (
@@ -869,9 +967,44 @@ function MessageBubble({
                         {message.sender.name}
                     </p>
                 )}
-                <p className="text-sm leading-6 whitespace-pre-wrap">
-                    {message.body}
-                </p>
+                {message.body && (
+                    <p className="text-sm leading-6 whitespace-pre-wrap">
+                        {message.body}
+                    </p>
+                )}
+                {message.attachments.length > 0 && (
+                    <div
+                        className={
+                            message.body ? 'mt-3 space-y-2' : 'space-y-2'
+                        }
+                    >
+                        {message.attachments.map((attachment) => (
+                            <a
+                                className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
+                                    mine
+                                        ? 'border-sky-200 bg-white/60 hover:bg-white'
+                                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                                }`}
+                                href={attachment.url}
+                                key={attachment.id}
+                                rel="noreferrer"
+                                target="_blank"
+                            >
+                                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-[#0054b8]">
+                                    <FileText className="size-4" />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-medium">
+                                        {attachment.name}
+                                    </span>
+                                    <span className="block text-xs text-slate-500">
+                                        {formatFileSize(attachment.size)}
+                                    </span>
+                                </span>
+                            </a>
+                        ))}
+                    </div>
+                )}
                 <div className="mt-2 flex items-center justify-end gap-1 text-[11px] text-slate-500">
                     {formatTime(message.created_at)}
                     {mine && <CheckCheck className="size-3.5 text-[#0054b8]" />}
@@ -957,6 +1090,38 @@ function formatTime(value: string | null) {
         hour: 'numeric',
         minute: '2-digit',
     }).format(new Date(value));
+}
+
+function conversationPreview(message: MessengerMessage | null) {
+    if (!message) {
+        return 'No messages yet';
+    }
+
+    if (message.body) {
+        return message.body;
+    }
+
+    if (message.attachments.length === 1) {
+        return `Attachment: ${message.attachments[0].name}`;
+    }
+
+    if (message.attachments.length > 1) {
+        return `${message.attachments.length} attachments`;
+    }
+
+    return 'No messages yet';
+}
+
+function formatFileSize(size: number) {
+    if (size < 1024) {
+        return `${size} B`;
+    }
+
+    if (size < 1024 * 1024) {
+        return `${(size / 1024).toFixed(1)} KB`;
+    }
+
+    return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function getCookie(name: string) {

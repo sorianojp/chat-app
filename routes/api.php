@@ -17,6 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('conversations/{conversation}', [ConversationController::class, 'show']);
         Route::get('conversations/{conversation}/messages', [MessageController::class, 'index']);
         Route::post('conversations/{conversation}/messages', [MessageController::class, 'store']);
+        Route::get('conversations/{conversation}/messages/{message}/attachments/{attachment}', [MessageController::class, 'downloadAttachment']);
         Route::patch('conversations/{conversation}/read', [MessageController::class, 'markRead']);
 
         Route::get('notices', [NoticeController::class, 'index']);

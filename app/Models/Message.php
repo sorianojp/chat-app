@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -20,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
+ * @property-read Collection<int, MessageAttachment> $attachments
  * @property-read Conversation $conversation
  * @property-read Collection<int, User> $readers
  * @property-read User|null $sender
@@ -57,6 +59,16 @@ class Message extends Model
     public function readers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'message_reads')->withPivot('read_at');
+    }
+
+    /**
+     * Get the files attached to this message.
+     *
+     * @return HasMany<MessageAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(MessageAttachment::class);
     }
 
     /**

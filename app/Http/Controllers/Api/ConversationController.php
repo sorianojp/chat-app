@@ -79,7 +79,7 @@ class ConversationController extends Controller
             [],
         ));
 
-        $conversation->load(['latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+        $conversation->load(['latestMessage.attachments', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->loadCount('messages');
 
         return response()->json([
@@ -164,6 +164,13 @@ class ConversationController extends Controller
             'type' => $message->type,
             'body' => $message->body,
             'metadata' => $message->metadata,
+            'attachments' => $message->attachments->map(fn ($attachment) => [
+                'id' => $attachment->id,
+                'name' => $attachment->original_name,
+                'mime_type' => $attachment->mime_type,
+                'size' => $attachment->size,
+                'url' => url("/api/teams/{$message->conversation->team->slug}/conversations/{$message->conversation_id}/messages/{$message->id}/attachments/{$attachment->id}"),
+            ])->values(),
             'created_at' => $message->created_at?->toISOString(),
         ];
     }

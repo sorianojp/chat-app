@@ -22,7 +22,7 @@ class MessengerController extends Controller
 
         $conversations = $user->conversations()
             ->where('conversations.team_id', $current_team->id)
-            ->with(['latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+            ->with(['latestMessage.attachments', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->withCount('messages')
             ->orderByDesc('last_message_at')
             ->orderByDesc('conversations.updated_at')
@@ -37,7 +37,7 @@ class MessengerController extends Controller
         $messages = $activeConversationId
             ? Message::query()
                 ->where('conversation_id', $activeConversationId)
-                ->with(['sender:id,name,school_role'])
+                ->with(['attachments', 'conversation.team', 'sender:id,name,school_role'])
                 ->oldest()
                 ->limit(80)
                 ->get()
@@ -125,6 +125,13 @@ class MessengerController extends Controller
             'type' => $message->type,
             'body' => $message->body,
             'metadata' => $message->metadata,
+            'attachments' => $message->attachments->map(fn ($attachment) => [
+                'id' => $attachment->id,
+                'name' => $attachment->original_name,
+                'mime_type' => $attachment->mime_type,
+                'size' => $attachment->size,
+                'url' => url("/api/teams/{$message->conversation->team->slug}/conversations/{$message->conversation_id}/messages/{$message->id}/attachments/{$attachment->id}"),
+            ])->values(),
             'created_at' => $message->created_at?->toISOString(),
         ];
     }
