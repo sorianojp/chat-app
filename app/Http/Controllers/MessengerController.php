@@ -63,6 +63,7 @@ class MessengerController extends Controller
                     'school_role' => $contact->school_role->value,
                 ]),
             'conversations' => $conversations,
+            'initialConversationId' => $activeConversationId,
             'initialMessages' => $messages,
         ]);
     }

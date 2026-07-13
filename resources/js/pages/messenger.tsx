@@ -36,6 +36,13 @@ type Participant = {
 
 type Contact = Participant;
 
+type PresenceUser = Participant;
+
+type TypingUser = {
+    id: number;
+    name: string;
+};
+
 type Conversation = {
     id: number;
     type: 'direct' | 'group' | 'announcement';
@@ -135,6 +142,7 @@ type Props = {
     };
     contacts: Contact[];
     conversations: Conversation[];
+    initialConversationId: number | null;
     initialMessages: MessengerMessage[];
 };
 
@@ -153,6 +161,27 @@ type ConversationReadPayload = {
     read_at: string | null;
 };
 
+type TypingPayload = {
+    id: number;
+    name: string;
+    typing: boolean;
+};
+
+type TypingChannel = {
+    listenForWhisper: (
+        event: string,
+        callback: (payload: TypingPayload) => void,
+    ) => TypingChannel;
+    stopListeningForWhisper: (
+        event: string,
+        callback?: (payload: TypingPayload) => void,
+    ) => TypingChannel;
+    whisper: (
+        event: string,
+        payload: Record<string, boolean | number | string>,
+    ) => TypingChannel;
+};
+
 type NewConversationPayload = {
     type: 'direct' | 'group';
     title: string | null;
@@ -160,6 +189,8 @@ type NewConversationPayload = {
 };
 
 const REACTION_OPTIONS = ['👍', '❤️', '😂', '😮', '🙏', '✅'];
+const TYPING_IDLE_MS = 3000;
+const TYPING_WHISPER_INTERVAL_MS = 1200;
 const EMPTY_SHARED_CONTENT: SharedContent = {
     media: [],
     files: [],
@@ -170,12 +201,11 @@ export default function Messenger({
     apiBaseUrl,
     contacts,
     conversations: initialConversations,
+    initialConversationId,
     initialMessages,
     workspace,
 }: Props) {
     const { auth } = usePage<{ auth: { user: User } }>().props;
-    const initialConversationId =
-        getConversationIdFromUrl(initialConversations);
     const [conversations, setConversations] = useState(initialConversations);
     const [activeConversationId, setActiveConversationId] = useState<
         number | null
@@ -200,6 +230,11 @@ export default function Messenger({
         useState<Record<number, SharedContent>>({});
     const [loadingSharedConversationId, setLoadingSharedConversationId] =
         useState<number | null>(null);
+    const [onlineUserIds, setOnlineUserIds] = useState<number[]>([]);
+    const [typingUsersByConversation, setTypingUsersByConversation] = useState<
+        Record<number, Record<number, TypingUser>>
+    >({});
+    const [hasHydrated, setHasHydrated] = useState(false);
     const [sending, setSending] = useState(false);
     const [composerOpen, setComposerOpen] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -217,6 +252,10 @@ export default function Messenger({
                 : [],
         ),
     );
+    const lastTypingWhisperAtRef = useRef(0);
+    const ownTypingStopTimeoutRef = useRef<number | null>(null);
+    const activeTypingChannelRef = useRef<TypingChannel | null>(null);
+    const typingTimeoutsRef = useRef<Record<string, number>>({});
 
     const activeConversation = useMemo(
         () =>
@@ -240,6 +279,13 @@ export default function Messenger({
     const loadingSharedContent =
         activeConversationId !== null &&
         loadingSharedConversationId === activeConversationId;
+    const onlineUserIdsSet = useMemo(
+        () => new Set(onlineUserIds),
+        [onlineUserIds],
+    );
+    const activeTypingUsers = activeConversationId
+        ? Object.values(typingUsersByConversation[activeConversationId] ?? {})
+        : [];
     const filteredConversations = conversations.filter((conversation) =>
         conversation.display_name.toLowerCase().includes(search.toLowerCase()),
     );
@@ -251,6 +297,105 @@ export default function Messenger({
                 .join(','),
         [conversations],
     );
+
+    const removeTypingUser = useCallback(
+        (conversationId: number, userId: number) => {
+            const key = typingTimeoutKey(conversationId, userId);
+            const timeout = typingTimeoutsRef.current[key];
+
+            if (timeout) {
+                window.clearTimeout(timeout);
+                delete typingTimeoutsRef.current[key];
+            }
+
+            setTypingUsersByConversation((typingUsers) => {
+                const conversationTypingUsers =
+                    typingUsers[conversationId] ?? {};
+
+                if (!conversationTypingUsers[userId]) {
+                    return typingUsers;
+                }
+
+                const nextConversationTypingUsers = {
+                    ...conversationTypingUsers,
+                };
+                delete nextConversationTypingUsers[userId];
+
+                return {
+                    ...typingUsers,
+                    [conversationId]: nextConversationTypingUsers,
+                };
+            });
+        },
+        [],
+    );
+
+    const whisperTyping = useCallback(
+        (conversationId: number, typing: boolean) => {
+            if (conversationId !== activeConversationIdRef.current) {
+                return;
+            }
+
+            activeTypingChannelRef.current?.whisper('typing', {
+                id: auth.user.id,
+                name: auth.user.name,
+                typing,
+            });
+        },
+        [auth.user.id, auth.user.name],
+    );
+
+    const stopOwnTyping = useCallback(
+        (conversationId: number | null = activeConversationIdRef.current) => {
+            if (ownTypingStopTimeoutRef.current) {
+                window.clearTimeout(ownTypingStopTimeoutRef.current);
+                ownTypingStopTimeoutRef.current = null;
+            }
+
+            lastTypingWhisperAtRef.current = 0;
+
+            if (conversationId) {
+                whisperTyping(conversationId, false);
+            }
+        },
+        [whisperTyping],
+    );
+
+    useEffect(() => {
+        setHasHydrated(true);
+    }, []);
+
+    const handleMessageBodyChange = (value: string) => {
+        setMessageBody(value);
+
+        if (!activeConversationId) {
+            return;
+        }
+
+        if (!value.trim()) {
+            stopOwnTyping(activeConversationId);
+
+            return;
+        }
+
+        const now = Date.now();
+
+        if (
+            now - lastTypingWhisperAtRef.current >=
+            TYPING_WHISPER_INTERVAL_MS
+        ) {
+            whisperTyping(activeConversationId, true);
+            lastTypingWhisperAtRef.current = now;
+        }
+
+        if (ownTypingStopTimeoutRef.current) {
+            window.clearTimeout(ownTypingStopTimeoutRef.current);
+        }
+
+        ownTypingStopTimeoutRef.current = window.setTimeout(() => {
+            stopOwnTyping(activeConversationId);
+        }, TYPING_IDLE_MS);
+    };
 
     const appendMessage = useCallback((message: MessengerMessage) => {
         const isActive =
@@ -388,6 +533,7 @@ export default function Messenger({
     );
 
     const selectConversation = (conversationId: number) => {
+        stopOwnTyping(activeConversationIdRef.current);
         setActiveConversationId(conversationId);
         window.history.replaceState(
             {},
@@ -434,6 +580,107 @@ export default function Messenger({
     }, [activeConversationId]);
 
     useEffect(() => {
+        const channel = echo<'reverb'>().join(`teams.${workspace.id}.presence`);
+
+        channel
+            .here((users: PresenceUser[]) => {
+                setOnlineUserIds(uniqueUserIds(users.map((user) => user.id)));
+            })
+            .joining((user: PresenceUser) => {
+                setOnlineUserIds((ids) => uniqueUserIds([...ids, user.id]));
+            })
+            .leaving((user: PresenceUser) => {
+                setOnlineUserIds((ids) =>
+                    ids.filter((userId) => userId !== user.id),
+                );
+            });
+
+        return () => {
+            echo<'reverb'>().leave(`teams.${workspace.id}.presence`);
+        };
+    }, [workspace.id]);
+
+    useEffect(() => {
+        if (!activeConversationId) {
+            return;
+        }
+
+        const conversationId = activeConversationId;
+        const channel = echo<'reverb'>().join(
+            `conversations.${conversationId}`,
+        ) as TypingChannel;
+        const handleTyping = (payload: TypingPayload) => {
+            if (!payload.id || payload.id === auth.user.id) {
+                return;
+            }
+
+            if (!payload.typing) {
+                removeTypingUser(conversationId, payload.id);
+
+                return;
+            }
+
+            const key = typingTimeoutKey(conversationId, payload.id);
+            const existingTimeout = typingTimeoutsRef.current[key];
+
+            if (existingTimeout) {
+                window.clearTimeout(existingTimeout);
+            }
+
+            setTypingUsersByConversation((typingUsers) => ({
+                ...typingUsers,
+                [conversationId]: {
+                    ...(typingUsers[conversationId] ?? {}),
+                    [payload.id]: {
+                        id: payload.id,
+                        name: payload.name,
+                    },
+                },
+            }));
+
+            typingTimeoutsRef.current[key] = window.setTimeout(() => {
+                removeTypingUser(conversationId, payload.id);
+            }, TYPING_IDLE_MS);
+        };
+
+        activeTypingChannelRef.current = channel;
+        channel.listenForWhisper('typing', handleTyping);
+
+        return () => {
+            if (activeTypingChannelRef.current === channel) {
+                activeTypingChannelRef.current = null;
+            }
+
+            channel.stopListeningForWhisper('typing', handleTyping);
+            echo<'reverb'>().leaveChannel(
+                `presence-conversations.${conversationId}`,
+            );
+            setTypingUsersByConversation((typingUsers) => {
+                const nextTypingUsers = { ...typingUsers };
+                delete nextTypingUsers[conversationId];
+
+                return nextTypingUsers;
+            });
+
+            Object.keys(typingTimeoutsRef.current)
+                .filter((key) => key.startsWith(`${conversationId}:`))
+                .forEach((key) => {
+                    window.clearTimeout(typingTimeoutsRef.current[key]);
+                    delete typingTimeoutsRef.current[key];
+                });
+        };
+    }, [activeConversationId, auth.user.id, removeTypingUser]);
+
+    useEffect(() => {
+        return () => {
+            stopOwnTyping(activeConversationIdRef.current);
+            Object.values(typingTimeoutsRef.current).forEach((timeout) => {
+                window.clearTimeout(timeout);
+            });
+        };
+    }, [stopOwnTyping]);
+
+    useEffect(() => {
         const conversationIds = conversationIdsKey
             .split(',')
             .filter(Boolean)
@@ -471,7 +718,7 @@ export default function Messenger({
 
         return () => {
             conversationIds.forEach((conversationId) => {
-                echo().leave(`conversations.${conversationId}`);
+                echo().leaveChannel(`private-conversations.${conversationId}`);
             });
         };
     }, [
@@ -728,6 +975,7 @@ export default function Messenger({
             appendMessage(payload.data);
             setMessageBody('');
             setSelectedFiles([]);
+            stopOwnTyping(activeConversationId);
 
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
@@ -785,51 +1033,83 @@ export default function Messenger({
                         </div>
                         <div className="min-h-0 flex-1 overflow-y-auto">
                             {filteredConversations.length > 0 ? (
-                                filteredConversations.map((conversation) => (
-                                    <button
-                                        className={`flex w-full gap-3 border-b border-slate-100 px-4 py-4 text-left transition ${
-                                            conversation.id ===
-                                            activeConversationId
-                                                ? 'bg-sky-50'
-                                                : 'bg-white hover:bg-slate-50'
-                                        }`}
-                                        key={conversation.id}
-                                        onClick={() =>
-                                            selectConversation(conversation.id)
-                                        }
-                                        type="button"
-                                    >
-                                        <Avatar
-                                            label={conversation.display_name}
-                                            type={conversation.type}
-                                        />
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <p className="truncate text-sm font-semibold text-slate-950">
-                                                    {conversation.display_name}
-                                                </p>
-                                                {conversation.unread_count >
-                                                    0 && (
-                                                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#0054b8] text-[10px] font-bold text-white">
+                                filteredConversations.map((conversation) => {
+                                    const typingUsers = Object.values(
+                                        typingUsersByConversation[
+                                            conversation.id
+                                        ] ?? {},
+                                    );
+
+                                    return (
+                                        <button
+                                            className={`flex w-full gap-3 border-b border-slate-100 px-4 py-4 text-left transition ${
+                                                conversation.id ===
+                                                activeConversationId
+                                                    ? 'bg-sky-50'
+                                                    : 'bg-white hover:bg-slate-50'
+                                            }`}
+                                            key={conversation.id}
+                                            onClick={() =>
+                                                selectConversation(
+                                                    conversation.id,
+                                                )
+                                            }
+                                            type="button"
+                                        >
+                                            <Avatar
+                                                label={
+                                                    conversation.display_name
+                                                }
+                                                online={conversationHasOnlineParticipants(
+                                                    conversation,
+                                                    auth.user.id,
+                                                    onlineUserIdsSet,
+                                                )}
+                                                type={conversation.type}
+                                            />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <p className="truncate text-sm font-semibold text-slate-950">
                                                         {
-                                                            conversation.unread_count
+                                                            conversation.display_name
                                                         }
-                                                    </span>
-                                                )}
+                                                    </p>
+                                                    {conversation.unread_count >
+                                                        0 && (
+                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#0054b8] text-[10px] font-bold text-white">
+                                                            {
+                                                                conversation.unread_count
+                                                            }
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p
+                                                    className={`mt-1 truncate text-xs ${
+                                                        typingUsers.length > 0
+                                                            ? 'font-medium text-[#0054b8]'
+                                                            : 'text-slate-500'
+                                                    }`}
+                                                >
+                                                    {typingUsers.length > 0
+                                                        ? typingLabel(
+                                                              typingUsers,
+                                                          )
+                                                        : conversationPreview(
+                                                              conversation.latest_message,
+                                                          )}
+                                                </p>
+                                                <p className="mt-2 text-[11px] font-medium text-slate-400">
+                                                    {conversationStatusLabel(
+                                                        conversation,
+                                                        auth.user.id,
+                                                        onlineUserIdsSet,
+                                                        conversation.last_message_at,
+                                                    )}
+                                                </p>
                                             </div>
-                                            <p className="mt-1 truncate text-xs text-slate-500">
-                                                {conversationPreview(
-                                                    conversation.latest_message,
-                                                )}
-                                            </p>
-                                            <p className="mt-2 text-[11px] font-medium text-slate-400">
-                                                {formatTime(
-                                                    conversation.last_message_at,
-                                                )}
-                                            </p>
-                                        </div>
-                                    </button>
-                                ))
+                                        </button>
+                                    );
+                                })
                             ) : (
                                 <EmptyState
                                     icon={<MessageCircle className="size-6" />}
@@ -845,6 +1125,9 @@ export default function Messenger({
                             <>
                                 <ConversationHeader
                                     conversation={activeConversation}
+                                    currentUserId={auth.user.id}
+                                    onlineUserIds={onlineUserIdsSet}
+                                    typingUsers={activeTypingUsers}
                                 />
                                 <div className="border-b border-slate-200 bg-white px-4 py-3 md:px-6">
                                     <label className="flex h-10 items-center gap-2 rounded-lg bg-slate-100 px-3 text-slate-400">
@@ -868,6 +1151,7 @@ export default function Messenger({
                                             <MessageBubble
                                                 currentUserId={auth.user.id}
                                                 showSeen={
+                                                    hasHydrated &&
                                                     message.id === seenMessageId
                                                 }
                                                 key={message.id}
@@ -896,6 +1180,12 @@ export default function Messenger({
                                             body="Send the first message in this conversation."
                                         />
                                     )}
+                                    {activeTypingUsers.length > 0 &&
+                                        !messageSearchTerm && (
+                                            <TypingIndicator
+                                                users={activeTypingUsers}
+                                            />
+                                        )}
                                     <div ref={messagesEndRef} />
                                 </div>
                                 <form
@@ -975,7 +1265,7 @@ export default function Messenger({
                                         <input
                                             className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm transition outline-none focus:border-[#0054b8] focus:bg-white"
                                             onChange={(event) =>
-                                                setMessageBody(
+                                                handleMessageBodyChange(
                                                     event.target.value,
                                                 )
                                             }
@@ -1012,7 +1302,9 @@ export default function Messenger({
                             {activeConversation ? (
                                 <ChatDetails
                                     conversation={activeConversation}
+                                    currentUserId={auth.user.id}
                                     loadingSharedContent={loadingSharedContent}
+                                    onlineUserIds={onlineUserIdsSet}
                                     sharedContent={activeSharedContent}
                                 />
                             ) : (
@@ -1245,11 +1537,33 @@ function ConversationComposer({
     );
 }
 
-function ConversationHeader({ conversation }: { conversation: Conversation }) {
+function ConversationHeader({
+    conversation,
+    currentUserId,
+    onlineUserIds,
+    typingUsers,
+}: {
+    conversation: Conversation;
+    currentUserId: number;
+    onlineUserIds: Set<number>;
+    typingUsers: TypingUser[];
+}) {
+    const status = conversationStatusLabel(
+        conversation,
+        currentUserId,
+        onlineUserIds,
+    );
+    const online = conversationHasOnlineParticipants(
+        conversation,
+        currentUserId,
+        onlineUserIds,
+    );
+
     return (
         <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-4 md:px-6">
             <Avatar
                 label={conversation.display_name}
+                online={online}
                 type={conversation.type}
             />
             <div className="min-w-0 flex-1">
@@ -1257,10 +1571,20 @@ function ConversationHeader({ conversation }: { conversation: Conversation }) {
                     {conversation.display_name}
                 </h2>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1">
-                        <UsersRound className="size-3.5" />
-                        {conversation.participants.length} members
-                    </span>
+                    {typingUsers.length > 0 ? (
+                        <span className="font-medium text-[#0054b8]">
+                            {typingLabel(typingUsers)}
+                        </span>
+                    ) : (
+                        <>
+                            <span
+                                className={`size-2 rounded-full ${
+                                    online ? 'bg-emerald-500' : 'bg-slate-300'
+                                }`}
+                            />
+                            <span>{status}</span>
+                        </>
+                    )}
                 </div>
             </div>
         </header>
@@ -1269,11 +1593,15 @@ function ConversationHeader({ conversation }: { conversation: Conversation }) {
 
 function ChatDetails({
     conversation,
+    currentUserId,
     loadingSharedContent,
+    onlineUserIds,
     sharedContent,
 }: {
     conversation: Conversation;
+    currentUserId: number;
     loadingSharedContent: boolean;
+    onlineUserIds: Set<number>;
     sharedContent: SharedContent;
 }) {
     const [activeTab, setActiveTab] = useState<'media' | 'links' | 'files'>(
@@ -1301,6 +1629,11 @@ function ChatDetails({
         <div className="flex flex-col items-center text-center">
             <Avatar
                 label={conversation.display_name}
+                online={conversationHasOnlineParticipants(
+                    conversation,
+                    currentUserId,
+                    onlineUserIds,
+                )}
                 type={conversation.type}
             />
             <h2 className="mt-3 max-w-full truncate text-base font-semibold text-slate-950">
@@ -1323,15 +1656,29 @@ function ChatDetails({
                             className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
                             key={participant.id}
                         >
-                            <span className="grid size-9 place-items-center rounded-full bg-slate-200 text-xs font-bold text-slate-700">
+                            <span className="relative grid size-9 place-items-center rounded-full bg-slate-200 text-xs font-bold text-slate-700">
                                 {initials(participant.name)}
+                                {onlineUserIds.has(participant.id) && (
+                                    <span className="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                                )}
                             </span>
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-medium text-slate-900">
                                     {participant.name}
+                                    {participant.id === currentUserId
+                                        ? ' (You)'
+                                        : ''}
                                 </p>
-                                <p className="truncate text-xs text-slate-500 capitalize">
-                                    {participant.school_role}
+                                <p
+                                    className={`truncate text-xs ${
+                                        onlineUserIds.has(participant.id)
+                                            ? 'font-medium text-emerald-600'
+                                            : 'text-slate-500 capitalize'
+                                    }`}
+                                >
+                                    {onlineUserIds.has(participant.id)
+                                        ? 'Active now'
+                                        : participant.school_role}
                                 </p>
                             </div>
                         </div>
@@ -1641,6 +1988,27 @@ function MessageBubble({
     );
 }
 
+function TypingIndicator({ users }: { users: TypingUser[] }) {
+    return (
+        <div className="flex w-full flex-col items-start">
+            <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-1.5">
+                    {[0, 1, 2].map((index) => (
+                        <span
+                            className="size-2 animate-bounce rounded-full bg-slate-400"
+                            key={index}
+                            style={{ animationDelay: `${index * 120}ms` }}
+                        />
+                    ))}
+                </div>
+            </div>
+            <p className="mt-1 text-xs font-medium text-slate-500">
+                {typingLabel(users)}
+            </p>
+        </div>
+    );
+}
+
 function MessageAttachmentPreview({
     attachment,
     mine,
@@ -1788,14 +2156,16 @@ function AttachmentCaption({
 
 function Avatar({
     label,
+    online = false,
     type,
 }: {
     label: string;
+    online?: boolean;
     type: Conversation['type'];
 }) {
     return (
         <span
-            className={`grid size-11 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${
+            className={`relative grid size-11 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${
                 type === 'direct' ? 'bg-rose-500' : 'bg-[#0054b8]'
             }`}
         >
@@ -1803,6 +2173,9 @@ function Avatar({
                 initials(label)
             ) : (
                 <UsersRound className="size-5" />
+            )}
+            {online && (
+                <span className="absolute right-0 bottom-0 size-3 rounded-full border-2 border-white bg-emerald-500" />
             )}
         </span>
     );
@@ -1851,16 +2224,80 @@ function EmptyState({
     );
 }
 
+function conversationHasOnlineParticipants(
+    conversation: Conversation,
+    currentUserId: number,
+    onlineUserIds: Set<number>,
+) {
+    return conversation.participants.some(
+        (participant) =>
+            participant.id !== currentUserId &&
+            onlineUserIds.has(participant.id),
+    );
+}
+
+function conversationStatusLabel(
+    conversation: Conversation,
+    currentUserId: number,
+    onlineUserIds: Set<number>,
+    fallbackTime?: string | null,
+) {
+    const onlineParticipants = conversation.participants.filter(
+        (participant) =>
+            participant.id !== currentUserId &&
+            onlineUserIds.has(participant.id),
+    );
+
+    if (conversation.type === 'direct') {
+        return onlineParticipants.length > 0
+            ? 'Active now'
+            : fallbackTime
+              ? formatTime(fallbackTime)
+              : 'Offline';
+    }
+
+    if (onlineParticipants.length === 0) {
+        return `${conversation.participants.length} members`;
+    }
+
+    return `${onlineParticipants.length} active now`;
+}
+
+function typingLabel(users: TypingUser[]) {
+    if (users.length === 0) {
+        return '';
+    }
+
+    if (users.length === 1) {
+        return `${users[0].name} is typing...`;
+    }
+
+    if (users.length === 2) {
+        return `${users[0].name} and ${users[1].name} are typing...`;
+    }
+
+    return 'Several people are typing...';
+}
+
+function typingTimeoutKey(conversationId: number, userId: number) {
+    return `${conversationId}:${userId}`;
+}
+
+function uniqueUserIds(userIds: number[]) {
+    return Array.from(new Set(userIds));
+}
+
 function formatTime(value: string | null) {
     if (!value) {
         return 'No activity';
     }
 
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat('en-US', {
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
+        timeZone: 'Asia/Manila',
     }).format(new Date(value));
 }
 
@@ -2029,26 +2466,6 @@ function getCookie(name: string) {
         .find((row) => row.startsWith(`${name}=`));
 
     return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
-}
-
-function getConversationIdFromUrl(conversations: Conversation[]) {
-    if (typeof window === 'undefined') {
-        return null;
-    }
-
-    const conversationId = Number(
-        new URLSearchParams(window.location.search).get('conversation'),
-    );
-
-    if (!Number.isInteger(conversationId)) {
-        return null;
-    }
-
-    return conversations.some(
-        (conversation) => conversation.id === conversationId,
-    )
-        ? conversationId
-        : null;
 }
 
 function initials(label: string) {
