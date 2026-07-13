@@ -31,6 +31,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
         Route::post('conversations/{conversation}/messages/{message}/forward', [MessageController::class, 'forward']);
         Route::patch('conversations/{conversation}/messages/{message}/pin', [MessageController::class, 'pin']);
+        Route::patch('conversations/{conversation}/messages/{message}/delivered', [MessageController::class, 'markDelivered']);
         Route::patch('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'react']);
         Route::delete('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'unreact']);
         Route::get('conversations/{conversation}/messages/{message}/attachments/{attachment}', [MessageController::class, 'downloadAttachment']);

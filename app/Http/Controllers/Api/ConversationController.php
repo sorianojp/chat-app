@@ -37,7 +37,7 @@ class ConversationController extends Controller
                 fn ($query) => $query->whereNotNull('conversation_participants.archived_at'),
                 fn ($query) => $query->whereNull('conversation_participants.archived_at'),
             )
-            ->with(['latestMessage.sender:id,name', 'participants:id,name,email,school_role'])
+            ->with(['latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.sender:id,name', 'participants:id,name,email,school_role'])
             ->withCount('messages')
             ->orderByDesc('conversation_participants.pinned_at')
             ->orderByDesc('last_message_at')
@@ -92,7 +92,7 @@ class ConversationController extends Controller
             [],
         ));
 
-        $conversation->load(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+        $conversation->load(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->loadCount('messages');
 
         return response()->json([
@@ -403,7 +403,7 @@ class ConversationController extends Controller
         return $request->user()
             ->conversations()
             ->whereKey($conversation->id)
-            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->withCount('messages')
             ->firstOrFail();
     }
@@ -456,6 +456,8 @@ class ConversationController extends Controller
         $participant = $participants->firstWhere('id', '!=', $userId);
         $latestMessage = $conversation->latestMessage;
         $pivot = $conversation->getAttribute('pivot');
+        $role = $pivot?->getAttribute('role');
+        $lastReadAt = $pivot?->getAttribute('last_read_at');
         $displayName = $conversation->title;
 
         if ($displayName === null && $participant !== null) {
@@ -481,12 +483,37 @@ class ConversationController extends Controller
             'latest_message' => $latestMessage ? MessagePayload::from($latestMessage, $userId) : null,
             'pinned_message' => $this->pinnedMessagePayload($conversation, $userId),
             'messages_count' => $conversation->messages_count,
-            'unread_count' => 0,
+            'unread_count' => $conversation->messages()
+                ->when($lastReadAt, fn ($query) => $query->where('created_at', '>', $lastReadAt))
+                ->where('sender_id', '!=', $userId)
+                ->count(),
+            'unread_mentions_count' => $conversation->messages()
+                ->when($lastReadAt, fn ($query) => $query->where('created_at', '>', $lastReadAt))
+                ->whereHas('mentions', fn ($query) => $query->where('user_id', $userId))
+                ->count(),
             'last_message_at' => $conversation->last_message_at?->toISOString(),
             'pinned_at' => $this->pivotTimestamp($pivot?->getAttribute('pinned_at')),
             'muted_at' => $this->pivotTimestamp($pivot?->getAttribute('muted_at')),
             'archived_at' => $this->pivotTimestamp($pivot?->getAttribute('archived_at')),
             'notification_preference' => $pivot?->getAttribute('notification_preference') ?? 'all',
+            'permissions' => $this->permissionsPayload($conversation, $role),
+        ];
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function permissionsPayload(Conversation $conversation, ?string $role): array
+    {
+        $owner = $role === 'owner';
+        $group = $conversation->type === ConversationType::Group;
+
+        return [
+            'can_rename' => $group && $owner,
+            'can_add_members' => $group && $owner,
+            'can_remove_members' => $group && $owner,
+            'can_pin_messages' => ! $group || $owner,
+            'can_mention_everyone' => ! $group || $owner,
         ];
     }
 
@@ -503,7 +530,7 @@ class ConversationController extends Controller
         $message = $conversation->messages()
             ->whereNotNull('pinned_at')
             ->whereNull('unsent_at')
-            ->with(['attachments', 'conversation.team', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+            ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
             ->latest('pinned_at')
             ->first();
 

@@ -30,7 +30,7 @@ class MessengerController extends Controller
                 fn ($query) => $query->whereNotNull('conversation_participants.archived_at'),
                 fn ($query) => $query->whereNull('conversation_participants.archived_at'),
             )
-            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->withCount('messages')
             ->orderByDesc('conversation_participants.pinned_at')
             ->orderByDesc('last_message_at')
@@ -46,7 +46,7 @@ class MessengerController extends Controller
         $messages = $activeConversationId
             ? Message::query()
                 ->where('conversation_id', $activeConversationId)
-                ->with(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+                ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
                 ->oldest()
                 ->limit(80)
                 ->get()
@@ -86,6 +86,7 @@ class MessengerController extends Controller
             ->firstWhere('id', '!=', $userId);
         $latestMessage = $conversation->latestMessage;
         $pivot = $conversation->getAttribute('pivot');
+        $role = $pivot?->getAttribute('role');
         $lastReadAt = DB::table('conversation_participants')
             ->where('conversation_id', $conversation->id)
             ->where('user_id', $userId)
@@ -119,11 +120,33 @@ class MessengerController extends Controller
                 ->when($lastReadAt, fn ($query) => $query->where('created_at', '>', $lastReadAt))
                 ->where('sender_id', '!=', $userId)
                 ->count(),
+            'unread_mentions_count' => $conversation->messages()
+                ->when($lastReadAt, fn ($query) => $query->where('created_at', '>', $lastReadAt))
+                ->whereHas('mentions', fn ($query) => $query->where('user_id', $userId))
+                ->count(),
             'last_message_at' => $conversation->last_message_at?->toISOString(),
             'pinned_at' => $this->pivotTimestamp($pivot?->getAttribute('pinned_at')),
             'muted_at' => $this->pivotTimestamp($pivot?->getAttribute('muted_at')),
             'archived_at' => $this->pivotTimestamp($pivot?->getAttribute('archived_at')),
             'notification_preference' => $pivot?->getAttribute('notification_preference') ?? 'all',
+            'permissions' => $this->permissionsPayload($conversation, $role),
+        ];
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function permissionsPayload(Conversation $conversation, ?string $role): array
+    {
+        $owner = $role === 'owner';
+        $group = $conversation->type->value === 'group';
+
+        return [
+            'can_rename' => $group && $owner,
+            'can_add_members' => $group && $owner,
+            'can_remove_members' => $group && $owner,
+            'can_pin_messages' => ! $group || $owner,
+            'can_mention_everyone' => ! $group || $owner,
         ];
     }
 
@@ -140,7 +163,7 @@ class MessengerController extends Controller
         $message = $conversation->messages()
             ->whereNotNull('pinned_at')
             ->whereNull('unsent_at')
-            ->with(['attachments', 'conversation.team', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+            ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
             ->latest('pinned_at')
             ->first();
 

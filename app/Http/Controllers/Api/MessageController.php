@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ConversationType;
 use App\Events\ConversationRead;
 use App\Events\MessageCreated;
+use App\Events\MessageDelivered;
 use App\Events\MessageReactionUpdated;
 use App\Events\MessageUpdated;
 use App\Http\Controllers\Controller;
@@ -12,6 +14,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Models\Team;
+use App\Models\User;
 use App\Support\MessagePayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,7 +34,7 @@ class MessageController extends Controller
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
 
         $messages = $conversation->messages()
-            ->with(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+            ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
             ->when($request->string('search')->isNotEmpty(), function ($query) use ($request) {
                 $search = $request->string('search')->toString();
 
@@ -98,7 +101,7 @@ class MessageController extends Controller
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
 
         $messages = $conversation->messages()
-            ->with(['attachments', 'conversation.team', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+            ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
             ->whereNotNull('pinned_at')
             ->whereNull('unsent_at')
             ->latest('pinned_at')
@@ -141,13 +144,15 @@ class MessageController extends Controller
                 ]);
             }
 
+            $this->syncMessageMentions($message, $conversation, $request);
+
             return $message;
         });
 
         $conversation->forceFill(['last_message_at' => $message->created_at])->save();
         $conversation->participants()->updateExistingPivot($request->user()->id, ['last_read_at' => now()]);
 
-        broadcast(new MessageCreated($message->load(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])))->toOthers();
+        broadcast(new MessageCreated($message->load(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])))->toOthers();
 
         return response()->json([
             'data' => MessagePayload::from($message, $request->user()->id),
@@ -172,8 +177,9 @@ class MessageController extends Controller
             'body' => $data['body'],
             'edited_at' => now(),
         ])->save();
+        $this->syncMessageMentions($message, $conversation, $request);
 
-        $message->load(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name']);
+        $message->load(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name']);
 
         broadcast(new MessageUpdated($message))->toOthers();
 
@@ -205,7 +211,8 @@ class MessageController extends Controller
             });
         }
 
-        $message->load(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name']);
+        $message->mentions()->delete();
+        $message->load(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name']);
 
         broadcast(new MessageUpdated($message))->toOthers();
 
@@ -265,6 +272,8 @@ class MessageController extends Controller
                     ]);
                 }
 
+                $this->syncMessageMentions($forwardedMessage, $targetConversation, $request);
+
                 $targetConversation->forceFill(['last_message_at' => $forwardedMessage->created_at])->save();
                 $targetConversation->participants()->updateExistingPivot($request->user()->id, ['last_read_at' => now()]);
 
@@ -273,7 +282,7 @@ class MessageController extends Controller
         });
 
         $forwardedMessages->each(function (Message $forwardedMessage) {
-            broadcast(new MessageCreated($forwardedMessage->load(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])))->toOthers();
+            broadcast(new MessageCreated($forwardedMessage->load(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])))->toOthers();
         });
 
         return response()->json([
@@ -290,6 +299,7 @@ class MessageController extends Controller
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
         $this->ensureMessageBelongsToConversation($conversation, $message);
+        abort_unless($this->canPinMessage($request, $conversation), 403);
         abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot be pinned.');
         abort_if($message->type === 'system', 422, 'System messages cannot be pinned.');
 
@@ -302,7 +312,7 @@ class MessageController extends Controller
             'pinned_by' => $data['pinned'] ? $request->user()->id : null,
         ])->save();
 
-        $message->load(['attachments', 'conversation.team', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name']);
+        $message->load(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name']);
 
         broadcast(new MessageUpdated($message))->toOthers();
 
@@ -354,10 +364,12 @@ class MessageController extends Controller
         DB::transaction(function () use ($conversation, $request, $readAt) {
             $conversation->participants()->updateExistingPivot($request->user()->id, ['last_read_at' => $readAt]);
 
-            $conversation->messages()
+            $messageIds = $conversation->messages()
                 ->where('sender_id', '!=', $request->user()->id)
                 ->where('created_at', '<=', $readAt)
-                ->pluck('id')
+                ->pluck('id');
+
+            $messageIds
                 ->chunk(500)
                 ->each(function ($messageIds) use ($request, $readAt) {
                     DB::table('message_reads')->insertOrIgnore(
@@ -365,6 +377,18 @@ class MessageController extends Controller
                             'message_id' => $messageId,
                             'user_id' => $request->user()->id,
                             'read_at' => $readAt,
+                        ])->all(),
+                    );
+                });
+
+            $messageIds
+                ->chunk(500)
+                ->each(function ($messageIds) use ($request, $readAt) {
+                    DB::table('message_deliveries')->insertOrIgnore(
+                        $messageIds->map(fn (int $messageId) => [
+                            'message_id' => $messageId,
+                            'user_id' => $request->user()->id,
+                            'delivered_at' => $readAt,
                         ])->all(),
                     );
                 });
@@ -377,6 +401,43 @@ class MessageController extends Controller
         ))->toOthers();
 
         return response()->json(['data' => ['read' => true]]);
+    }
+
+    /**
+     * Mark a message as delivered for the authenticated user.
+     */
+    public function markDelivered(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureMessageBelongsToConversation($conversation, $message);
+
+        if ($message->sender_id === $request->user()->id || $message->unsent_at !== null) {
+            return response()->json(['data' => ['delivered' => false]]);
+        }
+
+        $deliveredAt = now();
+        $inserted = DB::table('message_deliveries')->insertOrIgnore([
+            'message_id' => $message->id,
+            'user_id' => $request->user()->id,
+            'delivered_at' => $deliveredAt,
+        ]) > 0;
+
+        if ($inserted) {
+            broadcast(new MessageDelivered(
+                conversationId: $conversation->id,
+                messageId: $message->id,
+                userId: $request->user()->id,
+                userName: $request->user()->name,
+                deliveredAt: $deliveredAt->toISOString(),
+            ))->toOthers();
+        }
+
+        return response()->json([
+            'data' => [
+                'delivered' => true,
+                'delivered_at' => $deliveredAt->toISOString(),
+            ],
+        ]);
     }
 
     /**
@@ -450,6 +511,85 @@ class MessageController extends Controller
     private function ensureMessageBelongsToConversation(Conversation $conversation, Message $message): void
     {
         abort_unless($message->conversation_id === $conversation->id, 404);
+    }
+
+    private function canManageConversation(Request $request, Conversation $conversation): bool
+    {
+        return $conversation->participants()
+            ->whereKey($request->user()->id)
+            ->wherePivot('role', 'owner')
+            ->exists();
+    }
+
+    private function canPinMessage(Request $request, Conversation $conversation): bool
+    {
+        if ($conversation->type !== ConversationType::Group) {
+            return true;
+        }
+
+        return $this->canManageConversation($request, $conversation);
+    }
+
+    private function canMentionEveryone(Request $request, Conversation $conversation): bool
+    {
+        if ($conversation->type !== ConversationType::Group) {
+            return true;
+        }
+
+        return $this->canManageConversation($request, $conversation);
+    }
+
+    private function syncMessageMentions(Message $message, Conversation $conversation, Request $request): void
+    {
+        $body = $message->body;
+        $mentionsEveryone = preg_match('/(^|\s)@everyone(?=$|\s|[.,!?;:)\]])/i', $body) === 1;
+
+        abort_if($mentionsEveryone && ! $this->canMentionEveryone($request, $conversation), 403, 'Only group owners can mention everyone.');
+
+        $participants = $conversation->participants()
+            ->get(['users.id', 'users.name']);
+        $mentionedUserIds = collect();
+
+        if ($mentionsEveryone) {
+            $mentionedUserIds = $participants
+                ->pluck('id')
+                ->reject(fn (int $userId): bool => $userId === $request->user()->id)
+                ->values();
+        } else {
+            preg_match_all('/(^|\s)@([A-Za-z0-9._-]+)(?=$|\s|[.,!?;:)\]])/i', $body, $matches);
+            $tokens = collect($matches[2] ?? [])
+                ->map(fn (string $token): string => mb_strtolower($token))
+                ->unique();
+
+            $mentionedUserIds = $participants
+                ->filter(fn (User $participant): bool => $participant->id !== $request->user()->id)
+                ->filter(fn (User $participant): bool => $tokens->contains($this->mentionToken($participant->name)))
+                ->pluck('id')
+                ->values();
+        }
+
+        $message->mentions()->delete();
+
+        if ($mentionedUserIds->isEmpty()) {
+            return;
+        }
+
+        $now = now();
+        $message->mentions()->createMany(
+            $mentionedUserIds
+                ->map(fn (int $userId): array => [
+                    'user_id' => $userId,
+                    'type' => $mentionsEveryone ? 'everyone' : 'user',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])
+                ->all(),
+        );
+    }
+
+    private function mentionToken(string $name): string
+    {
+        return mb_strtolower(preg_replace('/\s+/', '', trim($name)) ?? '');
     }
 
     private function replyToMessageId(StoreMessageRequest $request, Conversation $conversation): ?int

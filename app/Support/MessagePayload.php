@@ -4,6 +4,8 @@ namespace App\Support;
 
 use App\Models\Message;
 use App\Models\MessageAttachment;
+use App\Models\MessageDelivery;
+use App\Models\MessageMention;
 use App\Models\MessageReaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\Pivot;
@@ -19,6 +21,8 @@ class MessagePayload
         $message->loadMissing([
             'attachments',
             'conversation.team',
+            'deliveries.user:id,name',
+            'mentions.user:id,name',
             'replyTo.sender:id,name',
             'sender:id,name,school_role',
             'pinner:id,name',
@@ -51,6 +55,10 @@ class MessagePayload
                 'url' => $attachment->downloadUrl($message),
                 'preview_url' => $attachment->previewUrl($message),
             ])->values(),
+            'mentions' => $isUnsent ? [] : self::mentions($message),
+            'mentions_me' => $isUnsent ? false : self::mentionsMe($message, $currentUserId),
+            'mentions_everyone' => $isUnsent ? false : $message->mentions->contains(fn (MessageMention $mention) => $mention->type === 'everyone'),
+            'delivered_to' => self::deliveries($message),
             'reactions' => $isUnsent ? [] : self::reactions($message, $currentUserId),
             'read_by' => self::readers($message),
             'created_at' => $message->created_at?->toISOString(),
@@ -58,6 +66,51 @@ class MessagePayload
             'unsent_at' => $message->unsent_at?->toISOString(),
             'pinned_at' => $message->pinned_at?->toISOString(),
         ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private static function mentions(Message $message): array
+    {
+        $message->loadMissing(['mentions.user:id,name']);
+
+        return $message->mentions
+            ->map(fn (MessageMention $mention) => [
+                'id' => $mention->user->id,
+                'name' => $mention->user->name,
+                'type' => $mention->type,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private static function mentionsMe(Message $message, ?int $currentUserId): bool
+    {
+        if ($currentUserId === null) {
+            return false;
+        }
+
+        $message->loadMissing(['mentions']);
+
+        return $message->mentions->contains(fn (MessageMention $mention) => $mention->user_id === $currentUserId);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private static function deliveries(Message $message): array
+    {
+        $message->loadMissing(['deliveries.user:id,name']);
+
+        return $message->deliveries
+            ->map(fn (MessageDelivery $delivery) => [
+                'id' => $delivery->user->id,
+                'name' => $delivery->user->name,
+                'delivered_at' => $delivery->delivered_at?->toISOString(),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

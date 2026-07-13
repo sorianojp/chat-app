@@ -64,6 +64,14 @@ type MentionOption = {
     description: string;
 };
 
+type ConversationPermissions = {
+    can_rename: boolean;
+    can_add_members: boolean;
+    can_remove_members: boolean;
+    can_pin_messages: boolean;
+    can_mention_everyone: boolean;
+};
+
 type Conversation = {
     id: number;
     type: 'direct' | 'group' | 'announcement';
@@ -78,11 +86,13 @@ type Conversation = {
     pinned_message: MessengerMessage | null;
     messages_count: number;
     unread_count: number;
+    unread_mentions_count: number;
     last_message_at: string | null;
     pinned_at: string | null;
     muted_at: string | null;
     archived_at: string | null;
     notification_preference: NotificationPreference;
+    permissions: ConversationPermissions;
 };
 
 type NotificationPreference = 'all' | 'mentions' | 'muted';
@@ -104,6 +114,10 @@ type MessengerMessage = {
     metadata: Record<string, unknown> | null;
     reply_to: ReplyToMessage | null;
     attachments: MessageAttachment[];
+    mentions: MessageMention[];
+    mentions_me: boolean;
+    mentions_everyone: boolean;
+    delivered_to: MessageDeliveryReceipt[];
     reactions: MessageReactionSummary[];
     read_by: MessageReadReceipt[];
     created_at: string | null;
@@ -121,6 +135,18 @@ type ReplyToMessage = {
     body: string;
     attachment_count: number;
     unsent_at: string | null;
+};
+
+type MessageMention = {
+    id: number;
+    name: string;
+    type: 'user' | 'everyone';
+};
+
+type MessageDeliveryReceipt = {
+    id: number;
+    name: string;
+    delivered_at: string;
 };
 
 type MessageReactionSummary = {
@@ -216,6 +242,14 @@ type ConversationReadPayload = {
     conversation_id: number;
     user_id: number;
     read_at: string | null;
+};
+
+type MessageDeliveredPayload = {
+    conversation_id: number;
+    message_id: number;
+    user_id: number;
+    user_name: string;
+    delivered_at: string;
 };
 
 type TypingPayload = {
@@ -341,6 +375,7 @@ export default function Messenger({
     const ownTypingStopTimeoutRef = useRef<number | null>(null);
     const activeTypingChannelRef = useRef<TypingChannel | null>(null);
     const notificationAudioContextRef = useRef<AudioContext | null>(null);
+    const deliveredMessageIdsRef = useRef(new Set<number>());
     const typingTimeoutsRef = useRef<Record<string, number>>({});
 
     const activeConversation = useMemo(
@@ -367,6 +402,14 @@ export default function Messenger({
             ? messageSearchResults
             : activeMessages;
     const seenMessageId = latestSeenMessageId(visibleMessages, auth.user.id);
+    const deliveredMessageId = latestDeliveredMessageId(
+        visibleMessages,
+        auth.user.id,
+    );
+    const latestOwnMessageId = latestOwnMessageIdFor(
+        visibleMessages,
+        auth.user.id,
+    );
     const activeSharedContent = activeConversationId
         ? (sharedContentByConversation[activeConversationId] ??
           EMPTY_SHARED_CONTENT)
@@ -742,6 +785,17 @@ export default function Messenger({
                                       isActive || isMine || wasAlreadyLoaded
                                           ? 0
                                           : conversation.unread_count + 1,
+                                  unread_mentions_count:
+                                      isActive || isMine || wasAlreadyLoaded
+                                          ? 0
+                                          : conversation.unread_mentions_count +
+                                            (messageMentionsUser(
+                                                message,
+                                                currentUserIdRef.current,
+                                                currentUserNameRef.current,
+                                            )
+                                                ? 1
+                                                : 0),
                               }
                             : conversation,
                     ),
@@ -951,6 +1005,48 @@ export default function Messenger({
         [conversations],
     );
 
+    const applyMessageDelivered = useCallback(
+        (payload: MessageDeliveredPayload) => {
+            const conversation = conversations.find(
+                (item) => item.id === payload.conversation_id,
+            );
+            const user = conversation?.participants.find(
+                (participant) => participant.id === payload.user_id,
+            ) ?? {
+                id: payload.user_id,
+                name: payload.user_name,
+            };
+            const receipt: MessageDeliveryReceipt = {
+                id: user.id,
+                name: user.name,
+                delivered_at: payload.delivered_at,
+            };
+
+            setMessagesByConversation((messages) =>
+                mapMessages(messages, (message) =>
+                    message.id === payload.message_id
+                        ? addDeliveryReceipt(message, receipt)
+                        : message,
+                ),
+            );
+            setMessageSearchResults((messages) =>
+                messages.map((message) =>
+                    message.id === payload.message_id
+                        ? addDeliveryReceipt(message, receipt)
+                        : message,
+                ),
+            );
+            setPinnedMessagesByConversation((messages) =>
+                mapMessages(messages, (message) =>
+                    message.id === payload.message_id
+                        ? addDeliveryReceipt(message, receipt)
+                        : message,
+                ),
+            );
+        },
+        [conversations],
+    );
+
     const selectConversation = (conversationId: number) => {
         stopOwnTyping(activeConversationIdRef.current);
         setActiveConversationId(conversationId);
@@ -1136,6 +1232,12 @@ export default function Messenger({
                     },
                 )
                 .listen(
+                    '.message.delivered',
+                    (payload: MessageDeliveredPayload) => {
+                        applyMessageDelivered(payload);
+                    },
+                )
+                .listen(
                     '.conversation.read',
                     (payload: ConversationReadPayload) => {
                         applyConversationRead(payload);
@@ -1151,6 +1253,7 @@ export default function Messenger({
     }, [
         appendMessage,
         applyConversationRead,
+        applyMessageDelivered,
         conversationIdsKey,
         replaceMessage,
         updateMessageReactions,
@@ -1167,6 +1270,28 @@ export default function Messenger({
 
         void markConversationRead(activeConversationId);
     }, [activeConversationId, activeMessages.length]);
+
+    useEffect(() => {
+        if (!activeConversationId) {
+            return;
+        }
+
+        activeMessages
+            .filter(
+                (message) =>
+                    message.sender !== null &&
+                    message.sender.id !== auth.user.id &&
+                    message.unsent_at === null &&
+                    !message.delivered_to.some(
+                        (receipt) => receipt.id === auth.user.id,
+                    ) &&
+                    !deliveredMessageIdsRef.current.has(message.id),
+            )
+            .forEach((message) => {
+                deliveredMessageIdsRef.current.add(message.id);
+                void markMessageDelivered(message);
+            });
+    }, [activeConversationId, activeMessages, auth.user.id]);
 
     useEffect(() => {
         if (
@@ -1255,6 +1380,7 @@ export default function Messenger({
                     ? {
                           ...conversation,
                           unread_count: 0,
+                          unread_mentions_count: 0,
                       }
                     : conversation,
             ),
@@ -1269,6 +1395,21 @@ export default function Messenger({
                 'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
             },
         });
+    };
+
+    const markMessageDelivered = async (message: MessengerMessage) => {
+        await fetch(
+            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/delivered`,
+            {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+            },
+        );
     };
 
     const searchMessages = async (conversationId: number, query: string) => {
@@ -2051,6 +2192,12 @@ export default function Messenger({
                                                             }
                                                         </span>
                                                     )}
+                                                    {conversation.unread_mentions_count >
+                                                        0 && (
+                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-amber-400 text-[11px] font-bold text-slate-950">
+                                                            @
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <p
                                                     className={`mt-1 truncate text-xs ${
@@ -2168,6 +2315,10 @@ export default function Messenger({
                                 )}
                                 {activePinnedMessage && (
                                     <PinnedMessageBanner
+                                        canUnpin={
+                                            activeConversation.permissions
+                                                .can_pin_messages
+                                        }
                                         message={activePinnedMessage}
                                         onUnpin={toggleMessagePin}
                                     />
@@ -2190,12 +2341,23 @@ export default function Messenger({
                                                 }}
                                             >
                                                 <MessageBubble
-                                                    currentUserId={auth.user.id}
-                                                    showSeen={
-                                                        hasHydrated &&
-                                                        message.id ===
-                                                            seenMessageId
+                                                    canPin={
+                                                        activeConversation
+                                                            .permissions
+                                                            .can_pin_messages
                                                     }
+                                                    currentUserId={auth.user.id}
+                                                    deliveryStatus={messageDeliveryStatus(
+                                                        message,
+                                                        auth.user.id,
+                                                        hasHydrated,
+                                                        message.id ===
+                                                            seenMessageId,
+                                                        message.id ===
+                                                            deliveredMessageId,
+                                                        message.id ===
+                                                            latestOwnMessageId,
+                                                    )}
                                                     message={message}
                                                     onEdit={startEdit}
                                                     onForward={
@@ -3023,12 +3185,6 @@ function ChatDetails({
     const [addingMembers, setAddingMembers] = useState(false);
     const [savingTitle, setSavingTitle] = useState(false);
     const [savingPreference, setSavingPreference] = useState(false);
-    const currentParticipant = conversation.participants.find(
-        (participant) => participant.id === currentUserId,
-    );
-    const canManageGroup =
-        conversation.type === 'group' &&
-        currentParticipant?.conversation_role === 'owner';
     const addableContacts = contacts.filter(
         (contact) =>
             !conversation.participants.some(
@@ -3142,6 +3298,7 @@ function ChatDetails({
                         title="Pinned Messages"
                     />
                     <PinnedMessagesList
+                        canUnpin={conversation.permissions.can_pin_messages}
                         loading={loadingPinnedMessages}
                         messages={pinnedMessages}
                         onOpen={onOpenPinnedMessage}
@@ -3198,7 +3355,7 @@ function ChatDetails({
                             icon={<Info className="size-4" />}
                             title="Group"
                         />
-                        {canManageGroup && (
+                        {conversation.permissions.can_rename && (
                             <form
                                 className="mt-3 flex gap-2"
                                 onSubmit={saveTitle}
@@ -3225,16 +3382,17 @@ function ChatDetails({
                             </form>
                         )}
 
-                        {canManageGroup && addableContacts.length > 0 && (
-                            <button
-                                className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800"
-                                onClick={() => setAddingMembers(true)}
-                                type="button"
-                            >
-                                <UserPlus className="size-4" />
-                                Add members
-                            </button>
-                        )}
+                        {conversation.permissions.can_add_members &&
+                            addableContacts.length > 0 && (
+                                <button
+                                    className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800"
+                                    onClick={() => setAddingMembers(true)}
+                                    type="button"
+                                >
+                                    <UserPlus className="size-4" />
+                                    Add members
+                                </button>
+                            )}
 
                         <button
                             className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-600 hover:bg-rose-50"
@@ -3283,7 +3441,7 @@ function ChatDetails({
                                             : participant.school_role}
                                     </p>
                                 </div>
-                                {canManageGroup &&
+                                {conversation.permissions.can_remove_members &&
                                     participant.id !== currentUserId && (
                                         <button
                                             aria-label={`Remove ${participant.name}`}
@@ -3599,11 +3757,13 @@ function SharedFilesList({ files }: { files: SharedAttachment[] }) {
 }
 
 function PinnedMessagesList({
+    canUnpin,
     loading,
     messages,
     onOpen,
     onUnpin,
 }: {
+    canUnpin: boolean;
     loading: boolean;
     messages: MessengerMessage[];
     onOpen: (message: MessengerMessage) => void;
@@ -3661,14 +3821,16 @@ function PinnedMessagesList({
                             )}
                         </span>
                     </button>
-                    <button
-                        aria-label="Unpin message"
-                        className="grid size-8 shrink-0 place-items-center rounded-full text-slate-400 opacity-100 transition hover:bg-white hover:text-[#0054b8] md:opacity-0 md:group-hover:opacity-100"
-                        onClick={() => onUnpin(message)}
-                        type="button"
-                    >
-                        <PinOff className="size-4" />
-                    </button>
+                    {canUnpin && (
+                        <button
+                            aria-label="Unpin message"
+                            className="grid size-8 shrink-0 place-items-center rounded-full text-slate-400 opacity-100 transition hover:bg-white hover:text-[#0054b8] md:opacity-0 md:group-hover:opacity-100"
+                            onClick={() => onUnpin(message)}
+                            type="button"
+                        >
+                            <PinOff className="size-4" />
+                        </button>
+                    )}
                 </div>
             ))}
         </div>
@@ -3727,9 +3889,11 @@ function ComposerContext({
 }
 
 function PinnedMessageBanner({
+    canUnpin,
     message,
     onUnpin,
 }: {
+    canUnpin: boolean;
     message: MessengerMessage;
     onUnpin: (message: MessengerMessage) => void;
 }) {
@@ -3752,21 +3916,25 @@ function PinnedMessageBanner({
                         </p>
                     )}
                 </div>
-                <button
-                    aria-label="Unpin message"
-                    className="grid size-8 shrink-0 place-items-center rounded-full text-slate-500 hover:bg-white hover:text-[#0054b8]"
-                    onClick={() => onUnpin(message)}
-                    type="button"
-                >
-                    <PinOff className="size-4" />
-                </button>
+                {canUnpin && (
+                    <button
+                        aria-label="Unpin message"
+                        className="grid size-8 shrink-0 place-items-center rounded-full text-slate-500 hover:bg-white hover:text-[#0054b8]"
+                        onClick={() => onUnpin(message)}
+                        type="button"
+                    >
+                        <PinOff className="size-4" />
+                    </button>
+                )}
             </div>
         </div>
     );
 }
 
 function MessageBubble({
+    canPin,
     currentUserId,
+    deliveryStatus,
     message,
     onEdit,
     onForward,
@@ -3774,9 +3942,10 @@ function MessageBubble({
     onReact,
     onReply,
     onUnsend,
-    showSeen,
 }: {
+    canPin: boolean;
     currentUserId: number;
+    deliveryStatus: string | null;
     message: MessengerMessage;
     onEdit: (message: MessengerMessage) => void;
     onForward: (message: MessengerMessage) => void;
@@ -3784,19 +3953,11 @@ function MessageBubble({
     onReact: (message: MessengerMessage, emoji: string) => void;
     onReply: (message: MessengerMessage) => void;
     onUnsend: (message: MessengerMessage) => void;
-    showSeen: boolean;
 }) {
     const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
     const system = message.type === 'system';
     const mine = message.sender?.id === currentUserId;
     const unsent = message.unsent_at !== null;
-    const latestReadReceipt = message.read_by
-        .filter((receipt) => receipt.id !== currentUserId)
-        .sort(
-            (first, second) =>
-                new Date(second.read_at).getTime() -
-                new Date(first.read_at).getTime(),
-        )[0];
     const handleReaction = (emoji: string) => {
         onReact(message, emoji);
         setReactionPickerOpen(false);
@@ -3839,26 +4000,28 @@ function MessageBubble({
                         >
                             <Forward className="size-3.5" />
                         </button>
-                        <button
-                            aria-label={
-                                message.pinned_at
-                                    ? 'Unpin message'
-                                    : 'Pin message'
-                            }
-                            className={`grid size-7 place-items-center rounded-full bg-white shadow-sm ring-1 ring-slate-200 ${
-                                message.pinned_at
-                                    ? 'text-[#0054b8] hover:text-slate-600'
-                                    : 'text-slate-500 hover:text-[#0054b8]'
-                            }`}
-                            onClick={() => onPin(message)}
-                            type="button"
-                        >
-                            {message.pinned_at ? (
-                                <PinOff className="size-3.5" />
-                            ) : (
-                                <Pin className="size-3.5" />
-                            )}
-                        </button>
+                        {canPin && (
+                            <button
+                                aria-label={
+                                    message.pinned_at
+                                        ? 'Unpin message'
+                                        : 'Pin message'
+                                }
+                                className={`grid size-7 place-items-center rounded-full bg-white shadow-sm ring-1 ring-slate-200 ${
+                                    message.pinned_at
+                                        ? 'text-[#0054b8] hover:text-slate-600'
+                                        : 'text-slate-500 hover:text-[#0054b8]'
+                                }`}
+                                onClick={() => onPin(message)}
+                                type="button"
+                            >
+                                {message.pinned_at ? (
+                                    <PinOff className="size-3.5" />
+                                ) : (
+                                    <Pin className="size-3.5" />
+                                )}
+                            </button>
+                        )}
                         {mine && (
                             <>
                                 <button
@@ -3988,9 +4151,9 @@ function MessageBubble({
                 )}
             </div>
 
-            {showSeen && latestReadReceipt && (
+            {deliveryStatus && (
                 <p className="mt-1 text-right text-[11px] font-medium text-slate-500">
-                    {formatSeenAt(latestReadReceipt.read_at)}
+                    {deliveryStatus}
                 </p>
             )}
         </div>
@@ -4438,12 +4601,16 @@ function mentionOptionsFor(
     }
 
     return [
-        {
-            id: 'everyone',
-            label: 'Everyone',
-            token: '@everyone',
-            description: 'Notify everyone in this chat',
-        },
+        ...(conversation.permissions.can_mention_everyone
+            ? [
+                  {
+                      id: 'everyone' as const,
+                      label: 'Everyone',
+                      token: '@everyone',
+                      description: 'Notify everyone in this chat',
+                  },
+              ]
+            : []),
         ...conversation.participants
             .filter((participant) => participant.id !== currentUserId)
             .map((participant) => ({
@@ -4639,6 +4806,89 @@ function latestSeenMessageId(
     return null;
 }
 
+function latestDeliveredMessageId(
+    messages: MessengerMessage[],
+    currentUserId: number,
+) {
+    for (const message of [...messages].reverse()) {
+        if (
+            message.sender?.id === currentUserId &&
+            message.delivered_to.some((receipt) => receipt.id !== currentUserId)
+        ) {
+            return message.id;
+        }
+    }
+
+    return null;
+}
+
+function latestOwnMessageIdFor(
+    messages: MessengerMessage[],
+    currentUserId: number,
+) {
+    for (const message of [...messages].reverse()) {
+        if (
+            message.sender?.id === currentUserId &&
+            message.unsent_at === null
+        ) {
+            return message.id;
+        }
+    }
+
+    return null;
+}
+
+function messageDeliveryStatus(
+    message: MessengerMessage,
+    currentUserId: number,
+    hasHydrated: boolean,
+    latestSeen: boolean,
+    latestDelivered: boolean,
+    latestOwnMessage: boolean,
+) {
+    if (
+        !hasHydrated ||
+        message.sender?.id !== currentUserId ||
+        message.unsent_at !== null
+    ) {
+        return null;
+    }
+
+    if (latestSeen) {
+        const latestReadReceipt = message.read_by
+            .filter((receipt) => receipt.id !== currentUserId)
+            .sort(
+                (first, second) =>
+                    new Date(second.read_at).getTime() -
+                    new Date(first.read_at).getTime(),
+            )[0];
+
+        return latestReadReceipt
+            ? formatSeenAt(latestReadReceipt.read_at)
+            : null;
+    }
+
+    if (latestDelivered) {
+        return 'Delivered';
+    }
+
+    return latestOwnMessage ? 'Sent' : null;
+}
+
+function addDeliveryReceipt(
+    message: MessengerMessage,
+    receipt: MessageDeliveryReceipt,
+) {
+    if (message.delivered_to.some((item) => item.id === receipt.id)) {
+        return message;
+    }
+
+    return {
+        ...message,
+        delivered_to: [...message.delivered_to, receipt],
+    };
+}
+
 function personalizeReactions(
     reactions: MessageReactionSummary[],
     currentUserId: number,
@@ -4753,7 +5003,7 @@ function shouldPlayNotificationSound(
     }
 
     if (conversation?.notification_preference === 'mentions') {
-        return messageMentionsUser(message, currentUserName);
+        return messageMentionsUser(message, currentUserId, currentUserName);
     }
 
     return true;
@@ -4761,8 +5011,17 @@ function shouldPlayNotificationSound(
 
 function messageMentionsUser(
     message: MessengerMessage,
+    currentUserId: number,
     currentUserName: string,
 ) {
+    if (
+        message.mentions_me ||
+        message.mentions_everyone ||
+        message.mentions.some((mention) => mention.id === currentUserId)
+    ) {
+        return true;
+    }
+
     const normalizedBody = message.body.toLowerCase();
     const normalizedName = currentUserName.toLowerCase();
     const normalizedToken = mentionToken(currentUserName).toLowerCase();

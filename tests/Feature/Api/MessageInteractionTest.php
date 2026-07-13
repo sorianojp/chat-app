@@ -215,6 +215,135 @@ test('conversation participants can pin and unpin messages', function () {
     expect($message->pinned_by)->toBeNull();
 });
 
+test('messages store user mention records', function () {
+    $sender = User::factory()->create(['name' => 'Maria Santos']);
+    $recipient = User::factory()->create(['name' => 'John Dela Cruz']);
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+
+    $response = $this
+        ->actingAs($sender)
+        ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'body' => 'Hi @JohnDelaCruz please check this.',
+        ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('data.mentions.0.id', $recipient->id)
+        ->assertJsonPath('data.mentions.0.type', 'user');
+
+    $this->assertDatabaseHas('message_mentions', [
+        'message_id' => $response->json('data.id'),
+        'user_id' => $recipient->id,
+        'type' => 'user',
+    ]);
+});
+
+test('group owners can mention everyone but members cannot', function () {
+    $owner = User::factory()->create();
+    $member = User::factory()->create();
+    $otherMember = User::factory()->create();
+    $team = Team::factory()->create();
+    $team->members()->attach($owner, ['role' => TeamRole::Member->value]);
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $team->members()->attach($otherMember, ['role' => TeamRole::Member->value]);
+    $conversation = $team->conversations()->create([
+        'created_by' => $owner->id,
+        'type' => ConversationType::Group,
+        'title' => 'Parents',
+    ]);
+    $conversation->participants()->attach($owner, ['role' => 'owner']);
+    $conversation->participants()->attach($member, ['role' => 'member']);
+    $conversation->participants()->attach($otherMember, ['role' => 'member']);
+
+    $this
+        ->actingAs($member)
+        ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'body' => '@everyone please read this.',
+        ])
+        ->assertForbidden();
+
+    $response = $this
+        ->actingAs($owner)
+        ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'body' => '@everyone please read this.',
+        ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonCount(2, 'data.mentions')
+        ->assertJsonPath('data.mentions.0.type', 'everyone');
+
+    expect(collect($response->json('data.mentions'))->pluck('id')->all())
+        ->toContain($member->id, $otherMember->id)
+        ->not->toContain($owner->id);
+});
+
+test('group members cannot pin messages', function () {
+    $owner = User::factory()->create();
+    $member = User::factory()->create();
+    $team = Team::factory()->create();
+    $team->members()->attach($owner, ['role' => TeamRole::Member->value]);
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $conversation = $team->conversations()->create([
+        'created_by' => $owner->id,
+        'type' => ConversationType::Group,
+        'title' => 'Parents',
+    ]);
+    $conversation->participants()->attach($owner, ['role' => 'owner']);
+    $conversation->participants()->attach($member, ['role' => 'member']);
+    $message = $conversation->messages()->create([
+        'sender_id' => $owner->id,
+        'type' => 'text',
+        'body' => 'Owner reminder.',
+    ]);
+
+    $this
+        ->actingAs($member)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}/pin", [
+            'pinned' => true,
+        ])
+        ->assertForbidden();
+
+    $this
+        ->actingAs($owner)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}/pin", [
+            'pinned' => true,
+        ])
+        ->assertOk();
+});
+
+test('conversation participants can mark messages delivered', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+    $message = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => 'Please confirm delivery.',
+    ]);
+
+    $response = $this
+        ->actingAs($recipient)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}/delivered");
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('data.delivered', true);
+
+    $this->assertDatabaseHas('message_deliveries', [
+        'message_id' => $message->id,
+        'user_id' => $recipient->id,
+    ]);
+
+    $this
+        ->actingAs($sender)
+        ->getJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages")
+        ->assertOk()
+        ->assertJsonPath('data.0.delivered_to.0.id', $recipient->id);
+});
+
 test('conversation participants can view pinned messages', function () {
     $sender = User::factory()->create();
     $recipient = User::factory()->create();

@@ -28,6 +28,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $pinned_at
  * @property-read Collection<int, MessageAttachment> $attachments
  * @property-read Conversation $conversation
+ * @property-read Collection<int, MessageDelivery> $deliveries
+ * @property-read Collection<int, MessageMention> $mentions
  * @property-read User|null $pinner
  * @property-read Collection<int, MessageReaction> $reactions
  * @property-read Collection<int, User> $readers
@@ -87,6 +89,26 @@ class Message extends Model
     public function readers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'message_reads')->withPivot('read_at');
+    }
+
+    /**
+     * Get delivery receipts attached to this message.
+     *
+     * @return HasMany<MessageDelivery, $this>
+     */
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(MessageDelivery::class);
+    }
+
+    /**
+     * Get mention records attached to this message.
+     *
+     * @return HasMany<MessageMention, $this>
+     */
+    public function mentions(): HasMany
+    {
+        return $this->hasMany(MessageMention::class);
     }
 
     /**
