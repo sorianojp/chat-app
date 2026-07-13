@@ -215,6 +215,60 @@ test('conversation participants can pin and unpin messages', function () {
     expect($message->pinned_by)->toBeNull();
 });
 
+test('conversation participants can view pinned messages', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+    $olderPinned = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => 'Older pinned reminder.',
+    ]);
+    $olderPinned->forceFill([
+        'pinned_at' => now()->subMinutes(10),
+        'pinned_by' => $sender->id,
+    ])->save();
+    $latestPinned = $conversation->messages()->create([
+        'sender_id' => $recipient->id,
+        'type' => 'text',
+        'body' => 'Latest pinned reminder.',
+    ]);
+    $latestPinned->forceFill([
+        'pinned_at' => now(),
+        'pinned_by' => $recipient->id,
+    ])->save();
+    $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => 'Normal message.',
+    ]);
+
+    $response = $this
+        ->actingAs($recipient)
+        ->getJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/pinned");
+
+    $response
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.id', $latestPinned->id)
+        ->assertJsonPath('data.0.pinned_by.id', $recipient->id)
+        ->assertJsonPath('data.1.id', $olderPinned->id);
+});
+
+test('pinned messages require conversation access', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $outsider = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+
+    $this
+        ->actingAs($outsider)
+        ->getJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/pinned")
+        ->assertForbidden();
+});
+
 test('conversation participants cannot pin unsent or system messages', function () {
     $sender = User::factory()->create();
     $recipient = User::factory()->create();

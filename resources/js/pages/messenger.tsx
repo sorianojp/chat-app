@@ -57,6 +57,13 @@ type TypingUser = {
     name: string;
 };
 
+type MentionOption = {
+    id: number | 'everyone';
+    label: string;
+    token: string;
+    description: string;
+};
+
 type Conversation = {
     id: number;
     type: 'direct' | 'group' | 'announcement';
@@ -278,6 +285,7 @@ export default function Messenger({
             : {},
     );
     const [messageBody, setMessageBody] = useState('');
+    const [mentionQuery, setMentionQuery] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [messageSearch, setMessageSearch] = useState('');
     const [messageSearchOpen, setMessageSearchOpen] = useState(false);
@@ -287,7 +295,11 @@ export default function Messenger({
     const [searchingMessages, setSearchingMessages] = useState(false);
     const [sharedContentByConversation, setSharedContentByConversation] =
         useState<Record<number, SharedContent>>({});
+    const [pinnedMessagesByConversation, setPinnedMessagesByConversation] =
+        useState<Record<number, MessengerMessage[]>>({});
     const [loadingSharedConversationId, setLoadingSharedConversationId] =
+        useState<number | null>(null);
+    const [loadingPinnedConversationId, setLoadingPinnedConversationId] =
         useState<number | null>(null);
     const [onlineUserIds, setOnlineUserIds] = useState<number[]>([]);
     const [typingUsersByConversation, setTypingUsersByConversation] = useState<
@@ -296,6 +308,9 @@ export default function Messenger({
     const [hasHydrated, setHasHydrated] = useState(false);
     const [sending, setSending] = useState(false);
     const [composerOpen, setComposerOpen] = useState(false);
+    const [highlightedMessageId, setHighlightedMessageId] = useState<
+        number | null
+    >(null);
     const [editingMessage, setEditingMessage] =
         useState<MessengerMessage | null>(null);
     const [forwardingMessage, setForwardingMessage] =
@@ -305,6 +320,8 @@ export default function Messenger({
         useState<MessengerMessage | null>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const messageInputRef = useRef<HTMLInputElement | null>(null);
+    const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const activeConversationIdRef = useRef(activeConversationId);
     const conversationsRef = useRef(conversations);
@@ -336,10 +353,14 @@ export default function Messenger({
     const activeMessages = activeConversationId
         ? (messagesByConversation[activeConversationId] ?? [])
         : [];
-    const activePinnedMessage = latestPinnedMessage([
-        activeConversation?.pinned_message ?? null,
-        ...activeMessages,
-    ]);
+    const activePinnedMessages = activeConversationId
+        ? (pinnedMessagesByConversation[activeConversationId] ??
+          pinnedMessagesList([
+              activeConversation?.pinned_message ?? null,
+              ...activeMessages,
+          ]))
+        : [];
+    const activePinnedMessage = activePinnedMessages[0] ?? null;
     const messageSearchTerm = messageSearch.trim();
     const visibleMessages =
         messageSearchOpen && messageSearchTerm
@@ -353,6 +374,9 @@ export default function Messenger({
     const loadingSharedContent =
         activeConversationId !== null &&
         loadingSharedConversationId === activeConversationId;
+    const loadingPinnedMessages =
+        activeConversationId !== null &&
+        loadingPinnedConversationId === activeConversationId;
     const onlineUserIdsSet = useMemo(
         () => new Set(onlineUserIds),
         [onlineUserIds],
@@ -360,6 +384,17 @@ export default function Messenger({
     const activeTypingUsers = activeConversationId
         ? Object.values(typingUsersByConversation[activeConversationId] ?? {})
         : [];
+    const mentionOptions = useMemo(
+        () => mentionOptionsFor(activeConversation, auth.user.id),
+        [activeConversation, auth.user.id],
+    );
+    const filteredMentionOptions = mentionQuery
+        ? mentionOptions.filter((option) =>
+              `${option.label} ${option.token}`
+                  .toLowerCase()
+                  .includes(mentionQuery.toLowerCase()),
+          )
+        : mentionOptions;
     const isEditing = editingMessage !== null;
     const filteredConversations = conversations.filter((conversation) =>
         conversation.display_name.toLowerCase().includes(search.toLowerCase()),
@@ -528,6 +563,12 @@ export default function Messenger({
 
     const handleMessageBodyChange = (value: string) => {
         setMessageBody(value);
+        setMentionQuery(
+            mentionQueryAtCursor(
+                value,
+                messageInputRef.current?.selectionStart ?? value.length,
+            ),
+        );
 
         if (!activeConversationId) {
             return;
@@ -556,6 +597,93 @@ export default function Messenger({
         ownTypingStopTimeoutRef.current = window.setTimeout(() => {
             stopOwnTyping(activeConversationId);
         }, TYPING_IDLE_MS);
+    };
+
+    const syncMentionQueryFromInput = (input: HTMLInputElement) => {
+        setMentionQuery(
+            mentionQueryAtCursor(
+                input.value,
+                input.selectionStart ?? input.value.length,
+            ),
+        );
+    };
+
+    const insertMention = (option: MentionOption) => {
+        const input = messageInputRef.current;
+        const cursor = input?.selectionStart ?? messageBody.length;
+        const mentionRange = mentionRangeAtCursor(messageBody, cursor);
+
+        if (!mentionRange) {
+            return;
+        }
+
+        const beforeMention = messageBody.slice(0, mentionRange.start);
+        const afterMention = messageBody.slice(mentionRange.end);
+        const nextBody = `${beforeMention}${option.token} ${afterMention}`;
+        const nextCursor = beforeMention.length + option.token.length + 1;
+
+        setMessageBody(nextBody);
+        setMentionQuery(null);
+
+        window.setTimeout(() => {
+            input?.focus();
+            input?.setSelectionRange(nextCursor, nextCursor);
+        }, 0);
+    };
+
+    const openPinnedMessage = (message: MessengerMessage) => {
+        const scrollToMessage = () => {
+            const messageElement = messageRefs.current[message.id];
+
+            if (!messageElement) {
+                return false;
+            }
+
+            messageElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
+            setHighlightedMessageId(message.id);
+
+            window.setTimeout(() => {
+                setHighlightedMessageId((currentMessageId) =>
+                    currentMessageId === message.id ? null : currentMessageId,
+                );
+            }, 1800);
+
+            return true;
+        };
+
+        if (scrollToMessage()) {
+            return;
+        }
+
+        setMessageSearch('');
+        setMessageSearchOpen(false);
+        setMessageSearchResults([]);
+
+        setMessagesByConversation((messages) => {
+            const conversationMessages =
+                messages[message.conversation_id] ?? [];
+
+            if (
+                conversationMessages.some(
+                    (conversationMessage) =>
+                        conversationMessage.id === message.id,
+                )
+            ) {
+                return messages;
+            }
+
+            return {
+                ...messages,
+                [message.conversation_id]: sortMessagesByCreatedAt([
+                    ...conversationMessages,
+                    message,
+                ]),
+            };
+        });
+        window.setTimeout(scrollToMessage, 0);
     };
 
     const appendMessage = useCallback(
@@ -712,6 +840,28 @@ export default function Messenger({
                 return item;
             }),
         );
+        setPinnedMessagesByConversation((pinnedMessages) => {
+            const currentPinnedMessages =
+                pinnedMessages[personalizedMessage.conversation_id];
+
+            if (!currentPinnedMessages) {
+                return pinnedMessages;
+            }
+
+            return {
+                ...pinnedMessages,
+                [personalizedMessage.conversation_id]:
+                    personalizedMessage.pinned_at === null ||
+                    personalizedMessage.unsent_at !== null
+                        ? currentPinnedMessages.filter(
+                              (item) => item.id !== personalizedMessage.id,
+                          )
+                        : pinnedMessagesList([
+                              personalizedMessage,
+                              ...currentPinnedMessages,
+                          ]),
+            };
+        });
         setConversations((items) =>
             sortConversations(
                 items.map((conversation) =>
@@ -1038,11 +1188,20 @@ export default function Messenger({
     }, [activeConversationId, activeMessages.length]);
 
     useEffect(() => {
+        if (!activeConversationId) {
+            return;
+        }
+
+        void fetchPinnedMessages(activeConversationId);
+    }, [activeConversationId]);
+
+    useEffect(() => {
         setMessageSearch('');
         setMessageSearchOpen(false);
         setMessageSearchResults([]);
         setEditingMessage(null);
         setReplyToMessage(null);
+        setMentionQuery(null);
         setMessageBody('');
         setSelectedFiles([]);
     }, [activeConversationId]);
@@ -1176,6 +1335,41 @@ export default function Messenger({
         }
     };
 
+    const fetchPinnedMessages = async (conversationId: number) => {
+        setLoadingPinnedConversationId(conversationId);
+
+        try {
+            const response = await fetch(
+                `${apiBaseUrl}/conversations/${conversationId}/messages/pinned`,
+                {
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = (await response.json()) as {
+                data: MessengerMessage[];
+            };
+
+            setPinnedMessagesByConversation((messages) => ({
+                ...messages,
+                [conversationId]: payload.data,
+            }));
+        } finally {
+            setLoadingPinnedConversationId((loadingConversationId) =>
+                loadingConversationId === conversationId
+                    ? null
+                    : loadingConversationId,
+            );
+        }
+    };
+
     const toggleReaction = async (message: MessengerMessage, emoji: string) => {
         if (message.unsent_at) {
             return;
@@ -1232,6 +1426,7 @@ export default function Messenger({
         setReplyToMessage(null);
         setSelectedFiles([]);
         setMessageBody(message.body);
+        setMentionQuery(null);
 
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
@@ -1242,6 +1437,7 @@ export default function Messenger({
         setEditingMessage(null);
         setReplyToMessage(null);
         setMessageBody('');
+        setMentionQuery(null);
     };
 
     const updateMessage = async () => {
@@ -1277,6 +1473,7 @@ export default function Messenger({
             replaceMessage(payload.data);
             setEditingMessage(null);
             setMessageBody('');
+            setMentionQuery(null);
         } finally {
             setSending(false);
         }
@@ -1316,6 +1513,7 @@ export default function Messenger({
         if (editingMessage?.id === message.id) {
             setEditingMessage(null);
             setMessageBody('');
+            setMentionQuery(null);
         }
 
         if (replyToMessage?.id === message.id) {
@@ -1718,6 +1916,7 @@ export default function Messenger({
 
             appendMessage(payload.data);
             setMessageBody('');
+            setMentionQuery(null);
             setReplyToMessage(null);
             setSelectedFiles([]);
             stopOwnTyping(activeConversationId);
@@ -1976,21 +2175,38 @@ export default function Messenger({
                                 <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-5 md:px-6">
                                     {visibleMessages.length > 0 ? (
                                         visibleMessages.map((message) => (
-                                            <MessageBubble
-                                                currentUserId={auth.user.id}
-                                                showSeen={
-                                                    hasHydrated &&
-                                                    message.id === seenMessageId
-                                                }
+                                            <div
+                                                className={`rounded-2xl transition ${
+                                                    highlightedMessageId ===
+                                                    message.id
+                                                        ? 'bg-sky-100/70 ring-2 ring-[#0054b8]/30'
+                                                        : ''
+                                                }`}
                                                 key={message.id}
-                                                message={message}
-                                                onEdit={startEdit}
-                                                onForward={setForwardingMessage}
-                                                onPin={toggleMessagePin}
-                                                onReact={toggleReaction}
-                                                onReply={startReply}
-                                                onUnsend={unsendMessage}
-                                            />
+                                                ref={(element) => {
+                                                    messageRefs.current[
+                                                        message.id
+                                                    ] = element;
+                                                }}
+                                            >
+                                                <MessageBubble
+                                                    currentUserId={auth.user.id}
+                                                    showSeen={
+                                                        hasHydrated &&
+                                                        message.id ===
+                                                            seenMessageId
+                                                    }
+                                                    message={message}
+                                                    onEdit={startEdit}
+                                                    onForward={
+                                                        setForwardingMessage
+                                                    }
+                                                    onPin={toggleMessagePin}
+                                                    onReact={toggleReaction}
+                                                    onReply={startReply}
+                                                    onUnsend={unsendMessage}
+                                                />
+                                            </div>
                                         ))
                                     ) : searchingMessages ? (
                                         <EmptyState
@@ -2086,6 +2302,49 @@ export default function Messenger({
                                             )}
                                         </div>
                                     )}
+                                    {mentionQuery !== null &&
+                                        filteredMentionOptions.length > 0 && (
+                                            <div className="mb-3 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                                                {filteredMentionOptions.map(
+                                                    (option) => (
+                                                        <button
+                                                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-50"
+                                                            key={option.id}
+                                                            onMouseDown={(
+                                                                event,
+                                                            ) => {
+                                                                event.preventDefault();
+                                                                insertMention(
+                                                                    option,
+                                                                );
+                                                            }}
+                                                            type="button"
+                                                        >
+                                                            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-sky-50 text-xs font-bold text-[#0054b8]">
+                                                                {option.id ===
+                                                                'everyone'
+                                                                    ? '@'
+                                                                    : initials(
+                                                                          option.label,
+                                                                      )}
+                                                            </span>
+                                                            <span className="min-w-0 flex-1">
+                                                                <span className="block truncate text-sm font-semibold text-slate-950">
+                                                                    {
+                                                                        option.token
+                                                                    }
+                                                                </span>
+                                                                <span className="block truncate text-xs text-slate-500">
+                                                                    {
+                                                                        option.description
+                                                                    }
+                                                                </span>
+                                                            </span>
+                                                        </button>
+                                                    ),
+                                                )}
+                                            </div>
+                                        )}
                                     <div className="flex items-center gap-3">
                                         <input
                                             className="sr-only"
@@ -2118,12 +2377,23 @@ export default function Messenger({
                                         </button>
                                         <input
                                             className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm transition outline-none focus:border-[#0054b8] focus:bg-white"
+                                            onClick={(event) =>
+                                                syncMentionQueryFromInput(
+                                                    event.currentTarget,
+                                                )
+                                            }
                                             onChange={(event) =>
                                                 handleMessageBodyChange(
                                                     event.target.value,
                                                 )
                                             }
+                                            onKeyUp={(event) =>
+                                                syncMentionQueryFromInput(
+                                                    event.currentTarget,
+                                                )
+                                            }
                                             placeholder="Type a message..."
+                                            ref={messageInputRef}
                                             value={messageBody}
                                         />
                                         <button
@@ -2158,6 +2428,9 @@ export default function Messenger({
                                     contacts={contacts}
                                     conversation={activeConversation}
                                     currentUserId={auth.user.id}
+                                    loadingPinnedMessages={
+                                        loadingPinnedMessages
+                                    }
                                     loadingSharedContent={loadingSharedContent}
                                     onlineUserIds={onlineUserIdsSet}
                                     onAddMembers={addConversationMembers}
@@ -2167,6 +2440,9 @@ export default function Messenger({
                                     }
                                     onRemoveMember={removeConversationMember}
                                     onRename={renameConversation}
+                                    onOpenPinnedMessage={openPinnedMessage}
+                                    onUnpinPinnedMessage={toggleMessagePin}
+                                    pinnedMessages={activePinnedMessages}
                                     sharedContent={activeSharedContent}
                                 />
                             ) : (
@@ -2702,18 +2978,23 @@ function ChatDetails({
     contacts,
     conversation,
     currentUserId,
+    loadingPinnedMessages,
     loadingSharedContent,
     onlineUserIds,
     onAddMembers,
     onLeave,
     onNotificationChange,
+    onOpenPinnedMessage,
     onRemoveMember,
     onRename,
+    onUnpinPinnedMessage,
+    pinnedMessages,
     sharedContent,
 }: {
     contacts: Contact[];
     conversation: Conversation;
     currentUserId: number;
+    loadingPinnedMessages: boolean;
     loadingSharedContent: boolean;
     onlineUserIds: Set<number>;
     onAddMembers: (
@@ -2725,11 +3006,14 @@ function ChatDetails({
         conversation: Conversation,
         preference: NotificationPreference,
     ) => Promise<boolean>;
+    onOpenPinnedMessage: (message: MessengerMessage) => void;
     onRemoveMember: (
         conversation: Conversation,
         userId: number,
     ) => Promise<boolean>;
     onRename: (conversation: Conversation, title: string) => Promise<boolean>;
+    onUnpinPinnedMessage: (message: MessengerMessage) => void;
+    pinnedMessages: MessengerMessage[];
     sharedContent: SharedContent;
 }) {
     const [activeTab, setActiveTab] = useState<'media' | 'links' | 'files'>(
@@ -2850,6 +3134,19 @@ function ChatDetails({
                             ),
                         )}
                     </div>
+                </div>
+
+                <div className="mt-6 w-full text-left">
+                    <PanelTitle
+                        icon={<Pin className="size-4" />}
+                        title="Pinned Messages"
+                    />
+                    <PinnedMessagesList
+                        loading={loadingPinnedMessages}
+                        messages={pinnedMessages}
+                        onOpen={onOpenPinnedMessage}
+                        onUnpin={onUnpinPinnedMessage}
+                    />
                 </div>
 
                 <div className="mt-6 w-full text-left">
@@ -3296,6 +3593,83 @@ function SharedFilesList({ files }: { files: SharedAttachment[] }) {
                         </span>
                     </span>
                 </a>
+            ))}
+        </div>
+    );
+}
+
+function PinnedMessagesList({
+    loading,
+    messages,
+    onOpen,
+    onUnpin,
+}: {
+    loading: boolean;
+    messages: MessengerMessage[];
+    onOpen: (message: MessengerMessage) => void;
+    onUnpin: (message: MessengerMessage) => void;
+}) {
+    if (loading) {
+        return (
+            <div className="mt-3">
+                <SharedContentEmpty
+                    icon={<Info className="size-5" />}
+                    title="Loading pinned messages"
+                />
+            </div>
+        );
+    }
+
+    if (messages.length === 0) {
+        return (
+            <div className="mt-3">
+                <SharedContentEmpty
+                    icon={<Pin className="size-5" />}
+                    title="No pinned messages yet"
+                />
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-3 space-y-2">
+            {messages.map((message) => (
+                <div
+                    className="group flex min-w-0 items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-[#0054b8] hover:bg-sky-50"
+                    key={message.id}
+                >
+                    <button
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                        onClick={() => onOpen(message)}
+                        type="button"
+                    >
+                        <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-[#0054b8]">
+                            <Pin className="size-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-semibold text-slate-500">
+                                {message.sender?.name ?? 'System'} ·{' '}
+                                {formatTime(message.pinned_at)}
+                            </span>
+                            <span className="mt-0.5 line-clamp-2 block text-sm leading-5 font-medium text-slate-900">
+                                {messagePreview(message)}
+                            </span>
+                            {message.pinned_by && (
+                                <span className="mt-1 block truncate text-[11px] text-slate-500">
+                                    Pinned by {message.pinned_by.name}
+                                </span>
+                            )}
+                        </span>
+                    </button>
+                    <button
+                        aria-label="Unpin message"
+                        className="grid size-8 shrink-0 place-items-center rounded-full text-slate-400 opacity-100 transition hover:bg-white hover:text-[#0054b8] md:opacity-0 md:group-hover:opacity-100"
+                        onClick={() => onUnpin(message)}
+                        type="button"
+                    >
+                        <PinOff className="size-4" />
+                    </button>
+                </div>
             ))}
         </div>
     );
@@ -3788,7 +4162,22 @@ function LinkedMessageText({ text }: { text: string }) {
                         {part.text}
                     </a>
                 ) : (
-                    <span key={`${part.text}-${index}`}>{part.text}</span>
+                    mentionifyText(part.text).map((mentionPart, partIndex) =>
+                        mentionPart.type === 'mention' ? (
+                            <span
+                                className="font-semibold text-[#0054b8]"
+                                key={`${mentionPart.text}-${index}-${partIndex}`}
+                            >
+                                {mentionPart.text}
+                            </span>
+                        ) : (
+                            <span
+                                key={`${mentionPart.text}-${index}-${partIndex}`}
+                            >
+                                {mentionPart.text}
+                            </span>
+                        ),
+                    )
                 ),
             )}
         </p>
@@ -3965,6 +4354,13 @@ function sortConversations(conversations: Conversation[]) {
     });
 }
 
+function sortMessagesByCreatedAt(messages: MessengerMessage[]) {
+    return [...messages].sort(
+        (first, second) =>
+            timestamp(first.created_at) - timestamp(second.created_at),
+    );
+}
+
 function timestamp(value: string | null) {
     return value ? new Date(value).getTime() : 0;
 }
@@ -4031,6 +4427,101 @@ function replyMessagePreview(replyTo: ReplyToMessage) {
     }
 
     return 'Message';
+}
+
+function mentionOptionsFor(
+    conversation: Conversation | null,
+    currentUserId: number,
+): MentionOption[] {
+    if (!conversation) {
+        return [];
+    }
+
+    return [
+        {
+            id: 'everyone',
+            label: 'Everyone',
+            token: '@everyone',
+            description: 'Notify everyone in this chat',
+        },
+        ...conversation.participants
+            .filter((participant) => participant.id !== currentUserId)
+            .map((participant) => ({
+                id: participant.id,
+                label: participant.name,
+                token: `@${mentionToken(participant.name)}`,
+                description: participant.school_role,
+            })),
+    ];
+}
+
+function mentionToken(name: string) {
+    return name.trim().replace(/\s+/g, '');
+}
+
+function mentionRangeAtCursor(text: string, cursor: number) {
+    const beforeCursor = text.slice(0, cursor);
+    const match = beforeCursor.match(/(^|\s)@([A-Za-z0-9._-]*)$/);
+
+    if (!match || match.index === undefined) {
+        return null;
+    }
+
+    const start = match.index + match[1].length;
+
+    return {
+        start,
+        end: cursor,
+        query: match[2] ?? '',
+    };
+}
+
+function mentionQueryAtCursor(text: string, cursor: number) {
+    return mentionRangeAtCursor(text, cursor)?.query ?? null;
+}
+
+function mentionifyText(text: string) {
+    const parts: Array<
+        | {
+              type: 'text';
+              text: string;
+          }
+        | {
+              type: 'mention';
+              text: string;
+          }
+    > = [];
+    const pattern = /(^|\s)(@everyone|@[A-Za-z0-9._-]+)/gi;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = pattern.exec(text)) !== null) {
+        const mention = match[2];
+        const start = match.index + match[1].length;
+
+        if (start > lastIndex) {
+            parts.push({
+                type: 'text',
+                text: text.slice(lastIndex, start),
+            });
+        }
+
+        parts.push({
+            type: 'mention',
+            text: mention,
+        });
+
+        lastIndex = start + mention.length;
+    }
+
+    if (lastIndex < text.length) {
+        parts.push({
+            type: 'text',
+            text: text.slice(lastIndex),
+        });
+    }
+
+    return parts.length > 0 ? parts : [{ type: 'text' as const, text }];
 }
 
 function linkifyText(text: string) {
@@ -4181,7 +4672,11 @@ function replyToFromMessage(message: MessengerMessage): ReplyToMessage {
 }
 
 function latestPinnedMessage(messages: Array<MessengerMessage | null>) {
-    return (
+    return pinnedMessagesList(messages)[0] ?? null;
+}
+
+function pinnedMessagesList(messages: Array<MessengerMessage | null>) {
+    return Array.from(
         messages
             .filter(
                 (message): message is MessengerMessage =>
@@ -4189,11 +4684,16 @@ function latestPinnedMessage(messages: Array<MessengerMessage | null>) {
                     message.pinned_at !== null &&
                     message.unsent_at === null,
             )
-            .sort(
-                (first, second) =>
-                    new Date(second.pinned_at ?? 0).getTime() -
-                    new Date(first.pinned_at ?? 0).getTime(),
-            )[0] ?? null
+            .reduce((pinnedMessages, message) => {
+                pinnedMessages.set(message.id, message);
+
+                return pinnedMessages;
+            }, new Map<number, MessengerMessage>())
+            .values(),
+    ).sort(
+        (first, second) =>
+            new Date(second.pinned_at ?? 0).getTime() -
+            new Date(first.pinned_at ?? 0).getTime(),
     );
 }
 
@@ -4265,12 +4765,33 @@ function messageMentionsUser(
 ) {
     const normalizedBody = message.body.toLowerCase();
     const normalizedName = currentUserName.toLowerCase();
+    const normalizedToken = mentionToken(currentUserName).toLowerCase();
     const firstName = normalizedName.split(/\s+/)[0] ?? normalizedName;
 
     return (
-        normalizedBody.includes(`@${normalizedName}`) ||
-        normalizedBody.includes(`@${firstName}`)
+        bodyContainsMention(normalizedBody, 'everyone') ||
+        bodyContainsMention(normalizedBody, normalizedName) ||
+        bodyContainsMention(normalizedBody, normalizedToken) ||
+        bodyContainsMention(normalizedBody, firstName)
     );
+}
+
+function bodyContainsMention(body: string, token: string) {
+    if (!token) {
+        return false;
+    }
+
+    const escapedToken = escapeRegExp(token);
+    const mentionPattern = new RegExp(
+        `(^|\\s)@${escapedToken}(?=$|\\s|[.,!?;:)\\]])`,
+        'i',
+    );
+
+    return mentionPattern.test(body);
+}
+
+function escapeRegExp(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function mapMessages(

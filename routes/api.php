@@ -25,6 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('conversations/{conversation}/members/{user}', [ConversationController::class, 'removeMember']);
         Route::get('conversations/{conversation}/messages', [MessageController::class, 'index']);
         Route::get('conversations/{conversation}/shared', [MessageController::class, 'shared']);
+        Route::get('conversations/{conversation}/messages/pinned', [MessageController::class, 'pinned']);
         Route::post('conversations/{conversation}/messages', [MessageController::class, 'store']);
         Route::patch('conversations/{conversation}/messages/{message}', [MessageController::class, 'update']);
         Route::delete('conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);

@@ -91,6 +91,26 @@ class MessageController extends Controller
     }
 
     /**
+     * Display pinned messages for a conversation.
+     */
+    public function pinned(Request $request, Team $team, Conversation $conversation): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+
+        $messages = $conversation->messages()
+            ->with(['attachments', 'conversation.team', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+            ->whereNotNull('pinned_at')
+            ->whereNull('unsent_at')
+            ->latest('pinned_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (Message $message) => MessagePayload::from($message, $request->user()->id))
+            ->values();
+
+        return response()->json(['data' => $messages]);
+    }
+
+    /**
      * Store a new message and broadcast it to conversation participants.
      */
     public function store(StoreMessageRequest $request, Team $team, Conversation $conversation): JsonResponse

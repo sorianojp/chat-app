@@ -29,24 +29,24 @@ export default function InvitationsIndex({ invitations }: Props) {
 
     return (
         <>
-            <Head title="Invitations" />
+            <Head title="Team Invitations" />
 
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-semibold tracking-tight">
-                            Invitations
+                            Team Invitations
                         </h1>
                         <p className="text-sm text-muted-foreground">
-                            School and team invitations sent to your account.
+                            Team invitations sent to your account.
                         </p>
                     </div>
                     {invitations.length > 0 && (
                         <Badge variant="secondary">
                             {invitations.length}{' '}
                             {invitations.length === 1
-                                ? 'invitation'
-                                : 'invitations'}
+                                ? 'team invitation'
+                                : 'team invitations'}
                         </Badge>
                     )}
                 </div>
@@ -69,11 +69,11 @@ export default function InvitationsIndex({ invitations }: Props) {
                             <Inbox className="size-6" />
                         </span>
                         <h2 className="mt-4 text-base font-semibold">
-                            No invitations
+                            No team invitations
                         </h2>
                         <p className="mt-1 max-w-sm text-sm leading-6 text-muted-foreground">
-                            Invitations sent to your email address will appear
-                            here.
+                            Team invitations sent to your email address will
+                            appear here.
                         </p>
                     </div>
                 )}
@@ -186,7 +186,7 @@ function formatDate(value: string | null) {
 InvitationsIndex.layout = () => ({
     breadcrumbs: [
         {
-            title: 'Invitations',
+            title: 'Team Invitations',
             href: '/invitations',
         },
     ],

@@ -30,7 +30,7 @@ export function AppSidebar() {
             icon: MessageCircle,
         },
         {
-            title: 'Invitations',
+            title: 'Team Invitations',
             href: '/invitations',
             icon: Inbox,
         },
