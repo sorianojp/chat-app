@@ -1,12 +1,15 @@
 import { Head, usePage } from '@inertiajs/react';
 import { echo } from '@laravel/echo-react';
 import {
+    Archive,
+    ArchiveRestore,
     Bell,
     BellOff,
     Check,
     FileText,
     Forward,
     ImageIcon,
+    Inbox,
     Info,
     Link as LinkIcon,
     LogOut,
@@ -71,6 +74,7 @@ type Conversation = {
     last_message_at: string | null;
     pinned_at: string | null;
     muted_at: string | null;
+    archived_at: string | null;
     notification_preference: NotificationPreference;
 };
 
@@ -180,6 +184,7 @@ type Props = {
     conversations: Conversation[];
     initialConversationId: number | null;
     initialMessages: MessengerMessage[];
+    archived: boolean;
 };
 
 type MessageCreatedPayload = {
@@ -227,6 +232,11 @@ type TypingChannel = {
     ) => TypingChannel;
 };
 
+type WindowWithWebAudio = Window &
+    typeof globalThis & {
+        webkitAudioContext?: typeof AudioContext;
+    };
+
 type NewConversationPayload = {
     type: 'direct' | 'group';
     title: string | null;
@@ -244,6 +254,7 @@ const EMPTY_SHARED_CONTENT: SharedContent = {
 
 export default function Messenger({
     apiBaseUrl,
+    archived,
     contacts,
     conversations: initialConversations,
     initialConversationId,
@@ -269,6 +280,7 @@ export default function Messenger({
     const [messageBody, setMessageBody] = useState('');
     const [search, setSearch] = useState('');
     const [messageSearch, setMessageSearch] = useState('');
+    const [messageSearchOpen, setMessageSearchOpen] = useState(false);
     const [messageSearchResults, setMessageSearchResults] = useState<
         MessengerMessage[]
     >([]);
@@ -295,7 +307,9 @@ export default function Messenger({
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const activeConversationIdRef = useRef(activeConversationId);
+    const conversationsRef = useRef(conversations);
     const currentUserIdRef = useRef(auth.user.id);
+    const currentUserNameRef = useRef(auth.user.name);
     const seenMessageIdsRef = useRef(
         new Set(initialMessages.map((message) => message.id)),
     );
@@ -309,6 +323,7 @@ export default function Messenger({
     const lastTypingWhisperAtRef = useRef(0);
     const ownTypingStopTimeoutRef = useRef<number | null>(null);
     const activeTypingChannelRef = useRef<TypingChannel | null>(null);
+    const notificationAudioContextRef = useRef<AudioContext | null>(null);
     const typingTimeoutsRef = useRef<Record<string, number>>({});
 
     const activeConversation = useMemo(
@@ -326,9 +341,10 @@ export default function Messenger({
         ...activeMessages,
     ]);
     const messageSearchTerm = messageSearch.trim();
-    const visibleMessages = messageSearchTerm
-        ? messageSearchResults
-        : activeMessages;
+    const visibleMessages =
+        messageSearchOpen && messageSearchTerm
+            ? messageSearchResults
+            : activeMessages;
     const seenMessageId = latestSeenMessageId(visibleMessages, auth.user.id);
     const activeSharedContent = activeConversationId
         ? (sharedContentByConversation[activeConversationId] ??
@@ -424,6 +440,92 @@ export default function Messenger({
         setHasHydrated(true);
     }, []);
 
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+    const ensureNotificationAudioContext = useCallback(() => {
+        if (typeof window === 'undefined') {
+            return null;
+        }
+
+        if (notificationAudioContextRef.current) {
+            return notificationAudioContextRef.current;
+        }
+
+        const AudioContextConstructor =
+            window.AudioContext ??
+            (window as WindowWithWebAudio).webkitAudioContext;
+
+        if (!AudioContextConstructor) {
+            return null;
+        }
+
+        notificationAudioContextRef.current = new AudioContextConstructor();
+
+        return notificationAudioContextRef.current;
+    }, []);
+
+    const unlockNotificationAudio = useCallback(() => {
+        const audioContext = ensureNotificationAudioContext();
+
+        if (audioContext?.state === 'suspended') {
+            void audioContext.resume();
+        }
+    }, [ensureNotificationAudioContext]);
+
+    useEffect(() => {
+        window.addEventListener('pointerdown', unlockNotificationAudio, {
+            once: true,
+        });
+        window.addEventListener('keydown', unlockNotificationAudio, {
+            once: true,
+        });
+
+        return () => {
+            window.removeEventListener('pointerdown', unlockNotificationAudio);
+            window.removeEventListener('keydown', unlockNotificationAudio);
+        };
+    }, [unlockNotificationAudio]);
+
+    const playNotificationSound = useCallback(() => {
+        const audioContext = ensureNotificationAudioContext();
+
+        if (!audioContext) {
+            return;
+        }
+
+        const playTone = () => {
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            const now = audioContext.currentTime;
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, now);
+            oscillator.frequency.exponentialRampToValueAtTime(1320, now + 0.08);
+
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.045, now + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+            oscillator.connect(gain);
+            gain.connect(audioContext.destination);
+            oscillator.start(now);
+            oscillator.stop(now + 0.2);
+        };
+
+        if (audioContext.state === 'suspended') {
+            void audioContext
+                .resume()
+                .then(playTone)
+                .catch(() => {});
+
+            return;
+        }
+
+        playTone();
+    }, [ensureNotificationAudioContext]);
+
     const handleMessageBodyChange = (value: string) => {
         setMessageBody(value);
 
@@ -456,51 +558,70 @@ export default function Messenger({
         }, TYPING_IDLE_MS);
     };
 
-    const appendMessage = useCallback((message: MessengerMessage) => {
-        const isActive =
-            message.conversation_id === activeConversationIdRef.current;
-        const isMine = message.sender?.id === currentUserIdRef.current;
-        const wasAlreadyLoaded = seenMessageIdsRef.current.has(message.id);
+    const appendMessage = useCallback(
+        (message: MessengerMessage) => {
+            const isActive =
+                message.conversation_id === activeConversationIdRef.current;
+            const isMine = message.sender?.id === currentUserIdRef.current;
+            const wasAlreadyLoaded = seenMessageIdsRef.current.has(message.id);
+            const conversation = conversationsRef.current.find(
+                (item) => item.id === message.conversation_id,
+            );
 
-        if (!wasAlreadyLoaded) {
-            seenMessageIdsRef.current.add(message.id);
-        }
-
-        setMessagesByConversation((messages) => {
-            const existingMessages = messages[message.conversation_id] ?? [];
-
-            if (wasAlreadyLoaded) {
-                return messages;
+            if (!wasAlreadyLoaded) {
+                seenMessageIdsRef.current.add(message.id);
             }
 
-            return {
-                ...messages,
-                [message.conversation_id]: [...existingMessages, message],
-            };
-        });
+            if (
+                !wasAlreadyLoaded &&
+                shouldPlayNotificationSound(
+                    message,
+                    conversation,
+                    currentUserIdRef.current,
+                    currentUserNameRef.current,
+                )
+            ) {
+                playNotificationSound();
+            }
 
-        setConversations((items) =>
-            sortConversations(
-                items.map((conversation) =>
-                    conversation.id === message.conversation_id
-                        ? {
-                              ...conversation,
-                              latest_message: message,
-                              last_message_at: message.created_at,
-                              pinned_message: latestPinnedMessage([
-                                  conversation.pinned_message,
-                                  message,
-                              ]),
-                              unread_count:
-                                  isActive || isMine || wasAlreadyLoaded
-                                      ? 0
-                                      : conversation.unread_count + 1,
-                          }
-                        : conversation,
+            setMessagesByConversation((messages) => {
+                const existingMessages =
+                    messages[message.conversation_id] ?? [];
+
+                if (wasAlreadyLoaded) {
+                    return messages;
+                }
+
+                return {
+                    ...messages,
+                    [message.conversation_id]: [...existingMessages, message],
+                };
+            });
+
+            setConversations((items) =>
+                sortConversations(
+                    items.map((conversation) =>
+                        conversation.id === message.conversation_id
+                            ? {
+                                  ...conversation,
+                                  latest_message: message,
+                                  last_message_at: message.created_at,
+                                  pinned_message: latestPinnedMessage([
+                                      conversation.pinned_message,
+                                      message,
+                                  ]),
+                                  unread_count:
+                                      isActive || isMine || wasAlreadyLoaded
+                                          ? 0
+                                          : conversation.unread_count + 1,
+                              }
+                            : conversation,
+                    ),
                 ),
-            ),
-        );
-    }, []);
+            );
+        },
+        [playNotificationSound],
+    );
 
     const updateMessageReactions = useCallback(
         (messageId: number, reactions: MessageReactionSummary[]) => {
@@ -614,6 +735,20 @@ export default function Messenger({
             ),
         );
     }, []);
+
+    const removeConversationFromCurrentView = useCallback(
+        (conversationId: number) => {
+            setConversations((items) =>
+                items.filter((item) => item.id !== conversationId),
+            );
+
+            if (activeConversationIdRef.current === conversationId) {
+                setActiveConversationId(null);
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+        },
+        [],
+    );
 
     const applyConversationRead = useCallback(
         (payload: ConversationReadPayload) => {
@@ -904,6 +1039,7 @@ export default function Messenger({
 
     useEffect(() => {
         setMessageSearch('');
+        setMessageSearchOpen(false);
         setMessageSearchResults([]);
         setEditingMessage(null);
         setReplyToMessage(null);
@@ -912,7 +1048,7 @@ export default function Messenger({
     }, [activeConversationId]);
 
     useEffect(() => {
-        if (!activeConversationId || !messageSearchTerm) {
+        if (!activeConversationId || !messageSearchOpen || !messageSearchTerm) {
             setMessageSearchResults([]);
             setSearchingMessages(false);
 
@@ -924,7 +1060,7 @@ export default function Messenger({
         }, 250);
 
         return () => window.clearTimeout(timeout);
-    }, [activeConversationId, messageSearchTerm]);
+    }, [activeConversationId, messageSearchOpen, messageSearchTerm]);
 
     const fetchMessages = async (conversationId: number) => {
         const response = await fetch(
@@ -1255,6 +1391,55 @@ export default function Messenger({
         );
     };
 
+    const moveConversationToArchiveState = async (
+        conversation: Conversation,
+        shouldArchive: boolean,
+    ) => {
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}/archive`,
+            {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify({ archived: shouldArchive }),
+            },
+        );
+
+        if (!response.ok) {
+            return;
+        }
+
+        removeConversationFromCurrentView(conversation.id);
+    };
+
+    const deleteArchivedConversation = async (conversation: Conversation) => {
+        if (!window.confirm('Permanently delete this archived chat?')) {
+            return;
+        }
+
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}`,
+            {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+            },
+        );
+
+        if (!response.ok) {
+            return;
+        }
+
+        removeConversationFromCurrentView(conversation.id);
+    };
+
     const toggleConversationMute = async (conversation: Conversation) => {
         await updateNotificationPreference(
             conversation,
@@ -1422,11 +1607,7 @@ export default function Messenger({
             return false;
         }
 
-        setConversations((items) =>
-            items.filter((item) => item.id !== conversation.id),
-        );
-        setActiveConversationId(null);
-        window.history.replaceState({}, '', window.location.pathname);
+        removeConversationFromCurrentView(conversation.id);
 
         return true;
     };
@@ -1559,18 +1740,35 @@ export default function Messenger({
                             {workspace.name}
                         </p>
                         <h1 className="truncate text-2xl font-bold text-slate-950">
-                            Chats
+                            {archived ? 'Archived' : 'Chat'}
                         </h1>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button
-                            aria-label="New message"
-                            className="grid size-10 place-items-center rounded-full bg-[#0054b8] text-white shadow-sm transition hover:bg-[#004996]"
-                            onClick={() => setComposerOpen(true)}
-                            type="button"
+                        <a
+                            aria-label={archived ? 'Back to inbox' : 'Archive'}
+                            className="grid size-10 place-items-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition hover:bg-slate-200 hover:text-slate-900"
+                            href={
+                                archived
+                                    ? `/${workspace.slug}/messenger`
+                                    : `/${workspace.slug}/messenger?archived=1`
+                            }
                         >
-                            <PencilLine className="size-5" />
-                        </button>
+                            {archived ? (
+                                <Inbox className="size-5" />
+                            ) : (
+                                <Archive className="size-5" />
+                            )}
+                        </a>
+                        {!archived && (
+                            <button
+                                aria-label="New message"
+                                className="grid size-10 place-items-center rounded-full bg-[#0054b8] text-white shadow-sm transition hover:bg-[#004996]"
+                                onClick={() => setComposerOpen(true)}
+                                type="button"
+                            >
+                                <PencilLine className="size-5" />
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -1579,7 +1777,7 @@ export default function Messenger({
                         <div className="border-b border-slate-100 p-4">
                             <div className="mb-3 flex items-center">
                                 <h2 className="text-lg font-bold text-slate-950">
-                                    Chats
+                                    {archived ? 'Archives' : 'Chats'}
                                 </h2>
                             </div>
                             <label className="flex h-10 items-center gap-2 rounded-lg bg-slate-100 px-3 text-slate-400">
@@ -1684,9 +1882,23 @@ export default function Messenger({
                                 })
                             ) : (
                                 <EmptyState
-                                    icon={<MessageCircle className="size-6" />}
-                                    title="No conversations"
-                                    body="Start a direct message or create a group chat."
+                                    icon={
+                                        archived ? (
+                                            <Archive className="size-6" />
+                                        ) : (
+                                            <MessageCircle className="size-6" />
+                                        )
+                                    }
+                                    title={
+                                        archived
+                                            ? 'No archived chats'
+                                            : 'No conversations'
+                                    }
+                                    body={
+                                        archived
+                                            ? 'Archived chats will appear here.'
+                                            : 'Start a direct message or create a group chat.'
+                                    }
                                 />
                             )}
                         </div>
@@ -1696,29 +1908,65 @@ export default function Messenger({
                         {activeConversation ? (
                             <>
                                 <ConversationHeader
+                                    archived={archived}
                                     conversation={activeConversation}
                                     currentUserId={auth.user.id}
+                                    onArchive={(conversation) =>
+                                        void moveConversationToArchiveState(
+                                            conversation,
+                                            true,
+                                        )
+                                    }
+                                    onDeleteArchived={(conversation) =>
+                                        void deleteArchivedConversation(
+                                            conversation,
+                                        )
+                                    }
+                                    onRestore={(conversation) =>
+                                        void moveConversationToArchiveState(
+                                            conversation,
+                                            false,
+                                        )
+                                    }
+                                    onOpenMessageSearch={() =>
+                                        setMessageSearchOpen(true)
+                                    }
                                     onToggleMute={toggleConversationMute}
                                     onTogglePin={toggleConversationPin}
                                     onlineUserIds={onlineUserIdsSet}
                                     typingUsers={activeTypingUsers}
                                 />
-                                <div className="border-b border-slate-200 bg-white px-4 py-3 md:px-6">
-                                    <label className="flex h-10 items-center gap-2 rounded-lg bg-slate-100 px-3 text-slate-400">
-                                        <Search className="size-4" />
-                                        <input
-                                            className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-                                            onChange={(event) =>
-                                                setMessageSearch(
-                                                    event.target.value,
-                                                )
-                                            }
-                                            placeholder="Search messages"
-                                            type="search"
-                                            value={messageSearch}
-                                        />
-                                    </label>
-                                </div>
+                                {messageSearchOpen && (
+                                    <div className="border-b border-slate-200 bg-white px-4 py-3 md:px-6">
+                                        <label className="flex h-10 items-center gap-2 rounded-lg bg-slate-100 px-3 text-slate-400">
+                                            <Search className="size-4" />
+                                            <input
+                                                autoFocus
+                                                className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                                                onChange={(event) =>
+                                                    setMessageSearch(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                placeholder="Search messages"
+                                                type="search"
+                                                value={messageSearch}
+                                            />
+                                            <button
+                                                aria-label="Close search"
+                                                className="grid size-7 place-items-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                                                onClick={() => {
+                                                    setMessageSearch('');
+                                                    setMessageSearchOpen(false);
+                                                    setMessageSearchResults([]);
+                                                }}
+                                                type="button"
+                                            >
+                                                <X className="size-4" />
+                                            </button>
+                                        </label>
+                                    </div>
+                                )}
                                 {activePinnedMessage && (
                                     <PinnedMessageBanner
                                         message={activePinnedMessage}
@@ -1750,7 +1998,8 @@ export default function Messenger({
                                             title="Searching messages"
                                             body="Looking through this conversation."
                                         />
-                                    ) : messageSearchTerm ? (
+                                    ) : messageSearchOpen &&
+                                      messageSearchTerm ? (
                                         <EmptyState
                                             icon={<Search className="size-6" />}
                                             title="No messages found"
@@ -2307,15 +2556,25 @@ function ForwardMessageDialog({
 }
 
 function ConversationHeader({
+    archived,
     conversation,
     currentUserId,
+    onArchive,
+    onDeleteArchived,
+    onOpenMessageSearch,
+    onRestore,
     onToggleMute,
     onTogglePin,
     onlineUserIds,
     typingUsers,
 }: {
+    archived: boolean;
     conversation: Conversation;
     currentUserId: number;
+    onArchive: (conversation: Conversation) => void;
+    onDeleteArchived: (conversation: Conversation) => void;
+    onOpenMessageSearch: () => void;
+    onRestore: (conversation: Conversation) => void;
     onToggleMute: (conversation: Conversation) => void;
     onTogglePin: (conversation: Conversation) => void;
     onlineUserIds: Set<number>;
@@ -2361,6 +2620,43 @@ function ConversationHeader({
                 </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
+                <button
+                    aria-label="Search messages"
+                    className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                    onClick={onOpenMessageSearch}
+                    type="button"
+                >
+                    <Search className="size-4" />
+                </button>
+                {archived ? (
+                    <>
+                        <button
+                            aria-label="Restore chat"
+                            className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-[#0054b8]"
+                            onClick={() => onRestore(conversation)}
+                            type="button"
+                        >
+                            <ArchiveRestore className="size-4" />
+                        </button>
+                        <button
+                            aria-label="Delete permanently"
+                            className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                            onClick={() => onDeleteArchived(conversation)}
+                            type="button"
+                        >
+                            <Trash2 className="size-4" />
+                        </button>
+                    </>
+                ) : (
+                    <button
+                        aria-label="Archive chat"
+                        className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                        onClick={() => onArchive(conversation)}
+                        type="button"
+                    >
+                        <Archive className="size-4" />
+                    </button>
+                )}
                 <button
                     aria-label={
                         conversation.pinned_at ? 'Unpin chat' : 'Pin chat'
@@ -3931,6 +4227,50 @@ function updateConversationMessageSnapshot(
     }
 
     return updatedConversation;
+}
+
+function shouldPlayNotificationSound(
+    message: MessengerMessage,
+    conversation: Conversation | undefined,
+    currentUserId: number,
+    currentUserName: string,
+) {
+    if (
+        message.sender === null ||
+        message.sender.id === currentUserId ||
+        message.type === 'system' ||
+        message.unsent_at !== null
+    ) {
+        return false;
+    }
+
+    if (
+        conversation &&
+        (conversation.muted_at !== null ||
+            conversation.notification_preference === 'muted')
+    ) {
+        return false;
+    }
+
+    if (conversation?.notification_preference === 'mentions') {
+        return messageMentionsUser(message, currentUserName);
+    }
+
+    return true;
+}
+
+function messageMentionsUser(
+    message: MessengerMessage,
+    currentUserName: string,
+) {
+    const normalizedBody = message.body.toLowerCase();
+    const normalizedName = currentUserName.toLowerCase();
+    const firstName = normalizedName.split(/\s+/)[0] ?? normalizedName;
+
+    return (
+        normalizedBody.includes(`@${normalizedName}`) ||
+        normalizedBody.includes(`@${firstName}`)
+    );
 }
 
 function mapMessages(

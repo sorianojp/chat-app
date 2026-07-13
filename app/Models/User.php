@@ -74,7 +74,7 @@ class User extends Authenticatable implements PasskeyUser
     public function conversations(): BelongsToMany
     {
         return $this->belongsToMany(Conversation::class, 'conversation_participants')
-            ->withPivot(['role', 'last_read_at', 'pinned_at', 'muted_at', 'notification_preference'])
+            ->withPivot(['role', 'last_read_at', 'pinned_at', 'muted_at', 'notification_preference', 'archived_at'])
             ->withTimestamps();
     }
 

@@ -15,7 +15,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('conversations', [ConversationController::class, 'index']);
         Route::post('conversations', [ConversationController::class, 'store']);
         Route::patch('conversations/{conversation}', [ConversationController::class, 'update']);
+        Route::delete('conversations/{conversation}', [ConversationController::class, 'destroy']);
         Route::patch('conversations/{conversation}/pin', [ConversationController::class, 'pin']);
+        Route::patch('conversations/{conversation}/archive', [ConversationController::class, 'archive']);
         Route::patch('conversations/{conversation}/mute', [ConversationController::class, 'mute']);
         Route::patch('conversations/{conversation}/notifications', [ConversationController::class, 'notifications']);
         Route::post('conversations/{conversation}/members', [ConversationController::class, 'addMembers']);

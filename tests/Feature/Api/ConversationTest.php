@@ -111,6 +111,79 @@ test('conversation participants can pin and mute conversations', function () {
         ->assertJsonPath('data.muted_at', null);
 });
 
+test('conversation participants can archive restore and delete archived conversations', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $team->members()->attach($sender, ['role' => TeamRole::Member->value]);
+    $team->members()->attach($recipient, ['role' => TeamRole::Member->value]);
+
+    $conversation = $team->conversations()->create([
+        'created_by' => $sender->id,
+        'type' => ConversationType::Direct,
+    ]);
+    $conversation->participants()->attach($sender, ['role' => 'owner']);
+    $conversation->participants()->attach($recipient, ['role' => 'member']);
+
+    $this
+        ->actingAs($sender)
+        ->deleteJson("/api/teams/{$team->slug}/conversations/{$conversation->id}")
+        ->assertUnprocessable();
+
+    $this
+        ->actingAs($sender)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/archive", [
+            'archived' => true,
+        ])
+        ->assertOk();
+
+    $participant = DB::table('conversation_participants')
+        ->where('conversation_id', $conversation->id)
+        ->where('user_id', $sender->id)
+        ->first();
+
+    expect($participant->archived_at)->not->toBeNull();
+
+    $this
+        ->actingAs($sender)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/archive", [
+            'archived' => false,
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.archived_at', null);
+
+    expect(
+        DB::table('conversation_participants')
+            ->where('conversation_id', $conversation->id)
+            ->where('user_id', $sender->id)
+            ->value('archived_at'),
+    )->toBeNull();
+
+    $this
+        ->actingAs($sender)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/archive", [
+            'archived' => true,
+        ])
+        ->assertOk();
+
+    $this
+        ->actingAs($sender)
+        ->deleteJson("/api/teams/{$team->slug}/conversations/{$conversation->id}")
+        ->assertOk()
+        ->assertJsonPath('data.deleted', true);
+
+    $this->assertDatabaseMissing('conversation_participants', [
+        'conversation_id' => $conversation->id,
+        'user_id' => $sender->id,
+    ]);
+
+    $this->assertDatabaseHas('conversation_participants', [
+        'conversation_id' => $conversation->id,
+        'user_id' => $recipient->id,
+    ]);
+});
+
 test('group owners can manage details and members', function () {
     $owner = User::factory()->create();
     $member = User::factory()->create();

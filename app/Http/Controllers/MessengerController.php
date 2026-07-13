@@ -21,9 +21,15 @@ class MessengerController extends Controller
     public function __invoke(Request $request, Team $current_team): Response
     {
         $user = $request->user();
+        $showArchived = $request->boolean('archived');
 
         $conversations = $user->conversations()
             ->where('conversations.team_id', $current_team->id)
+            ->when(
+                $showArchived,
+                fn ($query) => $query->whereNotNull('conversation_participants.archived_at'),
+                fn ($query) => $query->whereNull('conversation_participants.archived_at'),
+            )
             ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->withCount('messages')
             ->orderByDesc('conversation_participants.pinned_at')
@@ -67,6 +73,7 @@ class MessengerController extends Controller
             'conversations' => $conversations,
             'initialConversationId' => $activeConversationId,
             'initialMessages' => $messages,
+            'archived' => $showArchived,
         ]);
     }
 
@@ -115,6 +122,7 @@ class MessengerController extends Controller
             'last_message_at' => $conversation->last_message_at?->toISOString(),
             'pinned_at' => $this->pivotTimestamp($pivot?->getAttribute('pinned_at')),
             'muted_at' => $this->pivotTimestamp($pivot?->getAttribute('muted_at')),
+            'archived_at' => $this->pivotTimestamp($pivot?->getAttribute('archived_at')),
             'notification_preference' => $pivot?->getAttribute('notification_preference') ?? 'all',
         ];
     }

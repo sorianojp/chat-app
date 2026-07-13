@@ -27,9 +27,16 @@ class ConversationController extends Controller
     {
         abort_unless($this->belongsToTeam($request, $team), 403);
 
+        $showArchived = $request->boolean('archived');
+
         $conversations = $request->user()
             ->conversations()
             ->where('conversations.team_id', $team->id)
+            ->when(
+                $showArchived,
+                fn ($query) => $query->whereNotNull('conversation_participants.archived_at'),
+                fn ($query) => $query->whereNull('conversation_participants.archived_at'),
+            )
             ->with(['latestMessage.sender:id,name', 'participants:id,name,email,school_role'])
             ->withCount('messages')
             ->orderByDesc('conversation_participants.pinned_at')
@@ -156,6 +163,52 @@ class ConversationController extends Controller
                 'notification_preference' => $data['muted'] ? 'muted' : 'all',
             ],
         ]);
+    }
+
+    /**
+     * Archive or restore a conversation for the authenticated user.
+     */
+    public function archive(Request $request, Team $team, Conversation $conversation): JsonResponse
+    {
+        abort_unless($this->belongsToTeam($request, $team), 403);
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+
+        $data = $request->validate([
+            'archived' => ['required', 'boolean'],
+        ]);
+        $archivedAt = $data['archived'] ? now() : null;
+
+        $conversation->participants()->updateExistingPivot($request->user()->id, [
+            'archived_at' => $archivedAt,
+        ]);
+
+        return response()->json([
+            'data' => [
+                'archived_at' => $archivedAt?->toISOString(),
+            ],
+        ]);
+    }
+
+    /**
+     * Permanently remove an archived conversation from the authenticated user's mailbox.
+     */
+    public function destroy(Request $request, Team $team, Conversation $conversation): JsonResponse
+    {
+        abort_unless($this->belongsToTeam($request, $team), 403);
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+
+        $participant = $conversation->participants()
+            ->whereKey($request->user()->id)
+            ->firstOrFail();
+        abort_unless($participant->getAttribute('pivot')?->getAttribute('archived_at') !== null, 422, 'Only archived conversations can be deleted.');
+
+        $conversation->participants()->detach($request->user()->id);
+
+        if (! $conversation->participants()->exists()) {
+            $conversation->delete();
+        }
+
+        return response()->json(['data' => ['deleted' => true]]);
     }
 
     /**
@@ -432,6 +485,7 @@ class ConversationController extends Controller
             'last_message_at' => $conversation->last_message_at?->toISOString(),
             'pinned_at' => $this->pivotTimestamp($pivot?->getAttribute('pinned_at')),
             'muted_at' => $this->pivotTimestamp($pivot?->getAttribute('muted_at')),
+            'archived_at' => $this->pivotTimestamp($pivot?->getAttribute('archived_at')),
             'notification_preference' => $pivot?->getAttribute('notification_preference') ?? 'all',
         ];
     }
