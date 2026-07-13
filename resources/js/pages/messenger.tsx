@@ -10,9 +10,11 @@ import {
     Mic,
     Paperclip,
     PencilLine,
+    Reply,
     Search,
     Send,
     Smile,
+    Trash2,
     UsersRound,
     Video,
     X,
@@ -70,10 +72,24 @@ type MessengerMessage = {
     type: string;
     body: string;
     metadata: Record<string, unknown> | null;
+    reply_to: ReplyToMessage | null;
     attachments: MessageAttachment[];
     reactions: MessageReactionSummary[];
     read_by: MessageReadReceipt[];
     created_at: string | null;
+    edited_at: string | null;
+    unsent_at: string | null;
+};
+
+type ReplyToMessage = {
+    id: number;
+    sender: {
+        id: number;
+        name: string;
+    } | null;
+    body: string;
+    attachment_count: number;
+    unsent_at: string | null;
 };
 
 type MessageReactionSummary = {
@@ -153,6 +169,10 @@ type MessageCreatedPayload = {
 type MessageReactionUpdatedPayload = {
     message_id: number;
     reactions: MessageReactionSummary[];
+};
+
+type MessageUpdatedPayload = {
+    message: MessengerMessage;
 };
 
 type ConversationReadPayload = {
@@ -237,6 +257,10 @@ export default function Messenger({
     const [hasHydrated, setHasHydrated] = useState(false);
     const [sending, setSending] = useState(false);
     const [composerOpen, setComposerOpen] = useState(false);
+    const [editingMessage, setEditingMessage] =
+        useState<MessengerMessage | null>(null);
+    const [replyToMessage, setReplyToMessage] =
+        useState<MessengerMessage | null>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -286,6 +310,7 @@ export default function Messenger({
     const activeTypingUsers = activeConversationId
         ? Object.values(typingUsersByConversation[activeConversationId] ?? {})
         : [];
+    const isEditing = editingMessage !== null;
     const filteredConversations = conversations.filter((conversation) =>
         conversation.display_name.toLowerCase().includes(search.toLowerCase()),
     );
@@ -480,6 +505,56 @@ export default function Messenger({
         },
         [],
     );
+
+    const replaceMessage = useCallback((message: MessengerMessage) => {
+        const personalizedMessage = personalizeMessage(
+            message,
+            currentUserIdRef.current,
+        );
+
+        setMessagesByConversation((messages) =>
+            mapMessages(messages, (item) => {
+                if (item.id === personalizedMessage.id) {
+                    return personalizedMessage;
+                }
+
+                if (item.reply_to?.id === personalizedMessage.id) {
+                    return {
+                        ...item,
+                        reply_to: replyToFromMessage(personalizedMessage),
+                    };
+                }
+
+                return item;
+            }),
+        );
+        setMessageSearchResults((messages) =>
+            messages.map((item) => {
+                if (item.id === personalizedMessage.id) {
+                    return personalizedMessage;
+                }
+
+                if (item.reply_to?.id === personalizedMessage.id) {
+                    return {
+                        ...item,
+                        reply_to: replyToFromMessage(personalizedMessage),
+                    };
+                }
+
+                return item;
+            }),
+        );
+        setConversations((items) =>
+            items.map((conversation) =>
+                conversation.latest_message?.id === personalizedMessage.id
+                    ? {
+                          ...conversation,
+                          latest_message: personalizedMessage,
+                      }
+                    : conversation,
+            ),
+        );
+    }, []);
 
     const applyConversationRead = useCallback(
         (payload: ConversationReadPayload) => {
@@ -709,6 +784,12 @@ export default function Messenger({
                     },
                 )
                 .listen(
+                    '.message.updated',
+                    (payload: MessageUpdatedPayload) => {
+                        replaceMessage(payload.message);
+                    },
+                )
+                .listen(
                     '.conversation.read',
                     (payload: ConversationReadPayload) => {
                         applyConversationRead(payload);
@@ -725,6 +806,7 @@ export default function Messenger({
         appendMessage,
         applyConversationRead,
         conversationIdsKey,
+        replaceMessage,
         updateMessageReactions,
     ]);
 
@@ -762,6 +844,10 @@ export default function Messenger({
     useEffect(() => {
         setMessageSearch('');
         setMessageSearchResults([]);
+        setEditingMessage(null);
+        setReplyToMessage(null);
+        setMessageBody('');
+        setSelectedFiles([]);
     }, [activeConversationId]);
 
     useEffect(() => {
@@ -894,6 +980,10 @@ export default function Messenger({
     };
 
     const toggleReaction = async (message: MessengerMessage, emoji: string) => {
+        if (message.unsent_at) {
+            return;
+        }
+
         const existingReaction = message.reactions.find(
             (reaction) => reaction.reacted_by_me,
         );
@@ -927,8 +1017,123 @@ export default function Messenger({
         updateMessageReactions(message.id, payload.data.reactions);
     };
 
+    const startReply = (message: MessengerMessage) => {
+        if (message.unsent_at) {
+            return;
+        }
+
+        setReplyToMessage(message);
+        setEditingMessage(null);
+    };
+
+    const startEdit = (message: MessengerMessage) => {
+        if (message.unsent_at || message.sender?.id !== auth.user.id) {
+            return;
+        }
+
+        setEditingMessage(message);
+        setReplyToMessage(null);
+        setSelectedFiles([]);
+        setMessageBody(message.body);
+
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const cancelComposerContext = () => {
+        setEditingMessage(null);
+        setReplyToMessage(null);
+        setMessageBody('');
+    };
+
+    const updateMessage = async () => {
+        if (!editingMessage || !messageBody.trim() || sending) {
+            return;
+        }
+
+        setSending(true);
+
+        try {
+            const response = await fetch(
+                `${apiBaseUrl}/conversations/${editingMessage.conversation_id}/messages/${editingMessage.id}`,
+                {
+                    method: 'PATCH',
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                    },
+                    body: JSON.stringify({ body: messageBody.trim() }),
+                },
+            );
+
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = (await response.json()) as {
+                data: MessengerMessage;
+            };
+
+            replaceMessage(payload.data);
+            setEditingMessage(null);
+            setMessageBody('');
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const unsendMessage = async (message: MessengerMessage) => {
+        if (
+            message.unsent_at ||
+            message.sender?.id !== auth.user.id ||
+            !window.confirm('Unsend this message for everyone?')
+        ) {
+            return;
+        }
+
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}`,
+            {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+            },
+        );
+
+        if (!response.ok) {
+            return;
+        }
+
+        const payload = (await response.json()) as {
+            data: MessengerMessage;
+        };
+
+        replaceMessage(payload.data);
+
+        if (editingMessage?.id === message.id) {
+            setEditingMessage(null);
+            setMessageBody('');
+        }
+
+        if (replyToMessage?.id === message.id) {
+            setReplyToMessage(null);
+        }
+    };
+
     const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+
+        if (editingMessage) {
+            await updateMessage();
+
+            return;
+        }
 
         if (
             !activeConversationId ||
@@ -950,6 +1155,13 @@ export default function Messenger({
             selectedFiles.forEach((file) => {
                 formData.append('attachments[]', file);
             });
+
+            if (replyToMessage) {
+                formData.append(
+                    'reply_to_message_id',
+                    String(replyToMessage.id),
+                );
+            }
 
             const response = await fetch(
                 `${apiBaseUrl}/conversations/${activeConversationId}/messages`,
@@ -974,6 +1186,7 @@ export default function Messenger({
 
             appendMessage(payload.data);
             setMessageBody('');
+            setReplyToMessage(null);
             setSelectedFiles([]);
             stopOwnTyping(activeConversationId);
 
@@ -1156,7 +1369,10 @@ export default function Messenger({
                                                 }
                                                 key={message.id}
                                                 message={message}
+                                                onEdit={startEdit}
                                                 onReact={toggleReaction}
+                                                onReply={startReply}
+                                                onUnsend={unsendMessage}
                                             />
                                         ))
                                     ) : searchingMessages ? (
@@ -1192,6 +1408,24 @@ export default function Messenger({
                                     className="shrink-0 border-t border-slate-200 bg-white p-4"
                                     onSubmit={sendMessage}
                                 >
+                                    {editingMessage && (
+                                        <ComposerContext
+                                            body={editingMessage.body}
+                                            label="Editing message"
+                                            onCancel={cancelComposerContext}
+                                        />
+                                    )}
+                                    {replyToMessage && !editingMessage && (
+                                        <ComposerContext
+                                            body={messagePreview(
+                                                replyToMessage,
+                                            )}
+                                            label={`Replying to ${replyToMessage.sender?.id === auth.user.id ? 'yourself' : (replyToMessage.sender?.name ?? 'message')}`}
+                                            onCancel={() =>
+                                                setReplyToMessage(null)
+                                            }
+                                        />
+                                    )}
                                     {selectedFiles.length > 0 && (
                                         <div className="mb-3 flex flex-wrap gap-2">
                                             {selectedFiles.map(
@@ -1250,6 +1484,7 @@ export default function Messenger({
                                                 )
                                             }
                                             ref={fileInputRef}
+                                            disabled={isEditing}
                                             type="file"
                                         />
                                         <button
@@ -1258,6 +1493,7 @@ export default function Messenger({
                                             onClick={() =>
                                                 fileInputRef.current?.click()
                                             }
+                                            disabled={isEditing}
                                             type="button"
                                         >
                                             <Paperclip className="size-5" />
@@ -1868,19 +2104,60 @@ function SharedContentEmpty({
     );
 }
 
+function ComposerContext({
+    body,
+    label,
+    onCancel,
+}: {
+    body: string;
+    label: string;
+    onCancel: () => void;
+}) {
+    return (
+        <div className="mb-3 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white text-[#0054b8]">
+                <Reply className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-xs font-semibold text-[#0054b8]">
+                    {label}
+                </span>
+                <span className="block truncate text-sm text-slate-600">
+                    {body}
+                </span>
+            </span>
+            <button
+                aria-label="Cancel"
+                className="grid size-8 shrink-0 place-items-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                onClick={onCancel}
+                type="button"
+            >
+                <X className="size-4" />
+            </button>
+        </div>
+    );
+}
+
 function MessageBubble({
     currentUserId,
     message,
+    onEdit,
     onReact,
+    onReply,
+    onUnsend,
     showSeen,
 }: {
     currentUserId: number;
     message: MessengerMessage;
+    onEdit: (message: MessengerMessage) => void;
     onReact: (message: MessengerMessage, emoji: string) => void;
+    onReply: (message: MessengerMessage) => void;
+    onUnsend: (message: MessengerMessage) => void;
     showSeen: boolean;
 }) {
     const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
     const mine = message.sender?.id === currentUserId;
+    const unsent = message.unsent_at !== null;
     const latestReadReceipt = message.read_by
         .filter((receipt) => receipt.id !== currentUserId)
         .sort(
@@ -1898,10 +2175,48 @@ function MessageBubble({
             className={`group flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}
         >
             <div className="relative max-w-[min(82%,34rem)]">
+                {!unsent && (
+                    <div
+                        className={`mb-1 flex gap-1 opacity-100 md:opacity-0 md:transition md:group-focus-within:opacity-100 md:group-hover:opacity-100 ${
+                            mine ? 'justify-end' : 'justify-start'
+                        }`}
+                    >
+                        <button
+                            aria-label="Reply"
+                            className="grid size-7 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-[#0054b8]"
+                            onClick={() => onReply(message)}
+                            type="button"
+                        >
+                            <Reply className="size-3.5" />
+                        </button>
+                        {mine && (
+                            <>
+                                <button
+                                    aria-label="Edit"
+                                    className="grid size-7 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-[#0054b8]"
+                                    onClick={() => onEdit(message)}
+                                    type="button"
+                                >
+                                    <PencilLine className="size-3.5" />
+                                </button>
+                                <button
+                                    aria-label="Unsend"
+                                    className="grid size-7 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-rose-600"
+                                    onClick={() => onUnsend(message)}
+                                    type="button"
+                                >
+                                    <Trash2 className="size-3.5" />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
                 <div
                     className={`relative min-w-0 rounded-2xl px-4 py-3 shadow-sm ${
                         mine
-                            ? 'rounded-br-md bg-[#cfe8ff] text-slate-950'
+                            ? unsent
+                                ? 'rounded-br-md bg-slate-100 text-slate-500'
+                                : 'rounded-br-md bg-[#cfe8ff] text-slate-950'
                             : 'rounded-bl-md bg-white text-slate-950'
                     } mb-3`}
                 >
@@ -1910,8 +2225,25 @@ function MessageBubble({
                             {message.sender.name}
                         </p>
                     )}
-                    {message.body && <LinkedMessageText text={message.body} />}
-                    {message.attachments.length > 0 && (
+                    {message.reply_to && (
+                        <ReplyPreview
+                            currentUserId={currentUserId}
+                            mine={mine}
+                            replyTo={message.reply_to}
+                        />
+                    )}
+                    {unsent ? (
+                        <p className="text-sm text-slate-500 italic">
+                            {mine
+                                ? 'You unsent a message.'
+                                : 'This message was unsent.'}
+                        </p>
+                    ) : (
+                        message.body && (
+                            <LinkedMessageText text={message.body} />
+                        )
+                    )}
+                    {!unsent && message.attachments.length > 0 && (
                         <div
                             className={
                                 message.body ? 'mt-3 space-y-2' : 'space-y-2'
@@ -1927,38 +2259,45 @@ function MessageBubble({
                         </div>
                     )}
                     <div className="mt-2 text-right text-[11px] text-slate-500">
+                        {message.edited_at && !unsent && (
+                            <span className="mr-1">Edited</span>
+                        )}
                         {formatTime(message.created_at)}
                     </div>
-                    <div className="absolute right-2 -bottom-3 flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1">
-                        <button
-                            aria-label="Add reaction"
-                            className="grid size-7 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-100 shadow-sm transition hover:scale-105 hover:text-[#0054b8] md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
-                            onClick={() =>
-                                setReactionPickerOpen((open) => !open)
-                            }
-                            type="button"
-                        >
-                            <Smile className="size-3.5" />
-                        </button>
-                        {message.reactions.map((reaction) => (
+                    {!unsent && (
+                        <div className="absolute right-2 -bottom-3 flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1">
                             <button
-                                aria-label={`Reacted with ${reaction.emoji}`}
-                                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 shadow-sm transition hover:bg-slate-50"
-                                key={reaction.emoji}
-                                onClick={() => handleReaction(reaction.emoji)}
-                                title={reaction.users
-                                    .map((user) => user.name)
-                                    .join(', ')}
+                                aria-label="Add reaction"
+                                className="grid size-7 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-100 shadow-sm transition hover:scale-105 hover:text-[#0054b8] md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                                onClick={() =>
+                                    setReactionPickerOpen((open) => !open)
+                                }
                                 type="button"
                             >
-                                <span>{reaction.emoji}</span>
-                                <span>{reaction.count}</span>
+                                <Smile className="size-3.5" />
                             </button>
-                        ))}
-                    </div>
+                            {message.reactions.map((reaction) => (
+                                <button
+                                    aria-label={`Reacted with ${reaction.emoji}`}
+                                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 shadow-sm transition hover:bg-slate-50"
+                                    key={reaction.emoji}
+                                    onClick={() =>
+                                        handleReaction(reaction.emoji)
+                                    }
+                                    title={reaction.users
+                                        .map((user) => user.name)
+                                        .join(', ')}
+                                    type="button"
+                                >
+                                    <span>{reaction.emoji}</span>
+                                    <span>{reaction.count}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
-                {reactionPickerOpen && (
+                {reactionPickerOpen && !unsent && (
                     <div
                         className={`absolute bottom-11 z-10 flex gap-1 rounded-full border border-slate-200 bg-white p-1.5 shadow-xl ${
                             mine ? 'right-0' : 'left-0'
@@ -2004,6 +2343,33 @@ function TypingIndicator({ users }: { users: TypingUser[] }) {
             </div>
             <p className="mt-1 text-xs font-medium text-slate-500">
                 {typingLabel(users)}
+            </p>
+        </div>
+    );
+}
+
+function ReplyPreview({
+    currentUserId,
+    mine,
+    replyTo,
+}: {
+    currentUserId: number;
+    mine: boolean;
+    replyTo: ReplyToMessage;
+}) {
+    return (
+        <div
+            className={`mb-2 rounded-lg border-l-4 border-[#0054b8] px-3 py-2 text-left ${
+                mine ? 'bg-white/60' : 'bg-slate-100'
+            }`}
+        >
+            <p className="truncate text-xs font-semibold text-[#0054b8]">
+                {replyTo.sender?.id === currentUserId
+                    ? 'You'
+                    : (replyTo.sender?.name ?? 'Message')}
+            </p>
+            <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-600">
+                {replyMessagePreview(replyTo)}
             </p>
         </div>
     );
@@ -2306,6 +2672,16 @@ function conversationPreview(message: MessengerMessage | null) {
         return 'No messages yet';
     }
 
+    return messagePreview(message);
+}
+
+function messagePreview(message: MessengerMessage) {
+    if (message.unsent_at) {
+        return message.sender
+            ? `${message.sender.name} unsent a message`
+            : 'Message unsent';
+    }
+
     if (message.body) {
         return message.body;
     }
@@ -2319,6 +2695,26 @@ function conversationPreview(message: MessengerMessage | null) {
     }
 
     return 'No messages yet';
+}
+
+function replyMessagePreview(replyTo: ReplyToMessage) {
+    if (replyTo.unsent_at) {
+        return 'Message unsent';
+    }
+
+    if (replyTo.body) {
+        return replyTo.body;
+    }
+
+    if (replyTo.attachment_count === 1) {
+        return 'Attachment';
+    }
+
+    if (replyTo.attachment_count > 1) {
+        return `${replyTo.attachment_count} attachments`;
+    }
+
+    return 'Message';
 }
 
 function linkifyText(text: string) {
@@ -2444,6 +2840,28 @@ function personalizeReactions(
         ...reaction,
         reacted_by_me: reaction.users.some((user) => user.id === currentUserId),
     }));
+}
+
+function personalizeMessage(message: MessengerMessage, currentUserId: number) {
+    return {
+        ...message,
+        reactions: personalizeReactions(message.reactions, currentUserId),
+    };
+}
+
+function replyToFromMessage(message: MessengerMessage): ReplyToMessage {
+    return {
+        id: message.id,
+        sender: message.sender
+            ? {
+                  id: message.sender.id,
+                  name: message.sender.name,
+              }
+            : null,
+        body: message.unsent_at ? '' : message.body,
+        attachment_count: message.unsent_at ? 0 : message.attachments.length,
+        unsent_at: message.unsent_at,
+    };
 }
 
 function mapMessages(

@@ -15,19 +15,23 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $conversation_id
  * @property int|null $sender_id
+ * @property int|null $reply_to_message_id
  * @property string $type
  * @property string $body
  * @property array<string, mixed>|null $metadata
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
+ * @property Carbon|null $edited_at
+ * @property Carbon|null $unsent_at
  * @property-read Collection<int, MessageAttachment> $attachments
  * @property-read Conversation $conversation
  * @property-read Collection<int, MessageReaction> $reactions
  * @property-read Collection<int, User> $readers
+ * @property-read Message|null $replyTo
  * @property-read User|null $sender
  */
-#[Fillable(['conversation_id', 'sender_id', 'type', 'body', 'metadata'])]
+#[Fillable(['conversation_id', 'sender_id', 'reply_to_message_id', 'type', 'body', 'metadata'])]
 class Message extends Model
 {
     use SoftDeletes;
@@ -50,6 +54,16 @@ class Message extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_id');
+    }
+
+    /**
+     * Get the message this message replies to.
+     *
+     * @return BelongsTo<Message, $this>
+     */
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(Message::class, 'reply_to_message_id');
     }
 
     /**
@@ -91,6 +105,8 @@ class Message extends Model
     {
         return [
             'metadata' => 'array',
+            'edited_at' => 'datetime',
+            'unsent_at' => 'datetime',
         ];
     }
 }

@@ -19,10 +19,12 @@ class MessagePayload
         $message->loadMissing([
             'attachments',
             'conversation.team',
+            'replyTo.sender:id,name',
             'sender:id,name,school_role',
             'reactions.user:id,name',
             'readers:id,name',
         ]);
+        $isUnsent = $message->unsent_at !== null;
 
         return [
             'id' => $message->id,
@@ -33,9 +35,10 @@ class MessagePayload
                 'school_role' => $message->sender->school_role->value,
             ] : null,
             'type' => $message->type,
-            'body' => $message->body,
-            'metadata' => $message->metadata,
-            'attachments' => $message->attachments->map(fn (MessageAttachment $attachment) => [
+            'body' => $isUnsent ? '' : $message->body,
+            'metadata' => $isUnsent ? null : $message->metadata,
+            'reply_to' => $isUnsent ? null : self::replyTo($message),
+            'attachments' => $isUnsent ? [] : $message->attachments->map(fn (MessageAttachment $attachment) => [
                 'id' => $attachment->id,
                 'name' => $attachment->original_name,
                 'mime_type' => $attachment->mime_type,
@@ -43,9 +46,11 @@ class MessagePayload
                 'url' => $attachment->downloadUrl($message),
                 'preview_url' => $attachment->previewUrl($message),
             ])->values(),
-            'reactions' => self::reactions($message, $currentUserId),
+            'reactions' => $isUnsent ? [] : self::reactions($message, $currentUserId),
             'read_by' => self::readers($message),
             'created_at' => $message->created_at?->toISOString(),
+            'edited_at' => $message->edited_at?->toISOString(),
+            'unsent_at' => $message->unsent_at?->toISOString(),
         ];
     }
 
@@ -98,5 +103,28 @@ class MessagePayload
             ->filter()
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function replyTo(Message $message): ?array
+    {
+        $replyTo = $message->replyTo;
+
+        if (! $replyTo instanceof Message) {
+            return null;
+        }
+
+        return [
+            'id' => $replyTo->id,
+            'sender' => $replyTo->sender ? [
+                'id' => $replyTo->sender->id,
+                'name' => $replyTo->sender->name,
+            ] : null,
+            'body' => $replyTo->unsent_at ? '' : $replyTo->body,
+            'attachment_count' => $replyTo->unsent_at ? 0 : $replyTo->attachments()->count(),
+            'unsent_at' => $replyTo->unsent_at?->toISOString(),
+        ];
     }
 }

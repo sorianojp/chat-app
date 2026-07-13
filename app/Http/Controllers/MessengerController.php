@@ -23,7 +23,7 @@ class MessengerController extends Controller
 
         $conversations = $user->conversations()
             ->where('conversations.team_id', $current_team->id)
-            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->withCount('messages')
             ->orderByDesc('last_message_at')
             ->orderByDesc('conversations.updated_at')
@@ -38,7 +38,7 @@ class MessengerController extends Controller
         $messages = $activeConversationId
             ? Message::query()
                 ->where('conversation_id', $activeConversationId)
-                ->with(['attachments', 'conversation.team', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+                ->with(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
                 ->oldest()
                 ->limit(80)
                 ->get()

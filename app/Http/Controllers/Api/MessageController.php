@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Events\ConversationRead;
 use App\Events\MessageCreated;
 use App\Events\MessageReactionUpdated;
+use App\Events\MessageUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreMessageRequest;
 use App\Models\Conversation;
@@ -29,7 +30,7 @@ class MessageController extends Controller
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
 
         $messages = $conversation->messages()
-            ->with(['attachments', 'conversation.team', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+            ->with(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
             ->when($request->string('search')->isNotEmpty(), function ($query) use ($request) {
                 $search = $request->string('search')->toString();
 
@@ -55,13 +56,16 @@ class MessageController extends Controller
 
         $attachments = MessageAttachment::query()
             ->with(['message.conversation.team', 'message.sender:id,name'])
-            ->whereHas('message', fn ($query) => $query->where('conversation_id', $conversation->id))
+            ->whereHas('message', fn ($query) => $query
+                ->where('conversation_id', $conversation->id)
+                ->whereNull('unsent_at'))
             ->latest()
             ->limit(120)
             ->get();
 
         $links = $conversation->messages()
             ->with('sender:id,name')
+            ->whereNull('unsent_at')
             ->where('body', 'like', '%http%')
             ->latest()
             ->limit(120)
@@ -98,6 +102,7 @@ class MessageController extends Controller
 
             $message = $conversation->messages()->create([
                 'sender_id' => $request->user()->id,
+                'reply_to_message_id' => $this->replyToMessageId($request, $conversation),
                 'type' => $request->validated('type', $hasAttachments ? 'attachment' : 'text'),
                 'body' => $request->validated('body') ?? '',
                 'metadata' => $request->validated('metadata'),
@@ -121,11 +126,69 @@ class MessageController extends Controller
         $conversation->forceFill(['last_message_at' => $message->created_at])->save();
         $conversation->participants()->updateExistingPivot($request->user()->id, ['last_read_at' => now()]);
 
-        broadcast(new MessageCreated($message->load(['attachments', 'conversation.team', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])))->toOthers();
+        broadcast(new MessageCreated($message->load(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])))->toOthers();
 
         return response()->json([
             'data' => MessagePayload::from($message, $request->user()->id),
         ], 201);
+    }
+
+    /**
+     * Edit an existing message owned by the authenticated user.
+     */
+    public function update(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureMessageBelongsToConversation($conversation, $message);
+        abort_unless($message->sender_id === $request->user()->id, 403);
+        abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot be edited.');
+
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $message->forceFill([
+            'body' => $data['body'],
+            'edited_at' => now(),
+        ])->save();
+
+        $message->load(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name']);
+
+        broadcast(new MessageUpdated($message))->toOthers();
+
+        return response()->json([
+            'data' => MessagePayload::from($message, $request->user()->id),
+        ]);
+    }
+
+    /**
+     * Unsend an existing message owned by the authenticated user.
+     */
+    public function destroy(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureMessageBelongsToConversation($conversation, $message);
+        abort_unless($message->sender_id === $request->user()->id, 403);
+
+        if ($message->unsent_at === null) {
+            DB::transaction(function () use ($message) {
+                $message->reactions()->delete();
+                $message->forceFill([
+                    'body' => '',
+                    'metadata' => null,
+                    'edited_at' => null,
+                    'unsent_at' => now(),
+                ])->save();
+            });
+        }
+
+        $message->load(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name']);
+
+        broadcast(new MessageUpdated($message))->toOthers();
+
+        return response()->json([
+            'data' => MessagePayload::from($message, $request->user()->id),
+        ]);
     }
 
     /**
@@ -203,6 +266,7 @@ class MessageController extends Controller
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
         abort_unless($message->conversation_id === $conversation->id, 404);
+        abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot receive reactions.');
 
         $data = $request->validate([
             'emoji' => ['required', 'string', Rule::in(['👍', '❤️', '😂', '😮', '🙏', '✅'])],
@@ -232,6 +296,7 @@ class MessageController extends Controller
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
         abort_unless($message->conversation_id === $conversation->id, 404);
+        abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot receive reactions.');
 
         $message->reactions()->where('user_id', $request->user()->id)->delete();
 
@@ -257,8 +322,32 @@ class MessageController extends Controller
 
     private function ensureAttachmentBelongsToMessage(Conversation $conversation, Message $message, MessageAttachment $attachment): void
     {
-        abort_unless($message->conversation_id === $conversation->id && $attachment->message_id === $message->id, 404);
+        $this->ensureMessageBelongsToConversation($conversation, $message);
+        abort_unless($attachment->message_id === $message->id, 404);
         abort_unless(Storage::disk($attachment->disk)->exists($attachment->path), 404);
+    }
+
+    private function ensureMessageBelongsToConversation(Conversation $conversation, Message $message): void
+    {
+        abort_unless($message->conversation_id === $conversation->id, 404);
+    }
+
+    private function replyToMessageId(StoreMessageRequest $request, Conversation $conversation): ?int
+    {
+        $replyToMessageId = $request->validated('reply_to_message_id');
+
+        if (! $replyToMessageId) {
+            return null;
+        }
+
+        $exists = $conversation->messages()
+            ->whereKey($replyToMessageId)
+            ->whereNull('unsent_at')
+            ->exists();
+
+        abort_unless($exists, 422, 'Reply target must belong to this conversation.');
+
+        return (int) $replyToMessageId;
     }
 
     /**

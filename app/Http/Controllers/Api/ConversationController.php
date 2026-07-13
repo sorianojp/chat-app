@@ -79,7 +79,7 @@ class ConversationController extends Controller
             [],
         ));
 
-        $conversation->load(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+        $conversation->load(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->loadCount('messages');
 
         return response()->json([

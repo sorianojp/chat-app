@@ -173,6 +173,115 @@ test('conversation participants can add update and remove reactions', function (
         ->assertJsonCount(0, 'data.reactions');
 });
 
+test('senders can reply to messages', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+    $original = $conversation->messages()->create([
+        'sender_id' => $recipient->id,
+        'type' => 'text',
+        'body' => 'Please confirm this reminder.',
+    ]);
+
+    $response = $this
+        ->actingAs($sender)
+        ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'body' => 'Confirmed.',
+            'reply_to_message_id' => $original->id,
+        ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('data.reply_to.id', $original->id)
+        ->assertJsonPath('data.reply_to.body', 'Please confirm this reminder.')
+        ->assertJsonPath('data.reply_to.sender.id', $recipient->id);
+});
+
+test('senders can edit their own text messages', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+    $message = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => 'Old reminder.',
+    ]);
+
+    $response = $this
+        ->actingAs($sender)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}", [
+            'body' => 'Updated reminder.',
+        ]);
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('data.body', 'Updated reminder.');
+    expect($response->json('data.edited_at'))->not->toBeNull();
+
+    $this->assertDatabaseHas('messages', [
+        'id' => $message->id,
+        'body' => 'Updated reminder.',
+    ]);
+});
+
+test('senders can unsend their own messages', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+    $message = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => 'Please remove this.',
+    ]);
+    $message->reactions()->create([
+        'user_id' => $recipient->id,
+        'emoji' => '✅',
+    ]);
+
+    $response = $this
+        ->actingAs($sender)
+        ->deleteJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}");
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('data.body', '')
+        ->assertJsonCount(0, 'data.reactions');
+    expect($response->json('data.unsent_at'))->not->toBeNull();
+
+    expect($message->refresh()->unsent_at)->not->toBeNull();
+    $this->assertDatabaseMissing('message_reactions', [
+        'message_id' => $message->id,
+        'user_id' => $recipient->id,
+    ]);
+});
+
+test('users cannot edit or unsend messages from another sender', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+    $message = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => 'Original.',
+    ]);
+
+    $this
+        ->actingAs($recipient)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}", [
+            'body' => 'Changed by recipient.',
+        ])
+        ->assertForbidden();
+
+    $this
+        ->actingAs($recipient)
+        ->deleteJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}")
+        ->assertForbidden();
+});
+
 test('marking a conversation as read creates message read receipts', function () {
     $sender = User::factory()->create();
     $recipient = User::factory()->create();

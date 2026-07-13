@@ -10,18 +10,16 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class MessageCreated implements ShouldBroadcastNow
+class MessageUpdated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public function __construct(public Message $message)
     {
-        $this->message->loadMissing(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender', 'reactions.user', 'readers']);
+        $this->message->loadMissing(['attachments', 'conversation.team', 'replyTo.sender', 'sender', 'reactions.user', 'readers']);
     }
 
     /**
-     * Get the channels the event should broadcast on.
-     *
      * @return array<int, PrivateChannel>
      */
     public function broadcastOn(): array
@@ -31,17 +29,12 @@ class MessageCreated implements ShouldBroadcastNow
         ];
     }
 
-    /**
-     * The event's broadcast name.
-     */
     public function broadcastAs(): string
     {
-        return 'message.created';
+        return 'message.updated';
     }
 
     /**
-     * Get the data to broadcast.
-     *
      * @return array<string, mixed>
      */
     public function broadcastWith(): array

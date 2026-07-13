@@ -17,6 +17,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('conversations/{conversation}/messages', [MessageController::class, 'index']);
         Route::get('conversations/{conversation}/shared', [MessageController::class, 'shared']);
         Route::post('conversations/{conversation}/messages', [MessageController::class, 'store']);
+        Route::patch('conversations/{conversation}/messages/{message}', [MessageController::class, 'update']);
+        Route::delete('conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
         Route::patch('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'react']);
         Route::delete('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'unreact']);
         Route::get('conversations/{conversation}/messages/{message}/attachments/{attachment}', [MessageController::class, 'downloadAttachment']);
