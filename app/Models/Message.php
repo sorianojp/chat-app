@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $conversation_id
  * @property int|null $sender_id
+ * @property int|null $pinned_by
  * @property int|null $reply_to_message_id
  * @property string $type
  * @property string $body
@@ -24,8 +25,10 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property Carbon|null $edited_at
  * @property Carbon|null $unsent_at
+ * @property Carbon|null $pinned_at
  * @property-read Collection<int, MessageAttachment> $attachments
  * @property-read Conversation $conversation
+ * @property-read User|null $pinner
  * @property-read Collection<int, MessageReaction> $reactions
  * @property-read Collection<int, User> $readers
  * @property-read Message|null $replyTo
@@ -54,6 +57,16 @@ class Message extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_id');
+    }
+
+    /**
+     * Get the user who pinned the message.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function pinner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'pinned_by');
     }
 
     /**
@@ -107,6 +120,7 @@ class Message extends Model
             'metadata' => 'array',
             'edited_at' => 'datetime',
             'unsent_at' => 'datetime',
+            'pinned_at' => 'datetime',
         ];
     }
 }

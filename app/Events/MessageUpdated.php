@@ -16,7 +16,7 @@ class MessageUpdated implements ShouldBroadcastNow
 
     public function __construct(public Message $message)
     {
-        $this->message->loadMissing(['attachments', 'conversation.team', 'replyTo.sender', 'sender', 'reactions.user', 'readers']);
+        $this->message->loadMissing(['attachments', 'conversation.team', 'pinner:id,name', 'replyTo.sender', 'sender', 'reactions.user', 'readers']);
     }
 
     /**

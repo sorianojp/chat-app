@@ -21,6 +21,7 @@ class MessagePayload
             'conversation.team',
             'replyTo.sender:id,name',
             'sender:id,name,school_role',
+            'pinner:id,name',
             'reactions.user:id,name',
             'readers:id,name',
         ]);
@@ -33,6 +34,10 @@ class MessagePayload
                 'id' => $message->sender->id,
                 'name' => $message->sender->name,
                 'school_role' => $message->sender->school_role->value,
+            ] : null,
+            'pinned_by' => $message->pinner ? [
+                'id' => $message->pinner->id,
+                'name' => $message->pinner->name,
             ] : null,
             'type' => $message->type,
             'body' => $isUnsent ? '' : $message->body,
@@ -51,6 +56,7 @@ class MessagePayload
             'created_at' => $message->created_at?->toISOString(),
             'edited_at' => $message->edited_at?->toISOString(),
             'unsent_at' => $message->unsent_at?->toISOString(),
+            'pinned_at' => $message->pinned_at?->toISOString(),
         ];
     }
 

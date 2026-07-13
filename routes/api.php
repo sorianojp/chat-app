@@ -14,11 +14,20 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('conversations', [ConversationController::class, 'index']);
         Route::post('conversations', [ConversationController::class, 'store']);
+        Route::patch('conversations/{conversation}', [ConversationController::class, 'update']);
+        Route::patch('conversations/{conversation}/pin', [ConversationController::class, 'pin']);
+        Route::patch('conversations/{conversation}/mute', [ConversationController::class, 'mute']);
+        Route::patch('conversations/{conversation}/notifications', [ConversationController::class, 'notifications']);
+        Route::post('conversations/{conversation}/members', [ConversationController::class, 'addMembers']);
+        Route::delete('conversations/{conversation}/members/me', [ConversationController::class, 'leave']);
+        Route::delete('conversations/{conversation}/members/{user}', [ConversationController::class, 'removeMember']);
         Route::get('conversations/{conversation}/messages', [MessageController::class, 'index']);
         Route::get('conversations/{conversation}/shared', [MessageController::class, 'shared']);
         Route::post('conversations/{conversation}/messages', [MessageController::class, 'store']);
         Route::patch('conversations/{conversation}/messages/{message}', [MessageController::class, 'update']);
         Route::delete('conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
+        Route::post('conversations/{conversation}/messages/{message}/forward', [MessageController::class, 'forward']);
+        Route::patch('conversations/{conversation}/messages/{message}/pin', [MessageController::class, 'pin']);
         Route::patch('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'react']);
         Route::delete('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'unreact']);
         Route::get('conversations/{conversation}/messages/{message}/attachments/{attachment}', [MessageController::class, 'downloadAttachment']);

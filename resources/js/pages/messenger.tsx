@@ -1,20 +1,28 @@
 import { Head, usePage } from '@inertiajs/react';
 import { echo } from '@laravel/echo-react';
 import {
+    Bell,
+    BellOff,
     Check,
     FileText,
+    Forward,
     ImageIcon,
     Info,
     Link as LinkIcon,
+    LogOut,
     MessageCircle,
     Mic,
     Paperclip,
     PencilLine,
+    Pin,
+    PinOff,
     Reply,
     Search,
     Send,
     Smile,
     Trash2,
+    UserMinus,
+    UserPlus,
     UsersRound,
     Video,
     X,
@@ -34,6 +42,7 @@ type Participant = {
     name: string;
     email: string;
     school_role: string;
+    conversation_role?: string | null;
 };
 
 type Contact = Participant;
@@ -56,10 +65,16 @@ type Conversation = {
     } | null;
     participants: Participant[];
     latest_message: MessengerMessage | null;
+    pinned_message: MessengerMessage | null;
     messages_count: number;
     unread_count: number;
     last_message_at: string | null;
+    pinned_at: string | null;
+    muted_at: string | null;
+    notification_preference: NotificationPreference;
 };
+
+type NotificationPreference = 'all' | 'mentions' | 'muted';
 
 type MessengerMessage = {
     id: number;
@@ -68,6 +83,10 @@ type MessengerMessage = {
         id: number;
         name: string;
         school_role: string;
+    } | null;
+    pinned_by: {
+        id: number;
+        name: string;
     } | null;
     type: string;
     body: string;
@@ -79,6 +98,7 @@ type MessengerMessage = {
     created_at: string | null;
     edited_at: string | null;
     unsent_at: string | null;
+    pinned_at: string | null;
 };
 
 type ReplyToMessage = {
@@ -166,6 +186,11 @@ type MessageCreatedPayload = {
     message: MessengerMessage;
 };
 
+type ConversationMutationPayload = {
+    data: Conversation;
+    system_message?: MessengerMessage | null;
+};
+
 type MessageReactionUpdatedPayload = {
     message_id: number;
     reactions: MessageReactionSummary[];
@@ -226,7 +251,9 @@ export default function Messenger({
     workspace,
 }: Props) {
     const { auth } = usePage<{ auth: { user: User } }>().props;
-    const [conversations, setConversations] = useState(initialConversations);
+    const [conversations, setConversations] = useState(() =>
+        sortConversations(initialConversations),
+    );
     const [activeConversationId, setActiveConversationId] = useState<
         number | null
     >(initialConversationId);
@@ -259,6 +286,9 @@ export default function Messenger({
     const [composerOpen, setComposerOpen] = useState(false);
     const [editingMessage, setEditingMessage] =
         useState<MessengerMessage | null>(null);
+    const [forwardingMessage, setForwardingMessage] =
+        useState<MessengerMessage | null>(null);
+    const [forwarding, setForwarding] = useState(false);
     const [replyToMessage, setReplyToMessage] =
         useState<MessengerMessage | null>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -291,6 +321,10 @@ export default function Messenger({
     const activeMessages = activeConversationId
         ? (messagesByConversation[activeConversationId] ?? [])
         : [];
+    const activePinnedMessage = latestPinnedMessage([
+        activeConversation?.pinned_message ?? null,
+        ...activeMessages,
+    ]);
     const messageSearchTerm = messageSearch.trim();
     const visibleMessages = messageSearchTerm
         ? messageSearchResults
@@ -446,18 +480,24 @@ export default function Messenger({
         });
 
         setConversations((items) =>
-            items.map((conversation) =>
-                conversation.id === message.conversation_id
-                    ? {
-                          ...conversation,
-                          latest_message: message,
-                          last_message_at: message.created_at,
-                          unread_count:
-                              isActive || isMine || wasAlreadyLoaded
-                                  ? 0
-                                  : conversation.unread_count + 1,
-                      }
-                    : conversation,
+            sortConversations(
+                items.map((conversation) =>
+                    conversation.id === message.conversation_id
+                        ? {
+                              ...conversation,
+                              latest_message: message,
+                              last_message_at: message.created_at,
+                              pinned_message: latestPinnedMessage([
+                                  conversation.pinned_message,
+                                  message,
+                              ]),
+                              unread_count:
+                                  isActive || isMine || wasAlreadyLoaded
+                                      ? 0
+                                      : conversation.unread_count + 1,
+                          }
+                        : conversation,
+                ),
             ),
         );
     }, []);
@@ -498,6 +538,13 @@ export default function Messenger({
                                   ...conversation.latest_message,
                                   reactions: personalizedReactions,
                               },
+                              pinned_message:
+                                  conversation.pinned_message?.id === messageId
+                                      ? {
+                                            ...conversation.pinned_message,
+                                            reactions: personalizedReactions,
+                                        }
+                                      : conversation.pinned_message,
                           }
                         : conversation,
                 ),
@@ -545,13 +592,25 @@ export default function Messenger({
             }),
         );
         setConversations((items) =>
-            items.map((conversation) =>
-                conversation.latest_message?.id === personalizedMessage.id
-                    ? {
-                          ...conversation,
-                          latest_message: personalizedMessage,
-                      }
-                    : conversation,
+            sortConversations(
+                items.map((conversation) =>
+                    conversation.id === personalizedMessage.conversation_id
+                        ? updateConversationMessageSnapshot(
+                              conversation,
+                              personalizedMessage,
+                          )
+                        : conversation,
+                ),
+            ),
+        );
+    }, []);
+
+    const replaceConversation = useCallback((conversation: Conversation) => {
+        setConversations((items) =>
+            sortConversations(
+                items.map((item) =>
+                    item.id === conversation.id ? conversation : item,
+                ),
             ),
         );
     }, []);
@@ -636,10 +695,12 @@ export default function Messenger({
         const created = (await response.json()) as { data: Conversation };
         const conversation = created.data;
 
-        setConversations((items) => [
-            conversation,
-            ...items.filter((item) => item.id !== conversation.id),
-        ]);
+        setConversations((items) =>
+            sortConversations([
+                conversation,
+                ...items.filter((item) => item.id !== conversation.id),
+            ]),
+        );
         setMessagesByConversation((messages) => ({
             ...messages,
             [conversation.id]: [],
@@ -1126,6 +1187,296 @@ export default function Messenger({
         }
     };
 
+    const toggleMessagePin = async (message: MessengerMessage) => {
+        if (message.unsent_at || message.type === 'system') {
+            return;
+        }
+
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/pin`,
+            {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify({ pinned: message.pinned_at === null }),
+            },
+        );
+
+        if (!response.ok) {
+            return;
+        }
+
+        const payload = (await response.json()) as {
+            data: MessengerMessage;
+        };
+
+        replaceMessage(payload.data);
+    };
+
+    const toggleConversationPin = async (conversation: Conversation) => {
+        const nextPinned = conversation.pinned_at === null;
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}/pin`,
+            {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify({ pinned: nextPinned }),
+            },
+        );
+
+        if (!response.ok) {
+            return;
+        }
+
+        const payload = (await response.json()) as {
+            data: { pinned_at: string | null };
+        };
+
+        setConversations((items) =>
+            sortConversations(
+                items.map((item) =>
+                    item.id === conversation.id
+                        ? {
+                              ...item,
+                              pinned_at: payload.data.pinned_at,
+                          }
+                        : item,
+                ),
+            ),
+        );
+    };
+
+    const toggleConversationMute = async (conversation: Conversation) => {
+        await updateNotificationPreference(
+            conversation,
+            conversation.notification_preference === 'muted' ? 'all' : 'muted',
+        );
+    };
+
+    const updateNotificationPreference = async (
+        conversation: Conversation,
+        preference: NotificationPreference,
+    ) => {
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}/notifications`,
+            {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify({ preference }),
+            },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const payload = (await response.json()) as {
+            data: {
+                muted_at: string | null;
+                notification_preference: NotificationPreference;
+            };
+        };
+
+        setConversations((items) =>
+            items.map((item) =>
+                item.id === conversation.id
+                    ? {
+                          ...item,
+                          muted_at: payload.data.muted_at,
+                          notification_preference:
+                              payload.data.notification_preference,
+                      }
+                    : item,
+            ),
+        );
+
+        return true;
+    };
+
+    const renameConversation = async (
+        conversation: Conversation,
+        title: string,
+    ) => {
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}`,
+            {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify({ title }),
+            },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const payload = (await response.json()) as ConversationMutationPayload;
+        replaceConversation(payload.data);
+
+        if (payload.system_message) {
+            appendMessage(payload.system_message);
+        }
+
+        return true;
+    };
+
+    const addConversationMembers = async (
+        conversation: Conversation,
+        userIds: number[],
+    ) => {
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}/members`,
+            {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify({ user_ids: userIds }),
+            },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const payload = (await response.json()) as ConversationMutationPayload;
+        replaceConversation(payload.data);
+
+        if (payload.system_message) {
+            appendMessage(payload.system_message);
+        }
+
+        return true;
+    };
+
+    const removeConversationMember = async (
+        conversation: Conversation,
+        userId: number,
+    ) => {
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}/members/${userId}`,
+            {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+            },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const payload = (await response.json()) as ConversationMutationPayload;
+        replaceConversation(payload.data);
+
+        if (payload.system_message) {
+            appendMessage(payload.system_message);
+        }
+
+        return true;
+    };
+
+    const leaveConversation = async (conversation: Conversation) => {
+        if (!window.confirm('Leave this group chat?')) {
+            return false;
+        }
+
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}/members/me`,
+            {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+            },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        setConversations((items) =>
+            items.filter((item) => item.id !== conversation.id),
+        );
+        setActiveConversationId(null);
+        window.history.replaceState({}, '', window.location.pathname);
+
+        return true;
+    };
+
+    const forwardMessage = async (
+        message: MessengerMessage,
+        conversationIds: number[],
+    ) => {
+        if (conversationIds.length === 0 || forwarding) {
+            return false;
+        }
+
+        setForwarding(true);
+
+        try {
+            const response = await fetch(
+                `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/forward`,
+                {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                    },
+                    body: JSON.stringify({
+                        conversation_ids: conversationIds,
+                    }),
+                },
+            );
+
+            if (!response.ok) {
+                return false;
+            }
+
+            const payload = (await response.json()) as {
+                data: MessengerMessage[];
+            };
+
+            payload.data.forEach((forwardedMessage) => {
+                appendMessage(forwardedMessage);
+            });
+            setForwardingMessage(null);
+
+            return true;
+        } finally {
+            setForwarding(false);
+        }
+    };
+
     const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
@@ -1287,6 +1638,14 @@ export default function Messenger({
                                                             conversation.display_name
                                                         }
                                                     </p>
+                                                    <span className="flex shrink-0 items-center gap-1 text-slate-400">
+                                                        {conversation.pinned_at && (
+                                                            <Pin className="size-3.5 text-[#0054b8]" />
+                                                        )}
+                                                        {conversation.muted_at && (
+                                                            <BellOff className="size-3.5" />
+                                                        )}
+                                                    </span>
                                                     {conversation.unread_count >
                                                         0 && (
                                                         <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#0054b8] text-[10px] font-bold text-white">
@@ -1339,6 +1698,8 @@ export default function Messenger({
                                 <ConversationHeader
                                     conversation={activeConversation}
                                     currentUserId={auth.user.id}
+                                    onToggleMute={toggleConversationMute}
+                                    onTogglePin={toggleConversationPin}
                                     onlineUserIds={onlineUserIdsSet}
                                     typingUsers={activeTypingUsers}
                                 />
@@ -1358,6 +1719,12 @@ export default function Messenger({
                                         />
                                     </label>
                                 </div>
+                                {activePinnedMessage && (
+                                    <PinnedMessageBanner
+                                        message={activePinnedMessage}
+                                        onUnpin={toggleMessagePin}
+                                    />
+                                )}
                                 <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-5 md:px-6">
                                     {visibleMessages.length > 0 ? (
                                         visibleMessages.map((message) => (
@@ -1370,6 +1737,8 @@ export default function Messenger({
                                                 key={message.id}
                                                 message={message}
                                                 onEdit={startEdit}
+                                                onForward={setForwardingMessage}
+                                                onPin={toggleMessagePin}
                                                 onReact={toggleReaction}
                                                 onReply={startReply}
                                                 onUnsend={unsendMessage}
@@ -1537,10 +1906,18 @@ export default function Messenger({
                         <div className="min-h-0 flex-1 overflow-y-auto p-4">
                             {activeConversation ? (
                                 <ChatDetails
+                                    contacts={contacts}
                                     conversation={activeConversation}
                                     currentUserId={auth.user.id}
                                     loadingSharedContent={loadingSharedContent}
                                     onlineUserIds={onlineUserIdsSet}
+                                    onAddMembers={addConversationMembers}
+                                    onLeave={leaveConversation}
+                                    onNotificationChange={
+                                        updateNotificationPreference
+                                    }
+                                    onRemoveMember={removeConversationMember}
+                                    onRename={renameConversation}
                                     sharedContent={activeSharedContent}
                                 />
                             ) : (
@@ -1558,6 +1935,15 @@ export default function Messenger({
                         contacts={contacts}
                         onClose={() => setComposerOpen(false)}
                         onCreate={createConversation}
+                    />
+                )}
+                {forwardingMessage && (
+                    <ForwardMessageDialog
+                        conversations={conversations}
+                        forwarding={forwarding}
+                        message={forwardingMessage}
+                        onClose={() => setForwardingMessage(null)}
+                        onForward={forwardMessage}
                     />
                 )}
             </div>
@@ -1773,14 +2159,165 @@ function ConversationComposer({
     );
 }
 
+function ForwardMessageDialog({
+    conversations,
+    forwarding,
+    message,
+    onClose,
+    onForward,
+}: {
+    conversations: Conversation[];
+    forwarding: boolean;
+    message: MessengerMessage;
+    onClose: () => void;
+    onForward: (
+        message: MessengerMessage,
+        conversationIds: number[],
+    ) => Promise<boolean>;
+}) {
+    const [query, setQuery] = useState('');
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const filteredConversations = conversations.filter((conversation) =>
+        conversation.display_name.toLowerCase().includes(query.toLowerCase()),
+    );
+    const canSubmit = selectedIds.length > 0 && !forwarding;
+
+    const toggleConversation = (conversationId: number) => {
+        setSelectedIds((ids) =>
+            ids.includes(conversationId)
+                ? ids.filter((id) => id !== conversationId)
+                : [...ids, conversationId],
+        );
+    };
+
+    const submit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!canSubmit) {
+            return;
+        }
+
+        await onForward(message, selectedIds);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+            <form
+                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                onSubmit={submit}
+            >
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
+                    <h2 className="text-base font-semibold text-slate-950">
+                        Forward message
+                    </h2>
+                    <button
+                        aria-label="Close"
+                        className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                        onClick={onClose}
+                        type="button"
+                    >
+                        <X className="size-5" />
+                    </button>
+                </div>
+
+                <div className="shrink-0 space-y-3 border-b border-slate-100 p-4">
+                    <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                        <span className="line-clamp-2">
+                            {messagePreview(message)}
+                        </span>
+                    </div>
+                    <label className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 px-3 text-slate-400">
+                        <Search className="size-4" />
+                        <input
+                            className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search chats"
+                            type="search"
+                            value={query}
+                        />
+                    </label>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                    {filteredConversations.length > 0 ? (
+                        filteredConversations.map((conversation) => {
+                            const selected = selectedIds.includes(
+                                conversation.id,
+                            );
+
+                            return (
+                                <button
+                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
+                                    key={conversation.id}
+                                    onClick={() =>
+                                        toggleConversation(conversation.id)
+                                    }
+                                    type="button"
+                                >
+                                    <Avatar
+                                        label={conversation.display_name}
+                                        type={conversation.type}
+                                    />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-semibold text-slate-950">
+                                            {conversation.display_name}
+                                        </span>
+                                        <span className="block truncate text-xs text-slate-500">
+                                            {conversationPreview(
+                                                conversation.latest_message,
+                                            )}
+                                        </span>
+                                    </span>
+                                    <span
+                                        className={`grid size-6 shrink-0 place-items-center rounded-full border ${
+                                            selected
+                                                ? 'border-[#0054b8] bg-[#0054b8] text-white'
+                                                : 'border-slate-300 text-transparent'
+                                        }`}
+                                    >
+                                        <Check className="size-4" />
+                                    </span>
+                                </button>
+                            );
+                        })
+                    ) : (
+                        <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
+                            <span className="grid size-12 place-items-center rounded-full bg-slate-100 text-slate-400">
+                                <Forward className="size-6" />
+                            </span>
+                            <h3 className="mt-3 text-sm font-semibold text-slate-900">
+                                No chats found
+                            </h3>
+                        </div>
+                    )}
+                </div>
+
+                <div className="shrink-0 border-t border-slate-200 p-4">
+                    <button
+                        className="h-11 w-full rounded-xl bg-[#0054b8] px-4 text-sm font-semibold text-white transition hover:bg-[#004996] disabled:cursor-not-allowed disabled:bg-slate-300"
+                        disabled={!canSubmit}
+                        type="submit"
+                    >
+                        {forwarding ? 'Forwarding...' : 'Forward'}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+}
+
 function ConversationHeader({
     conversation,
     currentUserId,
+    onToggleMute,
+    onTogglePin,
     onlineUserIds,
     typingUsers,
 }: {
     conversation: Conversation;
     currentUserId: number;
+    onToggleMute: (conversation: Conversation) => void;
+    onTogglePin: (conversation: Conversation) => void;
     onlineUserIds: Set<number>;
     typingUsers: TypingUser[];
 }) {
@@ -1823,25 +2360,100 @@ function ConversationHeader({
                     )}
                 </div>
             </div>
+            <div className="flex shrink-0 items-center gap-1">
+                <button
+                    aria-label={
+                        conversation.pinned_at ? 'Unpin chat' : 'Pin chat'
+                    }
+                    className={`grid size-9 place-items-center rounded-full transition ${
+                        conversation.pinned_at
+                            ? 'bg-sky-50 text-[#0054b8]'
+                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                    }`}
+                    onClick={() => onTogglePin(conversation)}
+                    type="button"
+                >
+                    {conversation.pinned_at ? (
+                        <PinOff className="size-4" />
+                    ) : (
+                        <Pin className="size-4" />
+                    )}
+                </button>
+                <button
+                    aria-label={
+                        conversation.muted_at ? 'Unmute chat' : 'Mute chat'
+                    }
+                    className={`grid size-9 place-items-center rounded-full transition ${
+                        conversation.muted_at
+                            ? 'bg-slate-100 text-slate-700'
+                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                    }`}
+                    onClick={() => onToggleMute(conversation)}
+                    type="button"
+                >
+                    {conversation.muted_at ? (
+                        <BellOff className="size-4" />
+                    ) : (
+                        <Bell className="size-4" />
+                    )}
+                </button>
+            </div>
         </header>
     );
 }
 
 function ChatDetails({
+    contacts,
     conversation,
     currentUserId,
     loadingSharedContent,
     onlineUserIds,
+    onAddMembers,
+    onLeave,
+    onNotificationChange,
+    onRemoveMember,
+    onRename,
     sharedContent,
 }: {
+    contacts: Contact[];
     conversation: Conversation;
     currentUserId: number;
     loadingSharedContent: boolean;
     onlineUserIds: Set<number>;
+    onAddMembers: (
+        conversation: Conversation,
+        userIds: number[],
+    ) => Promise<boolean>;
+    onLeave: (conversation: Conversation) => Promise<boolean>;
+    onNotificationChange: (
+        conversation: Conversation,
+        preference: NotificationPreference,
+    ) => Promise<boolean>;
+    onRemoveMember: (
+        conversation: Conversation,
+        userId: number,
+    ) => Promise<boolean>;
+    onRename: (conversation: Conversation, title: string) => Promise<boolean>;
     sharedContent: SharedContent;
 }) {
     const [activeTab, setActiveTab] = useState<'media' | 'links' | 'files'>(
         'media',
+    );
+    const [title, setTitle] = useState(conversation.title ?? '');
+    const [addingMembers, setAddingMembers] = useState(false);
+    const [savingTitle, setSavingTitle] = useState(false);
+    const [savingPreference, setSavingPreference] = useState(false);
+    const currentParticipant = conversation.participants.find(
+        (participant) => participant.id === currentUserId,
+    );
+    const canManageGroup =
+        conversation.type === 'group' &&
+        currentParticipant?.conversation_role === 'owner';
+    const addableContacts = contacts.filter(
+        (contact) =>
+            !conversation.participants.some(
+                (participant) => participant.id === contact.id,
+            ),
     );
     const tabs = [
         {
@@ -1861,105 +2473,411 @@ function ChatDetails({
         },
     ] as const;
 
+    useEffect(() => {
+        setTitle(conversation.title ?? '');
+        setAddingMembers(false);
+    }, [conversation.id, conversation.title, conversation.participants.length]);
+
+    const saveTitle = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (
+            !title.trim() ||
+            title.trim() === conversation.title ||
+            savingTitle
+        ) {
+            return;
+        }
+
+        setSavingTitle(true);
+
+        try {
+            await onRename(conversation, title.trim());
+        } finally {
+            setSavingTitle(false);
+        }
+    };
+
+    const updatePreference = async (preference: NotificationPreference) => {
+        setSavingPreference(true);
+
+        try {
+            await onNotificationChange(conversation, preference);
+        } finally {
+            setSavingPreference(false);
+        }
+    };
+
     return (
-        <div className="flex flex-col items-center text-center">
-            <Avatar
-                label={conversation.display_name}
-                online={conversationHasOnlineParticipants(
-                    conversation,
-                    currentUserId,
-                    onlineUserIds,
-                )}
-                type={conversation.type}
-            />
-            <h2 className="mt-3 max-w-full truncate text-base font-semibold text-slate-950">
-                {conversation.display_name}
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">
-                {conversation.type === 'direct'
-                    ? 'Direct message'
-                    : 'Group chat'}
-            </p>
-
-            <div className="mt-6 w-full text-left">
-                <PanelTitle
-                    icon={<UsersRound className="size-4" />}
-                    title="People"
+        <>
+            <div className="flex flex-col items-center text-center">
+                <Avatar
+                    label={conversation.display_name}
+                    online={conversationHasOnlineParticipants(
+                        conversation,
+                        currentUserId,
+                        onlineUserIds,
+                    )}
+                    type={conversation.type}
                 />
-                <div className="mt-3 space-y-2">
-                    {conversation.participants.map((participant) => (
-                        <div
-                            className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
-                            key={participant.id}
-                        >
-                            <span className="relative grid size-9 place-items-center rounded-full bg-slate-200 text-xs font-bold text-slate-700">
-                                {initials(participant.name)}
-                                {onlineUserIds.has(participant.id) && (
-                                    <span className="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-white bg-emerald-500" />
-                                )}
-                            </span>
-                            <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-slate-900">
-                                    {participant.name}
-                                    {participant.id === currentUserId
-                                        ? ' (You)'
-                                        : ''}
-                                </p>
-                                <p
-                                    className={`truncate text-xs ${
-                                        onlineUserIds.has(participant.id)
-                                            ? 'font-medium text-emerald-600'
-                                            : 'text-slate-500 capitalize'
-                                    }`}
-                                >
-                                    {onlineUserIds.has(participant.id)
-                                        ? 'Active now'
-                                        : participant.school_role}
-                                </p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+                <h2 className="mt-3 max-w-full truncate text-base font-semibold text-slate-950">
+                    {conversation.display_name}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                    {conversation.type === 'direct'
+                        ? 'Direct message'
+                        : 'Group chat'}
+                </p>
 
-            <div className="mt-6 w-full text-left">
-                <div className="grid grid-cols-3 rounded-xl bg-slate-100 p-1">
-                    {tabs.map((tab) => (
+                <div className="mt-6 w-full text-left">
+                    <PanelTitle
+                        icon={<Bell className="size-4" />}
+                        title="Notifications"
+                    />
+                    <div className="mt-3 grid grid-cols-3 rounded-xl bg-slate-100 p-1">
+                        {(['all', 'mentions', 'muted'] as const).map(
+                            (preference) => (
+                                <button
+                                    className={`rounded-lg px-2 py-2 text-xs font-semibold capitalize transition ${
+                                        conversation.notification_preference ===
+                                        preference
+                                            ? 'bg-white text-[#0054b8] shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                    disabled={savingPreference}
+                                    key={preference}
+                                    onClick={() => updatePreference(preference)}
+                                    type="button"
+                                >
+                                    {preference}
+                                </button>
+                            ),
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-6 w-full text-left">
+                    <PanelTitle
+                        icon={<Paperclip className="size-4" />}
+                        title="Media, Links and Files"
+                    />
+                    <div className="mt-3 grid grid-cols-3 rounded-xl bg-slate-100 p-1">
+                        {tabs.map((tab) => (
+                            <button
+                                className={`rounded-lg px-2 py-2 text-xs font-semibold transition ${
+                                    activeTab === tab.id
+                                        ? 'bg-white text-[#0054b8] shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                type="button"
+                            >
+                                {tab.label}
+                                {tab.count > 0 && (
+                                    <span className="ml-1 text-[10px] text-slate-400">
+                                        {tab.count}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="mt-3 min-h-40">
+                        {loadingSharedContent ? (
+                            <SharedContentEmpty
+                                icon={<Info className="size-5" />}
+                                title="Loading"
+                            />
+                        ) : activeTab === 'media' ? (
+                            <SharedMediaGrid media={sharedContent.media} />
+                        ) : activeTab === 'links' ? (
+                            <SharedLinksList links={sharedContent.links} />
+                        ) : (
+                            <SharedFilesList files={sharedContent.files} />
+                        )}
+                    </div>
+                </div>
+
+                {conversation.type === 'group' && (
+                    <div className="mt-6 w-full text-left">
+                        <PanelTitle
+                            icon={<Info className="size-4" />}
+                            title="Group"
+                        />
+                        {canManageGroup && (
+                            <form
+                                className="mt-3 flex gap-2"
+                                onSubmit={saveTitle}
+                            >
+                                <input
+                                    className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0054b8]"
+                                    onChange={(event) =>
+                                        setTitle(event.target.value)
+                                    }
+                                    placeholder="Group name"
+                                    value={title}
+                                />
+                                <button
+                                    className="rounded-lg bg-[#0054b8] px-3 py-2 text-xs font-semibold text-white disabled:bg-slate-300"
+                                    disabled={
+                                        savingTitle ||
+                                        !title.trim() ||
+                                        title.trim() === conversation.title
+                                    }
+                                    type="submit"
+                                >
+                                    Save
+                                </button>
+                            </form>
+                        )}
+
+                        {canManageGroup && addableContacts.length > 0 && (
+                            <button
+                                className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800"
+                                onClick={() => setAddingMembers(true)}
+                                type="button"
+                            >
+                                <UserPlus className="size-4" />
+                                Add members
+                            </button>
+                        )}
+
                         <button
-                            className={`rounded-lg px-2 py-2 text-xs font-semibold transition ${
-                                activeTab === tab.id
-                                    ? 'bg-white text-[#0054b8] shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-800'
-                            }`}
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
+                            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                            onClick={() => onLeave(conversation)}
                             type="button"
                         >
-                            {tab.label}
-                            {tab.count > 0 && (
-                                <span className="ml-1 text-[10px] text-slate-400">
-                                    {tab.count}
-                                </span>
-                            )}
+                            <LogOut className="size-4" />
+                            Leave group
                         </button>
-                    ))}
-                </div>
+                    </div>
+                )}
 
-                <div className="mt-3 min-h-40">
-                    {loadingSharedContent ? (
-                        <SharedContentEmpty
-                            icon={<Info className="size-5" />}
-                            title="Loading"
-                        />
-                    ) : activeTab === 'media' ? (
-                        <SharedMediaGrid media={sharedContent.media} />
-                    ) : activeTab === 'links' ? (
-                        <SharedLinksList links={sharedContent.links} />
-                    ) : (
-                        <SharedFilesList files={sharedContent.files} />
-                    )}
+                <div className="mt-6 w-full text-left">
+                    <PanelTitle
+                        icon={<UsersRound className="size-4" />}
+                        title="People"
+                    />
+                    <div className="mt-3 space-y-2">
+                        {conversation.participants.map((participant) => (
+                            <div
+                                className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
+                                key={participant.id}
+                            >
+                                <span className="relative grid size-9 place-items-center rounded-full bg-slate-200 text-xs font-bold text-slate-700">
+                                    {initials(participant.name)}
+                                    {onlineUserIds.has(participant.id) && (
+                                        <span className="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                                    )}
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="truncate text-sm font-medium text-slate-900">
+                                        {participant.name}
+                                        {participant.id === currentUserId
+                                            ? ' (You)'
+                                            : ''}
+                                    </p>
+                                    <p
+                                        className={`truncate text-xs ${
+                                            onlineUserIds.has(participant.id)
+                                                ? 'font-medium text-emerald-600'
+                                                : 'text-slate-500 capitalize'
+                                        }`}
+                                    >
+                                        {onlineUserIds.has(participant.id)
+                                            ? 'Active now'
+                                            : participant.school_role}
+                                    </p>
+                                </div>
+                                {canManageGroup &&
+                                    participant.id !== currentUserId && (
+                                        <button
+                                            aria-label={`Remove ${participant.name}`}
+                                            className="ml-auto grid size-8 shrink-0 place-items-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                                            onClick={() =>
+                                                onRemoveMember(
+                                                    conversation,
+                                                    participant.id,
+                                                )
+                                            }
+                                            type="button"
+                                        >
+                                            <UserMinus className="size-4" />
+                                        </button>
+                                    )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
+
+            {addingMembers && (
+                <AddMembersDialog
+                    contacts={addableContacts}
+                    conversation={conversation}
+                    onAddMembers={onAddMembers}
+                    onClose={() => setAddingMembers(false)}
+                />
+            )}
+        </>
+    );
+}
+
+function AddMembersDialog({
+    contacts,
+    conversation,
+    onAddMembers,
+    onClose,
+}: {
+    contacts: Contact[];
+    conversation: Conversation;
+    onAddMembers: (
+        conversation: Conversation,
+        userIds: number[],
+    ) => Promise<boolean>;
+    onClose: () => void;
+}) {
+    const [query, setQuery] = useState('');
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const filteredContacts = contacts.filter((contact) => {
+        const haystack = `${contact.name} ${contact.email} ${contact.school_role}`;
+
+        return haystack.toLowerCase().includes(query.toLowerCase());
+    });
+    const canSubmit = selectedIds.length > 0 && !submitting;
+
+    const toggleContact = (contactId: number) => {
+        setError(null);
+        setSelectedIds((ids) =>
+            ids.includes(contactId)
+                ? ids.filter((id) => id !== contactId)
+                : [...ids, contactId],
+        );
+    };
+
+    const submit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!canSubmit) {
+            return;
+        }
+
+        setSubmitting(true);
+        setError(null);
+
+        try {
+            const added = await onAddMembers(conversation, selectedIds);
+
+            if (added) {
+                onClose();
+
+                return;
+            }
+
+            setError('Could not add those members.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+            <form
+                className="flex max-h-[min(620px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                onSubmit={submit}
+            >
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
+                    <h2 className="text-base font-semibold text-slate-950">
+                        Add members
+                    </h2>
+                    <button
+                        aria-label="Close"
+                        className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                        onClick={onClose}
+                        type="button"
+                    >
+                        <X className="size-5" />
+                    </button>
+                </div>
+
+                <div className="shrink-0 border-b border-slate-100 p-4">
+                    <label className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 px-3 text-slate-400">
+                        <Search className="size-4" />
+                        <input
+                            className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search people"
+                            type="search"
+                            value={query}
+                        />
+                    </label>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                    {filteredContacts.length > 0 ? (
+                        filteredContacts.map((contact) => {
+                            const selected = selectedIds.includes(contact.id);
+
+                            return (
+                                <button
+                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
+                                    key={contact.id}
+                                    onClick={() => toggleContact(contact.id)}
+                                    type="button"
+                                >
+                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-rose-500 text-sm font-bold text-white">
+                                        {initials(contact.name)}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-semibold text-slate-950">
+                                            {contact.name}
+                                        </span>
+                                        <span className="block truncate text-xs text-slate-500 capitalize">
+                                            {contact.school_role}
+                                        </span>
+                                    </span>
+                                    <span
+                                        className={`grid size-6 shrink-0 place-items-center rounded-full border ${
+                                            selected
+                                                ? 'border-[#0054b8] bg-[#0054b8] text-white'
+                                                : 'border-slate-300 text-transparent'
+                                        }`}
+                                    >
+                                        <Check className="size-4" />
+                                    </span>
+                                </button>
+                            );
+                        })
+                    ) : (
+                        <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
+                            <span className="grid size-12 place-items-center rounded-full bg-slate-100 text-slate-400">
+                                <UsersRound className="size-6" />
+                            </span>
+                            <h3 className="mt-3 text-sm font-semibold text-slate-900">
+                                No people found
+                            </h3>
+                        </div>
+                    )}
+                </div>
+
+                <div className="shrink-0 border-t border-slate-200 p-4">
+                    {error && (
+                        <p className="mb-3 text-sm font-medium text-rose-600">
+                            {error}
+                        </p>
+                    )}
+                    <button
+                        className="h-11 w-full rounded-xl bg-[#0054b8] px-4 text-sm font-semibold text-white transition hover:bg-[#004996] disabled:cursor-not-allowed disabled:bg-slate-300"
+                        disabled={!canSubmit}
+                        type="submit"
+                    >
+                        {submitting ? 'Adding...' : 'Add members'}
+                    </button>
+                </div>
+            </form>
         </div>
     );
 }
@@ -2138,10 +3056,51 @@ function ComposerContext({
     );
 }
 
+function PinnedMessageBanner({
+    message,
+    onUnpin,
+}: {
+    message: MessengerMessage;
+    onUnpin: (message: MessengerMessage) => void;
+}) {
+    return (
+        <div className="border-b border-slate-200 bg-white px-4 py-3 md:px-6">
+            <div className="flex items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-[#0054b8] shadow-sm">
+                    <Pin className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-[#0054b8]">
+                        Pinned message
+                    </p>
+                    <p className="truncate text-sm text-slate-700">
+                        {messagePreview(message)}
+                    </p>
+                    {message.pinned_by && (
+                        <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                            Pinned by {message.pinned_by.name}
+                        </p>
+                    )}
+                </div>
+                <button
+                    aria-label="Unpin message"
+                    className="grid size-8 shrink-0 place-items-center rounded-full text-slate-500 hover:bg-white hover:text-[#0054b8]"
+                    onClick={() => onUnpin(message)}
+                    type="button"
+                >
+                    <PinOff className="size-4" />
+                </button>
+            </div>
+        </div>
+    );
+}
+
 function MessageBubble({
     currentUserId,
     message,
     onEdit,
+    onForward,
+    onPin,
     onReact,
     onReply,
     onUnsend,
@@ -2150,12 +3109,15 @@ function MessageBubble({
     currentUserId: number;
     message: MessengerMessage;
     onEdit: (message: MessengerMessage) => void;
+    onForward: (message: MessengerMessage) => void;
+    onPin: (message: MessengerMessage) => void;
     onReact: (message: MessengerMessage, emoji: string) => void;
     onReply: (message: MessengerMessage) => void;
     onUnsend: (message: MessengerMessage) => void;
     showSeen: boolean;
 }) {
     const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
+    const system = message.type === 'system';
     const mine = message.sender?.id === currentUserId;
     const unsent = message.unsent_at !== null;
     const latestReadReceipt = message.read_by
@@ -2169,6 +3131,16 @@ function MessageBubble({
         onReact(message, emoji);
         setReactionPickerOpen(false);
     };
+
+    if (system) {
+        return (
+            <div className="flex w-full justify-center px-6">
+                <div className="max-w-[min(82%,32rem)] rounded-full bg-slate-200/80 px-3 py-1.5 text-center text-xs leading-5 font-medium text-slate-600">
+                    {message.body}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div
@@ -2188,6 +3160,34 @@ function MessageBubble({
                             type="button"
                         >
                             <Reply className="size-3.5" />
+                        </button>
+                        <button
+                            aria-label="Forward"
+                            className="grid size-7 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-[#0054b8]"
+                            onClick={() => onForward(message)}
+                            type="button"
+                        >
+                            <Forward className="size-3.5" />
+                        </button>
+                        <button
+                            aria-label={
+                                message.pinned_at
+                                    ? 'Unpin message'
+                                    : 'Pin message'
+                            }
+                            className={`grid size-7 place-items-center rounded-full bg-white shadow-sm ring-1 ring-slate-200 ${
+                                message.pinned_at
+                                    ? 'text-[#0054b8] hover:text-slate-600'
+                                    : 'text-slate-500 hover:text-[#0054b8]'
+                            }`}
+                            onClick={() => onPin(message)}
+                            type="button"
+                        >
+                            {message.pinned_at ? (
+                                <PinOff className="size-3.5" />
+                            ) : (
+                                <Pin className="size-3.5" />
+                            )}
                         </button>
                         {mine && (
                             <>
@@ -2653,6 +3653,26 @@ function uniqueUserIds(userIds: number[]) {
     return Array.from(new Set(userIds));
 }
 
+function sortConversations(conversations: Conversation[]) {
+    return [...conversations].sort((first, second) => {
+        const firstPinned = first.pinned_at ? 1 : 0;
+        const secondPinned = second.pinned_at ? 1 : 0;
+
+        if (firstPinned !== secondPinned) {
+            return secondPinned - firstPinned;
+        }
+
+        return (
+            timestamp(second.last_message_at ?? second.pinned_at) -
+            timestamp(first.last_message_at ?? first.pinned_at)
+        );
+    });
+}
+
+function timestamp(value: string | null) {
+    return value ? new Date(value).getTime() : 0;
+}
+
 function formatTime(value: string | null) {
     if (!value) {
         return 'No activity';
@@ -2862,6 +3882,55 @@ function replyToFromMessage(message: MessengerMessage): ReplyToMessage {
         attachment_count: message.unsent_at ? 0 : message.attachments.length,
         unsent_at: message.unsent_at,
     };
+}
+
+function latestPinnedMessage(messages: Array<MessengerMessage | null>) {
+    return (
+        messages
+            .filter(
+                (message): message is MessengerMessage =>
+                    message !== null &&
+                    message.pinned_at !== null &&
+                    message.unsent_at === null,
+            )
+            .sort(
+                (first, second) =>
+                    new Date(second.pinned_at ?? 0).getTime() -
+                    new Date(first.pinned_at ?? 0).getTime(),
+            )[0] ?? null
+    );
+}
+
+function updateConversationMessageSnapshot(
+    conversation: Conversation,
+    message: MessengerMessage,
+) {
+    const updatedConversation = {
+        ...conversation,
+        latest_message:
+            conversation.latest_message?.id === message.id
+                ? message
+                : conversation.latest_message,
+    };
+
+    if (conversation.pinned_message?.id === message.id) {
+        return {
+            ...updatedConversation,
+            pinned_message: message.pinned_at ? message : null,
+        };
+    }
+
+    if (message.pinned_at) {
+        return {
+            ...updatedConversation,
+            pinned_message: latestPinnedMessage([
+                conversation.pinned_message,
+                message,
+            ]),
+        };
+    }
+
+    return updatedConversation;
 }
 
 function mapMessages(

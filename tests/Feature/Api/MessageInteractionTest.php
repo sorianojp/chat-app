@@ -173,6 +173,80 @@ test('conversation participants can add update and remove reactions', function (
         ->assertJsonCount(0, 'data.reactions');
 });
 
+test('conversation participants can pin and unpin messages', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+    $message = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => 'Please keep this visible.',
+    ]);
+
+    $response = $this
+        ->actingAs($recipient)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}/pin", [
+            'pinned' => true,
+        ]);
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('data.id', $message->id)
+        ->assertJsonPath('data.pinned_by.id', $recipient->id);
+    expect($response->json('data.pinned_at'))->not->toBeNull();
+
+    $this->assertDatabaseHas('messages', [
+        'id' => $message->id,
+        'pinned_by' => $recipient->id,
+    ]);
+    expect($message->refresh()->pinned_at)->not->toBeNull();
+
+    $this
+        ->actingAs($sender)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}/pin", [
+            'pinned' => false,
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.pinned_at', null)
+        ->assertJsonPath('data.pinned_by', null);
+
+    expect($message->refresh()->pinned_at)->toBeNull();
+    expect($message->pinned_by)->toBeNull();
+});
+
+test('conversation participants cannot pin unsent or system messages', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+    $unsent = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => '',
+    ]);
+    $unsent->forceFill(['unsent_at' => now()])->save();
+    $system = $conversation->messages()->create([
+        'sender_id' => null,
+        'type' => 'system',
+        'body' => 'Maria changed the group name.',
+    ]);
+
+    $this
+        ->actingAs($recipient)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$unsent->id}/pin", [
+            'pinned' => true,
+        ])
+        ->assertUnprocessable();
+
+    $this
+        ->actingAs($recipient)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$system->id}/pin", [
+            'pinned' => true,
+        ])
+        ->assertUnprocessable();
+});
+
 test('senders can reply to messages', function () {
     $sender = User::factory()->create();
     $recipient = User::factory()->create();
@@ -196,6 +270,48 @@ test('senders can reply to messages', function () {
         ->assertJsonPath('data.reply_to.id', $original->id)
         ->assertJsonPath('data.reply_to.body', 'Please confirm this reminder.')
         ->assertJsonPath('data.reply_to.sender.id', $recipient->id);
+});
+
+test('conversation participants can forward messages to another conversation', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $otherRecipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+
+    $team->members()->attach($otherRecipient, ['role' => TeamRole::Member->value]);
+    $targetConversation = $team->conversations()->create([
+        'created_by' => $sender->id,
+        'type' => ConversationType::Direct,
+    ]);
+    $targetConversation->participants()->attach($sender, ['role' => 'owner']);
+    $targetConversation->participants()->attach($otherRecipient, ['role' => 'member']);
+
+    $message = $conversation->messages()->create([
+        'sender_id' => $recipient->id,
+        'type' => 'text',
+        'body' => 'Please forward this reminder.',
+    ]);
+
+    $response = $this
+        ->actingAs($sender)
+        ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages/{$message->id}/forward", [
+            'conversation_ids' => [$targetConversation->id],
+        ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.conversation_id', $targetConversation->id)
+        ->assertJsonPath('data.0.sender.id', $sender->id)
+        ->assertJsonPath('data.0.body', 'Please forward this reminder.')
+        ->assertJsonPath('data.0.metadata.forwarded_from_message_id', $message->id);
+
+    $this->assertDatabaseHas('messages', [
+        'conversation_id' => $targetConversation->id,
+        'sender_id' => $sender->id,
+        'body' => 'Please forward this reminder.',
+    ]);
 });
 
 test('senders can edit their own text messages', function () {

@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -178,11 +179,110 @@ class MessageController extends Controller
                     'metadata' => null,
                     'edited_at' => null,
                     'unsent_at' => now(),
+                    'pinned_at' => null,
+                    'pinned_by' => null,
                 ])->save();
             });
         }
 
         $message->load(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name']);
+
+        broadcast(new MessageUpdated($message))->toOthers();
+
+        return response()->json([
+            'data' => MessagePayload::from($message, $request->user()->id),
+        ]);
+    }
+
+    /**
+     * Forward a message to one or more conversations.
+     */
+    public function forward(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureMessageBelongsToConversation($conversation, $message);
+        abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot be forwarded.');
+
+        $data = $request->validate([
+            'conversation_ids' => ['required', 'array', 'min:1', 'max:10'],
+            'conversation_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $targetConversations = Conversation::query()
+            ->where('team_id', $team->id)
+            ->whereIn('id', $data['conversation_ids'])
+            ->whereHas('participants', fn ($query) => $query->whereKey($request->user()->id))
+            ->get();
+
+        abort_unless($targetConversations->count() === count($data['conversation_ids']), 422, 'All target conversations must be available to you.');
+
+        $message->load(['attachments', 'conversation.team']);
+
+        $forwardedMessages = DB::transaction(function () use ($message, $request, $targetConversations) {
+            return $targetConversations->map(function (Conversation $targetConversation) use ($message, $request): Message {
+                $forwardedMessage = $targetConversation->messages()->create([
+                    'sender_id' => $request->user()->id,
+                    'type' => $message->attachments->isNotEmpty() ? 'attachment' : $message->type,
+                    'body' => $message->body,
+                    'metadata' => array_filter([
+                        ...(is_array($message->metadata) ? $message->metadata : []),
+                        'forwarded_from_message_id' => $message->id,
+                    ]),
+                ]);
+
+                foreach ($message->attachments as $attachment) {
+                    abort_unless(Storage::disk($attachment->disk)->exists($attachment->path), 404);
+
+                    $path = "message-attachments/{$targetConversation->team_id}/{$targetConversation->id}/".Str::uuid().'-'.$attachment->original_name;
+                    Storage::disk($attachment->disk)->copy($attachment->path, $path);
+
+                    $forwardedMessage->attachments()->create([
+                        'disk' => $attachment->disk,
+                        'path' => $path,
+                        'original_name' => $attachment->original_name,
+                        'mime_type' => $attachment->mime_type,
+                        'size' => $attachment->size,
+                    ]);
+                }
+
+                $targetConversation->forceFill(['last_message_at' => $forwardedMessage->created_at])->save();
+                $targetConversation->participants()->updateExistingPivot($request->user()->id, ['last_read_at' => now()]);
+
+                return $forwardedMessage;
+            });
+        });
+
+        $forwardedMessages->each(function (Message $forwardedMessage) {
+            broadcast(new MessageCreated($forwardedMessage->load(['attachments', 'conversation.team', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])))->toOthers();
+        });
+
+        return response()->json([
+            'data' => $forwardedMessages
+                ->map(fn (Message $forwardedMessage) => MessagePayload::from($forwardedMessage, $request->user()->id))
+                ->values(),
+        ], 201);
+    }
+
+    /**
+     * Pin or unpin a message in a conversation.
+     */
+    public function pin(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureMessageBelongsToConversation($conversation, $message);
+        abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot be pinned.');
+        abort_if($message->type === 'system', 422, 'System messages cannot be pinned.');
+
+        $data = $request->validate([
+            'pinned' => ['required', 'boolean'],
+        ]);
+
+        $message->forceFill([
+            'pinned_at' => $data['pinned'] ? now() : null,
+            'pinned_by' => $data['pinned'] ? $request->user()->id : null,
+        ])->save();
+
+        $message->load(['attachments', 'conversation.team', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name']);
 
         broadcast(new MessageUpdated($message))->toOthers();
 

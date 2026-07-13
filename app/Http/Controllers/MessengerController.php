@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\Team;
 use App\Models\User;
 use App\Support\MessagePayload;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -25,6 +26,7 @@ class MessengerController extends Controller
             ->where('conversations.team_id', $current_team->id)
             ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
             ->withCount('messages')
+            ->orderByDesc('conversation_participants.pinned_at')
             ->orderByDesc('last_message_at')
             ->orderByDesc('conversations.updated_at')
             ->get()
@@ -76,6 +78,7 @@ class MessengerController extends Controller
         $participant = $conversation->participants
             ->firstWhere('id', '!=', $userId);
         $latestMessage = $conversation->latestMessage;
+        $pivot = $conversation->getAttribute('pivot');
         $lastReadAt = DB::table('conversation_participants')
             ->where('conversation_id', $conversation->id)
             ->where('user_id', $userId)
@@ -100,14 +103,39 @@ class MessengerController extends Controller
                 'name' => $participant->name,
                 'email' => $participant->email,
                 'school_role' => $participant->school_role->value,
+                'conversation_role' => $participant->getAttribute('pivot')?->getAttribute('role'),
             ])->values(),
             'latest_message' => $latestMessage ? MessagePayload::from($latestMessage, $userId) : null,
+            'pinned_message' => $this->pinnedMessagePayload($conversation, $userId),
             'messages_count' => $conversation->messages_count,
             'unread_count' => $conversation->messages()
                 ->when($lastReadAt, fn ($query) => $query->where('created_at', '>', $lastReadAt))
                 ->where('sender_id', '!=', $userId)
                 ->count(),
             'last_message_at' => $conversation->last_message_at?->toISOString(),
+            'pinned_at' => $this->pivotTimestamp($pivot?->getAttribute('pinned_at')),
+            'muted_at' => $this->pivotTimestamp($pivot?->getAttribute('muted_at')),
+            'notification_preference' => $pivot?->getAttribute('notification_preference') ?? 'all',
         ];
+    }
+
+    private function pivotTimestamp(mixed $value): ?string
+    {
+        return $value instanceof CarbonInterface ? $value->toISOString() : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function pinnedMessagePayload(Conversation $conversation, int $userId): ?array
+    {
+        $message = $conversation->messages()
+            ->whereNotNull('pinned_at')
+            ->whereNull('unsent_at')
+            ->with(['attachments', 'conversation.team', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+            ->latest('pinned_at')
+            ->first();
+
+        return $message ? MessagePayload::from($message, $userId) : null;
     }
 }
