@@ -85,6 +85,35 @@ test('messages can contain only attachments', function () {
         ->assertJsonCount(1, 'data.attachments');
 });
 
+test('attachments can be up to twenty megabytes', function () {
+    Storage::fake('local');
+
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForUsers($sender, $recipient, $team);
+
+    $this
+        ->actingAs($sender)
+        ->post("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'attachments' => [
+                UploadedFile::fake()->create('large-report.pdf', 20 * 1024, 'application/pdf'),
+            ],
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.attachments.0.name', 'large-report.pdf');
+
+    $this
+        ->actingAs($sender)
+        ->post("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'attachments' => [
+                UploadedFile::fake()->create('too-large.pdf', (20 * 1024) + 1, 'application/pdf'),
+            ],
+        ])
+        ->assertUnprocessable()
+        ->assertInvalid('attachments.0');
+});
+
 test('attachment downloads require conversation access', function () {
     Storage::fake('local');
 

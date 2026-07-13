@@ -26,7 +26,7 @@ class StoreMessageRequest extends FormRequest
             'type' => ['nullable', 'string', 'max:40'],
             'metadata' => ['nullable', 'array'],
             'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'max:10240'],
+            'attachments.*' => ['file', 'max:20480'],
         ];
     }
 }

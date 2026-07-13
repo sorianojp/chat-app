@@ -47,6 +47,45 @@ class MessageController extends Controller
     }
 
     /**
+     * Display shared media, links, and files for a conversation.
+     */
+    public function shared(Request $request, Team $team, Conversation $conversation): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+
+        $attachments = MessageAttachment::query()
+            ->with(['message.conversation.team', 'message.sender:id,name'])
+            ->whereHas('message', fn ($query) => $query->where('conversation_id', $conversation->id))
+            ->latest()
+            ->limit(120)
+            ->get();
+
+        $links = $conversation->messages()
+            ->with('sender:id,name')
+            ->where('body', 'like', '%http%')
+            ->latest()
+            ->limit(120)
+            ->get()
+            ->flatMap(fn (Message $message) => $this->linkPayloads($message))
+            ->values()
+            ->take(60);
+
+        return response()->json([
+            'data' => [
+                'media' => $attachments
+                    ->filter(fn (MessageAttachment $attachment) => $attachment->isPreviewableMedia())
+                    ->map(fn (MessageAttachment $attachment) => $this->sharedAttachmentPayload($attachment))
+                    ->values(),
+                'files' => $attachments
+                    ->reject(fn (MessageAttachment $attachment) => $attachment->isPreviewableMedia())
+                    ->map(fn (MessageAttachment $attachment) => $this->sharedAttachmentPayload($attachment))
+                    ->values(),
+                'links' => $links,
+            ],
+        ]);
+    }
+
+    /**
      * Store a new message and broadcast it to conversation participants.
      */
     public function store(StoreMessageRequest $request, Team $team, Conversation $conversation): JsonResponse
@@ -220,5 +259,53 @@ class MessageController extends Controller
     {
         abort_unless($message->conversation_id === $conversation->id && $attachment->message_id === $message->id, 404);
         abort_unless(Storage::disk($attachment->disk)->exists($attachment->path), 404);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sharedAttachmentPayload(MessageAttachment $attachment): array
+    {
+        return [
+            'id' => $attachment->id,
+            'message_id' => $attachment->message_id,
+            'name' => $attachment->original_name,
+            'mime_type' => $attachment->mime_type,
+            'size' => $attachment->size,
+            'url' => $attachment->downloadUrl($attachment->message),
+            'preview_url' => $attachment->previewUrl($attachment->message),
+            'created_at' => $attachment->created_at?->toISOString(),
+            'sender' => $attachment->message->sender ? [
+                'id' => $attachment->message->sender->id,
+                'name' => $attachment->message->sender->name,
+            ] : null,
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function linkPayloads(Message $message): array
+    {
+        preg_match_all('/https?:\/\/[^\s<>"\']+/i', $message->body, $matches);
+
+        return collect($matches[0])
+            ->unique()
+            ->map(function (string $url) use ($message) {
+                $cleanUrl = rtrim($url, '.,);]');
+
+                return [
+                    'url' => $cleanUrl,
+                    'host' => parse_url($cleanUrl, PHP_URL_HOST) ?: $cleanUrl,
+                    'message_id' => $message->id,
+                    'created_at' => $message->created_at?->toISOString(),
+                    'sender' => $message->sender ? [
+                        'id' => $message->sender->id,
+                        'name' => $message->sender->name,
+                    ] : null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 }

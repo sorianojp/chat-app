@@ -5,6 +5,7 @@ import {
     FileText,
     ImageIcon,
     Info,
+    Link as LinkIcon,
     MessageCircle,
     Mic,
     Paperclip,
@@ -93,6 +94,38 @@ type MessageAttachment = {
     preview_url: string | null;
 };
 
+type SharedContent = {
+    media: SharedAttachment[];
+    files: SharedAttachment[];
+    links: SharedLink[];
+};
+
+type SharedAttachment = {
+    id: number;
+    message_id: number;
+    name: string;
+    mime_type: string | null;
+    size: number;
+    url: string;
+    preview_url: string | null;
+    created_at: string | null;
+    sender: {
+        id: number;
+        name: string;
+    } | null;
+};
+
+type SharedLink = {
+    url: string;
+    host: string;
+    message_id: number;
+    created_at: string | null;
+    sender: {
+        id: number;
+        name: string;
+    } | null;
+};
+
 type Props = {
     apiBaseUrl: string;
     workspace: {
@@ -127,6 +160,11 @@ type NewConversationPayload = {
 };
 
 const REACTION_OPTIONS = ['👍', '❤️', '😂', '😮', '🙏', '✅'];
+const EMPTY_SHARED_CONTENT: SharedContent = {
+    media: [],
+    files: [],
+    links: [],
+};
 
 export default function Messenger({
     apiBaseUrl,
@@ -158,6 +196,10 @@ export default function Messenger({
         MessengerMessage[]
     >([]);
     const [searchingMessages, setSearchingMessages] = useState(false);
+    const [sharedContentByConversation, setSharedContentByConversation] =
+        useState<Record<number, SharedContent>>({});
+    const [loadingSharedConversationId, setLoadingSharedConversationId] =
+        useState<number | null>(null);
     const [sending, setSending] = useState(false);
     const [composerOpen, setComposerOpen] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -191,6 +233,13 @@ export default function Messenger({
         ? messageSearchResults
         : activeMessages;
     const seenMessageId = latestSeenMessageId(visibleMessages, auth.user.id);
+    const activeSharedContent = activeConversationId
+        ? (sharedContentByConversation[activeConversationId] ??
+          EMPTY_SHARED_CONTENT)
+        : EMPTY_SHARED_CONTENT;
+    const loadingSharedContent =
+        activeConversationId !== null &&
+        loadingSharedConversationId === activeConversationId;
     const filteredConversations = conversations.filter((conversation) =>
         conversation.display_name.toLowerCase().includes(search.toLowerCase()),
     );
@@ -456,6 +505,14 @@ export default function Messenger({
     }, [activeConversationId, apiBaseUrl]);
 
     useEffect(() => {
+        if (!activeConversationId) {
+            return;
+        }
+
+        void fetchSharedContent(activeConversationId);
+    }, [activeConversationId, activeMessages.length]);
+
+    useEffect(() => {
         setMessageSearch('');
         setMessageSearchResults([]);
     }, [activeConversationId]);
@@ -551,6 +608,41 @@ export default function Messenger({
             setMessageSearchResults([...payload.data].reverse());
         } finally {
             setSearchingMessages(false);
+        }
+    };
+
+    const fetchSharedContent = async (conversationId: number) => {
+        setLoadingSharedConversationId(conversationId);
+
+        try {
+            const response = await fetch(
+                `${apiBaseUrl}/conversations/${conversationId}/shared`,
+                {
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = (await response.json()) as {
+                data: SharedContent;
+            };
+
+            setSharedContentByConversation((content) => ({
+                ...content,
+                [conversationId]: payload.data,
+            }));
+        } finally {
+            setLoadingSharedConversationId((loadingConversationId) =>
+                loadingConversationId === conversationId
+                    ? null
+                    : loadingConversationId,
+            );
         }
     };
 
@@ -770,7 +862,7 @@ export default function Messenger({
                                         />
                                     </label>
                                 </div>
-                                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 md:px-6">
+                                <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-5 md:px-6">
                                     {visibleMessages.length > 0 ? (
                                         visibleMessages.map((message) => (
                                             <MessageBubble
@@ -920,6 +1012,8 @@ export default function Messenger({
                             {activeConversation ? (
                                 <ChatDetails
                                     conversation={activeConversation}
+                                    loadingSharedContent={loadingSharedContent}
+                                    sharedContent={activeSharedContent}
                                 />
                             ) : (
                                 <EmptyState
@@ -1173,7 +1267,36 @@ function ConversationHeader({ conversation }: { conversation: Conversation }) {
     );
 }
 
-function ChatDetails({ conversation }: { conversation: Conversation }) {
+function ChatDetails({
+    conversation,
+    loadingSharedContent,
+    sharedContent,
+}: {
+    conversation: Conversation;
+    loadingSharedContent: boolean;
+    sharedContent: SharedContent;
+}) {
+    const [activeTab, setActiveTab] = useState<'media' | 'links' | 'files'>(
+        'media',
+    );
+    const tabs = [
+        {
+            id: 'media',
+            label: 'Media',
+            count: sharedContent.media.length,
+        },
+        {
+            id: 'links',
+            label: 'Links',
+            count: sharedContent.links.length,
+        },
+        {
+            id: 'files',
+            label: 'Files',
+            count: sharedContent.files.length,
+        },
+    ] as const;
+
     return (
         <div className="flex flex-col items-center text-center">
             <Avatar
@@ -1215,6 +1338,185 @@ function ChatDetails({ conversation }: { conversation: Conversation }) {
                     ))}
                 </div>
             </div>
+
+            <div className="mt-6 w-full text-left">
+                <div className="grid grid-cols-3 rounded-xl bg-slate-100 p-1">
+                    {tabs.map((tab) => (
+                        <button
+                            className={`rounded-lg px-2 py-2 text-xs font-semibold transition ${
+                                activeTab === tab.id
+                                    ? 'bg-white text-[#0054b8] shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            type="button"
+                        >
+                            {tab.label}
+                            {tab.count > 0 && (
+                                <span className="ml-1 text-[10px] text-slate-400">
+                                    {tab.count}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="mt-3 min-h-40">
+                    {loadingSharedContent ? (
+                        <SharedContentEmpty
+                            icon={<Info className="size-5" />}
+                            title="Loading"
+                        />
+                    ) : activeTab === 'media' ? (
+                        <SharedMediaGrid media={sharedContent.media} />
+                    ) : activeTab === 'links' ? (
+                        <SharedLinksList links={sharedContent.links} />
+                    ) : (
+                        <SharedFilesList files={sharedContent.files} />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SharedMediaGrid({ media }: { media: SharedAttachment[] }) {
+    if (media.length === 0) {
+        return (
+            <SharedContentEmpty
+                icon={<ImageIcon className="size-5" />}
+                title="No media yet"
+            />
+        );
+    }
+
+    return (
+        <div className="grid grid-cols-3 gap-2">
+            {media.map((item) => {
+                const mimeType = item.mime_type ?? '';
+                const isImage = mimeType.startsWith('image/');
+                const isVideo = mimeType.startsWith('video/');
+
+                return (
+                    <a
+                        className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                        href={item.preview_url ?? item.url}
+                        key={item.id}
+                        rel="noreferrer"
+                        target="_blank"
+                        title={item.name}
+                    >
+                        {isImage && item.preview_url ? (
+                            <img
+                                alt={item.name}
+                                className="size-full object-cover transition group-hover:scale-105"
+                                loading="lazy"
+                                src={item.preview_url}
+                            />
+                        ) : (
+                            <span className="grid size-full place-items-center text-[#0054b8]">
+                                {isVideo ? (
+                                    <Video className="size-6" />
+                                ) : (
+                                    <Mic className="size-6" />
+                                )}
+                            </span>
+                        )}
+                    </a>
+                );
+            })}
+        </div>
+    );
+}
+
+function SharedLinksList({ links }: { links: SharedLink[] }) {
+    if (links.length === 0) {
+        return (
+            <SharedContentEmpty
+                icon={<LinkIcon className="size-5" />}
+                title="No links yet"
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-2">
+            {links.map((link) => (
+                <a
+                    className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 transition hover:border-[#0054b8] hover:bg-sky-50"
+                    href={link.url}
+                    key={`${link.message_id}-${link.url}`}
+                    rel="noreferrer"
+                    target="_blank"
+                >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-[#0054b8]">
+                        <LinkIcon className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-slate-900">
+                            {link.host}
+                        </span>
+                        <span className="block truncate text-xs text-slate-500">
+                            {link.url}
+                        </span>
+                    </span>
+                </a>
+            ))}
+        </div>
+    );
+}
+
+function SharedFilesList({ files }: { files: SharedAttachment[] }) {
+    if (files.length === 0) {
+        return (
+            <SharedContentEmpty
+                icon={<FileText className="size-5" />}
+                title="No files yet"
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-2">
+            {files.map((file) => (
+                <a
+                    className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 transition hover:border-[#0054b8] hover:bg-sky-50"
+                    href={file.url}
+                    key={file.id}
+                    rel="noreferrer"
+                    target="_blank"
+                >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-[#0054b8]">
+                        <FileText className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-slate-900">
+                            {file.name}
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                            {formatFileSize(file.size)}
+                        </span>
+                    </span>
+                </a>
+            ))}
+        </div>
+    );
+}
+
+function SharedContentEmpty({
+    icon,
+    title,
+}: {
+    icon: React.ReactNode;
+    title: string;
+}) {
+    return (
+        <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 text-center">
+            <span className="grid size-10 place-items-center rounded-full bg-white text-slate-400">
+                {icon}
+            </span>
+            <p className="mt-2 text-xs font-semibold text-slate-500">{title}</p>
         </div>
     );
 }
@@ -1246,11 +1548,11 @@ function MessageBubble({
 
     return (
         <div
-            className={`group flex flex-col ${mine ? 'items-end' : 'items-start'}`}
+            className={`group flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}
         >
-            <div className="relative">
+            <div className="relative max-w-[min(82%,34rem)]">
                 <div
-                    className={`relative max-w-[min(72vw,42rem)] rounded-2xl px-4 py-3 shadow-sm ${
+                    className={`relative min-w-0 rounded-2xl px-4 py-3 shadow-sm ${
                         mine
                             ? 'rounded-br-md bg-[#cfe8ff] text-slate-950'
                             : 'rounded-bl-md bg-white text-slate-950'
@@ -1261,11 +1563,7 @@ function MessageBubble({
                             {message.sender.name}
                         </p>
                     )}
-                    {message.body && (
-                        <p className="text-sm leading-6 whitespace-pre-wrap">
-                            {message.body}
-                        </p>
-                    )}
+                    {message.body && <LinkedMessageText text={message.body} />}
                     {message.attachments.length > 0 && (
                         <div
                             className={
@@ -1284,15 +1582,21 @@ function MessageBubble({
                     <div className="mt-2 text-right text-[11px] text-slate-500">
                         {formatTime(message.created_at)}
                     </div>
-                    <div className="absolute -right-1 -bottom-3 flex max-w-[90%] flex-wrap justify-end gap-1">
+                    <div className="absolute right-2 -bottom-3 flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1">
+                        <button
+                            aria-label="Add reaction"
+                            className="grid size-7 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-100 shadow-sm transition hover:scale-105 hover:text-[#0054b8] md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                            onClick={() =>
+                                setReactionPickerOpen((open) => !open)
+                            }
+                            type="button"
+                        >
+                            <Smile className="size-3.5" />
+                        </button>
                         {message.reactions.map((reaction) => (
                             <button
                                 aria-label={`Reacted with ${reaction.emoji}`}
-                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs shadow-sm ${
-                                    reaction.reacted_by_me
-                                        ? 'border-[#0054b8] bg-white text-[#0054b8]'
-                                        : 'border-slate-200 bg-white text-slate-600'
-                                }`}
+                                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 shadow-sm transition hover:bg-slate-50"
                                 key={reaction.emoji}
                                 onClick={() => handleReaction(reaction.emoji)}
                                 title={reaction.users
@@ -1304,16 +1608,6 @@ function MessageBubble({
                                 <span>{reaction.count}</span>
                             </button>
                         ))}
-                        <button
-                            aria-label="Add reaction"
-                            className="grid size-7 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-100 shadow-sm transition hover:scale-105 hover:text-[#0054b8] md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
-                            onClick={() =>
-                                setReactionPickerOpen((open) => !open)
-                            }
-                            type="button"
-                        >
-                            <Smile className="size-3.5" />
-                        </button>
                     </div>
                 </div>
 
@@ -1367,7 +1661,7 @@ function MessageAttachmentPreview({
         return (
             <div className="space-y-1.5">
                 <a
-                    className={`block overflow-hidden rounded-xl border ${shellClass}`}
+                    className={`block max-w-full overflow-hidden rounded-xl border ${shellClass}`}
                     href={attachment.preview_url ?? attachment.url}
                     rel="noreferrer"
                     target="_blank"
@@ -1391,7 +1685,7 @@ function MessageAttachmentPreview({
         return (
             <div className="space-y-1.5">
                 <video
-                    className={`max-h-80 w-full rounded-xl border ${shellClass}`}
+                    className={`max-h-80 w-full max-w-full rounded-xl border ${shellClass}`}
                     controls
                     preload="metadata"
                     src={attachment.preview_url ?? attachment.url}
@@ -1406,7 +1700,9 @@ function MessageAttachmentPreview({
 
     if (isAudio) {
         return (
-            <div className={`rounded-xl border px-3 py-2 ${shellClass}`}>
+            <div
+                className={`max-w-full rounded-xl border px-3 py-2 ${shellClass}`}
+            >
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-600">
                     <Mic className="size-3.5 text-[#0054b8]" />
                     <span className="min-w-0 truncate">{attachment.name}</span>
@@ -1423,7 +1719,7 @@ function MessageAttachmentPreview({
 
     return (
         <a
-            className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
+            className={`flex max-w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
                 mine
                     ? 'border-sky-200 bg-white/60 hover:bg-white'
                     : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
@@ -1436,7 +1732,7 @@ function MessageAttachmentPreview({
                 <FileText className="size-4" />
             </span>
             <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">
+                <span className="block max-w-full truncate text-sm font-medium">
                     {attachment.name}
                 </span>
                 <span className="block text-xs text-slate-500">
@@ -1444,6 +1740,28 @@ function MessageAttachmentPreview({
                 </span>
             </span>
         </a>
+    );
+}
+
+function LinkedMessageText({ text }: { text: string }) {
+    return (
+        <p className="text-sm leading-6 [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
+            {linkifyText(text).map((part, index) =>
+                part.type === 'link' ? (
+                    <a
+                        className="font-medium text-[#0054b8] underline decoration-[#0054b8]/30 underline-offset-2 hover:decoration-[#0054b8]"
+                        href={part.href}
+                        key={`${part.href}-${index}`}
+                        rel="noreferrer"
+                        target="_blank"
+                    >
+                        {part.text}
+                    </a>
+                ) : (
+                    <span key={`${part.text}-${index}`}>{part.text}</span>
+                ),
+            )}
+        </p>
     );
 }
 
@@ -1456,7 +1774,7 @@ function AttachmentCaption({
 }) {
     return (
         <a
-            className="flex max-w-full items-center gap-1.5 text-xs text-slate-500 hover:text-[#0054b8]"
+            className="flex max-w-full min-w-0 items-center gap-1.5 text-xs text-slate-500 hover:text-[#0054b8]"
             href={attachment.url}
             rel="noreferrer"
             target="_blank"
@@ -1564,6 +1882,66 @@ function conversationPreview(message: MessengerMessage | null) {
     }
 
     return 'No messages yet';
+}
+
+function linkifyText(text: string) {
+    const parts: Array<
+        | {
+              type: 'text';
+              text: string;
+          }
+        | {
+              type: 'link';
+              href: string;
+              text: string;
+          }
+    > = [];
+    const pattern = /((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = pattern.exec(text)) !== null) {
+        const [rawUrl] = match;
+        const start = match.index;
+
+        if (start > lastIndex) {
+            parts.push({
+                type: 'text',
+                text: text.slice(lastIndex, start),
+            });
+        }
+
+        const trailingPunctuation = rawUrl.match(/[.,);\]]+$/)?.[0] ?? '';
+        const cleanUrl = trailingPunctuation
+            ? rawUrl.slice(0, -trailingPunctuation.length)
+            : rawUrl;
+
+        parts.push({
+            type: 'link',
+            href: cleanUrl.startsWith('http')
+                ? cleanUrl
+                : `https://${cleanUrl}`,
+            text: cleanUrl,
+        });
+
+        if (trailingPunctuation) {
+            parts.push({
+                type: 'text',
+                text: trailingPunctuation,
+            });
+        }
+
+        lastIndex = start + rawUrl.length;
+    }
+
+    if (lastIndex < text.length) {
+        parts.push({
+            type: 'text',
+            text: text.slice(lastIndex),
+        });
+    }
+
+    return parts.length > 0 ? parts : [{ type: 'text' as const, text }];
 }
 
 function formatFileSize(size: number) {

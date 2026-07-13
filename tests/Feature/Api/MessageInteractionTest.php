@@ -68,6 +68,69 @@ test('conversation participants can search messages by body and attachment name'
         ->assertJsonPath('data.0.id', $matchedByAttachment->id);
 });
 
+test('conversation participants can view shared media links and files', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+
+    $linkMessage = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => 'Please check https://example.com/forms.',
+    ]);
+    $mediaMessage = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'attachment',
+        'body' => '',
+    ]);
+    $fileMessage = $conversation->messages()->create([
+        'sender_id' => $recipient->id,
+        'type' => 'attachment',
+        'body' => '',
+    ]);
+
+    $mediaMessage->attachments()->create([
+        'disk' => 'local',
+        'path' => 'message-attachments/test/photo.jpg',
+        'original_name' => 'photo.jpg',
+        'mime_type' => 'image/jpeg',
+        'size' => 100,
+    ]);
+    $fileMessage->attachments()->create([
+        'disk' => 'local',
+        'path' => 'message-attachments/test/guide.pdf',
+        'original_name' => 'guide.pdf',
+        'mime_type' => 'application/pdf',
+        'size' => 200,
+    ]);
+
+    $response = $this
+        ->actingAs($recipient)
+        ->getJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/shared");
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('data.media.0.name', 'photo.jpg')
+        ->assertJsonPath('data.files.0.name', 'guide.pdf')
+        ->assertJsonPath('data.links.0.url', 'https://example.com/forms')
+        ->assertJsonPath('data.links.0.host', 'example.com')
+        ->assertJsonPath('data.links.0.message_id', $linkMessage->id);
+});
+
+test('shared content requires conversation access', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $outsider = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+
+    $this
+        ->actingAs($outsider)
+        ->getJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/shared")
+        ->assertForbidden();
+});
+
 test('conversation participants can add update and remove reactions', function () {
     $sender = User::factory()->create();
     $recipient = User::factory()->create();
