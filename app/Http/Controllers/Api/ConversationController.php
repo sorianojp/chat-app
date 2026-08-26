@@ -281,11 +281,11 @@ class ConversationController extends Controller
         abort_unless($conversation->type === ConversationType::Group, 404);
         abort_unless($this->canManageConversation($request, $conversation), 403);
 
-        $data = $request->validate([
+        $request->validate([
             'user_ids' => ['required', 'array', 'min:1', 'max:20'],
             'user_ids.*' => ['integer', 'distinct', 'exists:users,id'],
         ]);
-        $userIds = collect($data['user_ids'])->map(fn (mixed $userId): int => (int) $userId)->values();
+        $userIds = $request->collect('user_ids')->map(fn (mixed $userId): int => (int) $userId)->values();
         $teamMemberIds = $team->members()
             ->whereKey($userIds)
             ->pluck('users.id')

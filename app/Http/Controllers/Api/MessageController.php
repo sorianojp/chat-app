@@ -557,7 +557,7 @@ class MessageController extends Controller
                 ->values();
         } else {
             preg_match_all('/(^|\s)@([A-Za-z0-9._-]+)(?=$|\s|[.,!?;:)\]])/i', $body, $matches);
-            $tokens = collect($matches[2] ?? [])
+            $tokens = collect($matches[2])
                 ->map(fn (string $token): string => mb_strtolower($token))
                 ->unique();
 

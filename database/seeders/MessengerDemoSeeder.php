@@ -22,8 +22,8 @@ class MessengerDemoSeeder extends Seeder
     public function run(): void
     {
         $school = Team::firstOrCreate(
-            ['slug' => 'isudd-demo-school'],
-            ['name' => 'ISuDD Demo School', 'is_personal' => false],
+            ['slug' => 'step-demo-school'],
+            ['name' => 'STEP Demo School', 'is_personal' => false],
         );
 
         $superAdmin = $this->user('superadmin@example.com', 'System Admin', SchoolRole::SuperAdmin);

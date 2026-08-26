@@ -30,13 +30,14 @@ import {
     Video,
     X,
 } from 'lucide-react';
+import type { FormEvent } from 'react';
 import {
-    FormEvent,
     useCallback,
     useEffect,
     useMemo,
     useRef,
     useState,
+    useSyncExternalStore,
 } from 'react';
 import type { User } from '@/types';
 
@@ -292,6 +293,7 @@ const EMPTY_SHARED_CONTENT: SharedContent = {
     files: [],
     links: [],
 };
+const subscribeToHydration = () => () => {};
 
 export default function Messenger({
     apiBaseUrl,
@@ -304,7 +306,17 @@ export default function Messenger({
 }: Props) {
     const { auth } = usePage<{ auth: { user: User } }>().props;
     const [conversations, setConversations] = useState(() =>
-        sortConversations(initialConversations),
+        sortConversations(
+            initialConversations.map((conversation) =>
+                conversation.id === initialConversationId
+                    ? {
+                          ...conversation,
+                          unread_count: 0,
+                          unread_mentions_count: 0,
+                      }
+                    : conversation,
+            ),
+        ),
     );
     const [activeConversationId, setActiveConversationId] = useState<
         number | null
@@ -332,14 +344,18 @@ export default function Messenger({
     const [pinnedMessagesByConversation, setPinnedMessagesByConversation] =
         useState<Record<number, MessengerMessage[]>>({});
     const [loadingSharedConversationId, setLoadingSharedConversationId] =
-        useState<number | null>(null);
+        useState<number | null>(initialConversationId);
     const [loadingPinnedConversationId, setLoadingPinnedConversationId] =
-        useState<number | null>(null);
+        useState<number | null>(initialConversationId);
     const [onlineUserIds, setOnlineUserIds] = useState<number[]>([]);
     const [typingUsersByConversation, setTypingUsersByConversation] = useState<
         Record<number, Record<number, TypingUser>>
     >({});
-    const [hasHydrated, setHasHydrated] = useState(false);
+    const hasHydrated = useSyncExternalStore(
+        subscribeToHydration,
+        () => true,
+        () => false,
+    );
     const [sending, setSending] = useState(false);
     const [composerOpen, setComposerOpen] = useState(false);
     const [highlightedMessageId, setHighlightedMessageId] = useState<
@@ -385,9 +401,13 @@ export default function Messenger({
             ) ?? null,
         [activeConversationId, conversations],
     );
-    const activeMessages = activeConversationId
-        ? (messagesByConversation[activeConversationId] ?? [])
-        : [];
+    const activeMessages = useMemo(
+        () =>
+            activeConversationId
+                ? (messagesByConversation[activeConversationId] ?? [])
+                : [],
+        [activeConversationId, messagesByConversation],
+    );
     const activePinnedMessages = activeConversationId
         ? (pinnedMessagesByConversation[activeConversationId] ??
           pinnedMessagesList([
@@ -513,10 +533,6 @@ export default function Messenger({
         },
         [whisperTyping],
     );
-
-    useEffect(() => {
-        setHasHydrated(true);
-    }, []);
 
     useEffect(() => {
         conversationsRef.current = conversations;
@@ -1050,6 +1066,27 @@ export default function Messenger({
     const selectConversation = (conversationId: number) => {
         stopOwnTyping(activeConversationIdRef.current);
         setActiveConversationId(conversationId);
+        setConversations((items) =>
+            items.map((conversation) =>
+                conversation.id === conversationId
+                    ? {
+                          ...conversation,
+                          unread_count: 0,
+                          unread_mentions_count: 0,
+                      }
+                    : conversation,
+            ),
+        );
+        setMessageSearch('');
+        setMessageSearchOpen(false);
+        setMessageSearchResults([]);
+        setEditingMessage(null);
+        setReplyToMessage(null);
+        setMentionQuery(null);
+        setMessageBody('');
+        setSelectedFiles([]);
+        setLoadingSharedConversationId(conversationId);
+        setLoadingPinnedConversationId(conversationId);
         window.history.replaceState(
             {},
             '',
@@ -1123,6 +1160,7 @@ export default function Messenger({
         }
 
         const conversationId = activeConversationId;
+        const typingTimeouts = typingTimeoutsRef.current;
         const channel = echo<'reverb'>().join(
             `conversations.${conversationId}`,
         ) as TypingChannel;
@@ -1138,7 +1176,7 @@ export default function Messenger({
             }
 
             const key = typingTimeoutKey(conversationId, payload.id);
-            const existingTimeout = typingTimeoutsRef.current[key];
+            const existingTimeout = typingTimeouts[key];
 
             if (existingTimeout) {
                 window.clearTimeout(existingTimeout);
@@ -1155,7 +1193,7 @@ export default function Messenger({
                 },
             }));
 
-            typingTimeoutsRef.current[key] = window.setTimeout(() => {
+            typingTimeouts[key] = window.setTimeout(() => {
                 removeTypingUser(conversationId, payload.id);
             }, TYPING_IDLE_MS);
         };
@@ -1179,19 +1217,21 @@ export default function Messenger({
                 return nextTypingUsers;
             });
 
-            Object.keys(typingTimeoutsRef.current)
+            Object.keys(typingTimeouts)
                 .filter((key) => key.startsWith(`${conversationId}:`))
                 .forEach((key) => {
-                    window.clearTimeout(typingTimeoutsRef.current[key]);
-                    delete typingTimeoutsRef.current[key];
+                    window.clearTimeout(typingTimeouts[key]);
+                    delete typingTimeouts[key];
                 });
         };
     }, [activeConversationId, auth.user.id, removeTypingUser]);
 
     useEffect(() => {
+        const typingTimeouts = typingTimeoutsRef.current;
+
         return () => {
             stopOwnTyping(activeConversationIdRef.current);
-            Object.values(typingTimeoutsRef.current).forEach((timeout) => {
+            Object.values(typingTimeouts).forEach((timeout) => {
                 window.clearTimeout(timeout);
             });
         };
@@ -1259,6 +1299,175 @@ export default function Messenger({
         updateMessageReactions,
     ]);
 
+    const fetchMessages = useCallback(
+        async (conversationId: number) => {
+            const response = await fetch(
+                `${apiBaseUrl}/conversations/${conversationId}/messages`,
+                {
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = (await response.json()) as {
+                data: MessengerMessage[];
+            };
+            payload.data.forEach((message) => {
+                seenMessageIdsRef.current.add(message.id);
+            });
+            loadedConversationIdsRef.current.add(conversationId);
+
+            setMessagesByConversation((messages) => ({
+                ...messages,
+                [conversationId]: [...payload.data].reverse(),
+            }));
+        },
+        [apiBaseUrl],
+    );
+
+    const markConversationRead = useCallback(
+        async (conversationId: number) => {
+            await fetch(`${apiBaseUrl}/conversations/${conversationId}/read`, {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+            });
+        },
+        [apiBaseUrl],
+    );
+
+    const markMessageDelivered = useCallback(
+        async (message: MessengerMessage) => {
+            await fetch(
+                `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/delivered`,
+                {
+                    method: 'PATCH',
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                    },
+                },
+            );
+        },
+        [apiBaseUrl],
+    );
+
+    const searchMessages = useCallback(
+        async (conversationId: number, query: string) => {
+            setSearchingMessages(true);
+
+            try {
+                const params = new URLSearchParams({ search: query });
+                const response = await fetch(
+                    `${apiBaseUrl}/conversations/${conversationId}/messages?${params.toString()}`,
+                    {
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                    },
+                );
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = (await response.json()) as {
+                    data: MessengerMessage[];
+                };
+
+                setMessageSearchResults([...payload.data].reverse());
+            } finally {
+                setSearchingMessages(false);
+            }
+        },
+        [apiBaseUrl],
+    );
+
+    const fetchSharedContent = useCallback(
+        async (conversationId: number) => {
+            try {
+                const response = await fetch(
+                    `${apiBaseUrl}/conversations/${conversationId}/shared`,
+                    {
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                    },
+                );
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = (await response.json()) as {
+                    data: SharedContent;
+                };
+
+                setSharedContentByConversation((content) => ({
+                    ...content,
+                    [conversationId]: payload.data,
+                }));
+            } finally {
+                setLoadingSharedConversationId((loadingConversationId) =>
+                    loadingConversationId === conversationId
+                        ? null
+                        : loadingConversationId,
+                );
+            }
+        },
+        [apiBaseUrl],
+    );
+
+    const fetchPinnedMessages = useCallback(
+        async (conversationId: number) => {
+            try {
+                const response = await fetch(
+                    `${apiBaseUrl}/conversations/${conversationId}/messages/pinned`,
+                    {
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                    },
+                );
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = (await response.json()) as {
+                    data: MessengerMessage[];
+                };
+
+                setPinnedMessagesByConversation((messages) => ({
+                    ...messages,
+                    [conversationId]: payload.data,
+                }));
+            } finally {
+                setLoadingPinnedConversationId((loadingConversationId) =>
+                    loadingConversationId === conversationId
+                        ? null
+                        : loadingConversationId,
+                );
+            }
+        },
+        [apiBaseUrl],
+    );
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [activeConversationId, activeMessages.length]);
@@ -1269,7 +1478,7 @@ export default function Messenger({
         }
 
         void markConversationRead(activeConversationId);
-    }, [activeConversationId, activeMessages.length]);
+    }, [activeConversationId, activeMessages.length, markConversationRead]);
 
     useEffect(() => {
         if (!activeConversationId) {
@@ -1291,7 +1500,12 @@ export default function Messenger({
                 deliveredMessageIdsRef.current.add(message.id);
                 void markMessageDelivered(message);
             });
-    }, [activeConversationId, activeMessages, auth.user.id]);
+    }, [
+        activeConversationId,
+        activeMessages,
+        auth.user.id,
+        markMessageDelivered,
+    ]);
 
     useEffect(() => {
         if (
@@ -1302,7 +1516,7 @@ export default function Messenger({
         }
 
         void fetchMessages(activeConversationId);
-    }, [activeConversationId, apiBaseUrl]);
+    }, [activeConversationId, fetchMessages]);
 
     useEffect(() => {
         if (!activeConversationId) {
@@ -1310,7 +1524,7 @@ export default function Messenger({
         }
 
         void fetchSharedContent(activeConversationId);
-    }, [activeConversationId, activeMessages.length]);
+    }, [activeConversationId, activeMessages.length, fetchSharedContent]);
 
     useEffect(() => {
         if (!activeConversationId) {
@@ -1318,24 +1532,10 @@ export default function Messenger({
         }
 
         void fetchPinnedMessages(activeConversationId);
-    }, [activeConversationId]);
-
-    useEffect(() => {
-        setMessageSearch('');
-        setMessageSearchOpen(false);
-        setMessageSearchResults([]);
-        setEditingMessage(null);
-        setReplyToMessage(null);
-        setMentionQuery(null);
-        setMessageBody('');
-        setSelectedFiles([]);
-    }, [activeConversationId]);
+    }, [activeConversationId, fetchPinnedMessages]);
 
     useEffect(() => {
         if (!activeConversationId || !messageSearchOpen || !messageSearchTerm) {
-            setMessageSearchResults([]);
-            setSearchingMessages(false);
-
             return;
         }
 
@@ -1344,172 +1544,12 @@ export default function Messenger({
         }, 250);
 
         return () => window.clearTimeout(timeout);
-    }, [activeConversationId, messageSearchOpen, messageSearchTerm]);
-
-    const fetchMessages = async (conversationId: number) => {
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversationId}/messages`,
-            {
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                },
-            },
-        );
-
-        if (!response.ok) {
-            return;
-        }
-
-        const payload = (await response.json()) as { data: MessengerMessage[] };
-        payload.data.forEach((message) => {
-            seenMessageIdsRef.current.add(message.id);
-        });
-        loadedConversationIdsRef.current.add(conversationId);
-
-        setMessagesByConversation((messages) => ({
-            ...messages,
-            [conversationId]: [...payload.data].reverse(),
-        }));
-    };
-
-    const markConversationRead = async (conversationId: number) => {
-        setConversations((items) =>
-            items.map((conversation) =>
-                conversation.id === conversationId
-                    ? {
-                          ...conversation,
-                          unread_count: 0,
-                          unread_mentions_count: 0,
-                      }
-                    : conversation,
-            ),
-        );
-
-        await fetch(`${apiBaseUrl}/conversations/${conversationId}/read`, {
-            method: 'PATCH',
-            credentials: 'same-origin',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-            },
-        });
-    };
-
-    const markMessageDelivered = async (message: MessengerMessage) => {
-        await fetch(
-            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/delivered`,
-            {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-            },
-        );
-    };
-
-    const searchMessages = async (conversationId: number, query: string) => {
-        setSearchingMessages(true);
-
-        try {
-            const params = new URLSearchParams({ search: query });
-            const response = await fetch(
-                `${apiBaseUrl}/conversations/${conversationId}/messages?${params.toString()}`,
-                {
-                    credentials: 'same-origin',
-                    headers: {
-                        Accept: 'application/json',
-                    },
-                },
-            );
-
-            if (!response.ok) {
-                return;
-            }
-
-            const payload = (await response.json()) as {
-                data: MessengerMessage[];
-            };
-
-            setMessageSearchResults([...payload.data].reverse());
-        } finally {
-            setSearchingMessages(false);
-        }
-    };
-
-    const fetchSharedContent = async (conversationId: number) => {
-        setLoadingSharedConversationId(conversationId);
-
-        try {
-            const response = await fetch(
-                `${apiBaseUrl}/conversations/${conversationId}/shared`,
-                {
-                    credentials: 'same-origin',
-                    headers: {
-                        Accept: 'application/json',
-                    },
-                },
-            );
-
-            if (!response.ok) {
-                return;
-            }
-
-            const payload = (await response.json()) as {
-                data: SharedContent;
-            };
-
-            setSharedContentByConversation((content) => ({
-                ...content,
-                [conversationId]: payload.data,
-            }));
-        } finally {
-            setLoadingSharedConversationId((loadingConversationId) =>
-                loadingConversationId === conversationId
-                    ? null
-                    : loadingConversationId,
-            );
-        }
-    };
-
-    const fetchPinnedMessages = async (conversationId: number) => {
-        setLoadingPinnedConversationId(conversationId);
-
-        try {
-            const response = await fetch(
-                `${apiBaseUrl}/conversations/${conversationId}/messages/pinned`,
-                {
-                    credentials: 'same-origin',
-                    headers: {
-                        Accept: 'application/json',
-                    },
-                },
-            );
-
-            if (!response.ok) {
-                return;
-            }
-
-            const payload = (await response.json()) as {
-                data: MessengerMessage[];
-            };
-
-            setPinnedMessagesByConversation((messages) => ({
-                ...messages,
-                [conversationId]: payload.data,
-            }));
-        } finally {
-            setLoadingPinnedConversationId((loadingConversationId) =>
-                loadingConversationId === conversationId
-                    ? null
-                    : loadingConversationId,
-            );
-        }
-    };
+    }, [
+        activeConversationId,
+        messageSearchOpen,
+        messageSearchTerm,
+        searchMessages,
+    ]);
 
     const toggleReaction = async (message: MessengerMessage, emoji: string) => {
         if (message.unsent_at) {
@@ -2606,6 +2646,7 @@ export default function Messenger({
                                     onUnpinPinnedMessage={toggleMessagePin}
                                     pinnedMessages={activePinnedMessages}
                                     sharedContent={activeSharedContent}
+                                    key={`${activeConversation.id}:${activeConversation.title ?? ''}:${activeConversation.participants.map((participant) => participant.id).join(',')}`}
                                 />
                             ) : (
                                 <EmptyState
@@ -3208,11 +3249,6 @@ function ChatDetails({
             count: sharedContent.files.length,
         },
     ] as const;
-
-    useEffect(() => {
-        setTitle(conversation.title ?? '');
-        setAddingMembers(false);
-    }, [conversation.id, conversation.title, conversation.participants.length]);
 
     const saveTitle = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();

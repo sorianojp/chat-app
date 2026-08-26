@@ -107,7 +107,7 @@ class MessagePayload
             ->map(fn (MessageDelivery $delivery) => [
                 'id' => $delivery->user->id,
                 'name' => $delivery->user->name,
-                'delivered_at' => $delivery->delivered_at?->toISOString(),
+                'delivered_at' => $delivery->delivered_at->toISOString(),
             ])
             ->values()
             ->all();
