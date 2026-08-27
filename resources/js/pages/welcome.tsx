@@ -34,14 +34,14 @@ export default function Welcome() {
                 />
             </Head>
 
-            <main className="min-h-screen bg-slate-50 text-slate-950">
-                <header className="border-b border-slate-200 bg-white">
+            <main className="min-h-screen bg-background text-foreground">
+                <header className="border-b border-border bg-card">
                     <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
                         <Brand />
 
                         <div className="flex items-center gap-2">
                             <Link
-                                className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 focus-visible:ring-3 focus-visible:ring-blue-200 focus-visible:outline-none"
+                                className="inline-flex items-center gap-2 rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-brand-foreground transition hover:bg-brand-solid/90 focus-visible:ring-3 focus-visible:ring-brand/30 focus-visible:outline-none"
                                 href={isAuthenticated ? appHref : login()}
                             >
                                 {isAuthenticated
@@ -55,13 +55,13 @@ export default function Welcome() {
 
                 <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-5 py-16 sm:px-8 lg:min-h-[calc(100vh-129px)] lg:grid-cols-[0.9fr_1.1fr] lg:py-20">
                     <div className="max-w-xl">
-                        <p className="text-sm font-semibold text-blue-700">
+                        <p className="text-sm font-semibold text-brand">
                             School communication in one place
                         </p>
                         <h1 className="mt-4 text-4xl leading-tight font-bold tracking-tight sm:text-5xl">
                             Stay connected with your school community.
                         </h1>
-                        <p className="mt-5 text-lg leading-8 text-slate-600">
+                        <p className="mt-5 text-lg leading-8 text-muted-foreground">
                             STEP Messenger helps teachers, staff, and families
                             share messages, class updates, and files without the
                             clutter.
@@ -69,7 +69,7 @@ export default function Welcome() {
 
                         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                             <Link
-                                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-semibold text-white transition hover:bg-blue-800 focus-visible:ring-3 focus-visible:ring-blue-200 focus-visible:outline-none"
+                                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-solid px-5 text-sm font-semibold text-brand-foreground transition hover:bg-brand-solid/90 focus-visible:ring-3 focus-visible:ring-brand/30 focus-visible:outline-none"
                                 href={isAuthenticated ? appHref : login()}
                             >
                                 {isAuthenticated
@@ -79,7 +79,7 @@ export default function Welcome() {
                             </Link>
                         </div>
 
-                        <ul className="mt-8 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                        <ul className="mt-8 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
                             {[
                                 'Direct and group messaging',
                                 'Mentions and read receipts',
@@ -90,7 +90,7 @@ export default function Welcome() {
                                     className="flex items-center gap-2"
                                     key={item}
                                 >
-                                    <Check className="size-4 text-emerald-600" />
+                                    <Check className="size-4 text-emerald-600 dark:text-emerald-400" />
                                     {item}
                                 </li>
                             ))}
@@ -100,9 +100,9 @@ export default function Welcome() {
                     <MessengerPreview />
                 </section>
 
-                <footer className="border-t border-slate-200 bg-white">
-                    <div className="mx-auto flex min-h-16 w-full max-w-6xl flex-col justify-center gap-1 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-                        <span className="font-semibold text-slate-700">
+                <footer className="border-t border-border bg-card">
+                    <div className="mx-auto flex min-h-16 w-full max-w-6xl flex-col justify-center gap-1 px-5 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
+                        <span className="font-semibold text-foreground">
                             STEP Messenger
                         </span>
                         <span>
@@ -118,10 +118,10 @@ export default function Welcome() {
 function Brand() {
     return (
         <div className="flex items-center gap-3">
-            <span className="grid size-9 place-items-center rounded-lg bg-blue-700 text-white">
+            <span className="grid size-9 place-items-center rounded-lg bg-brand-solid text-brand-foreground">
                 <GraduationCap className="size-5" />
             </span>
-            <span className="font-bold tracking-tight text-slate-900">
+            <span className="font-bold tracking-tight text-foreground">
                 STEP Messenger
             </span>
         </div>
@@ -130,55 +130,57 @@ function Brand() {
 
 function MessengerPreview() {
     return (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
                 <div className="flex items-center gap-3">
-                    <span className="grid size-10 place-items-center rounded-lg bg-blue-100 text-xs font-bold text-blue-800">
+                    <span className="grid size-10 place-items-center rounded-lg bg-brand/10 text-xs font-bold text-brand">
                         10A
                     </span>
                     <div>
-                        <h2 className="text-sm font-semibold text-slate-900">
+                        <h2 className="text-sm font-semibold text-foreground">
                             Grade 10 · Section A
                         </h2>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                             28 parents and teachers
                         </p>
                     </div>
                 </div>
-                <MessageCircle className="size-5 text-slate-400" />
+                <MessageCircle className="size-5 text-muted-foreground" />
             </div>
 
-            <div className="space-y-5 bg-slate-50 p-5 sm:p-7">
+            <div className="space-y-5 bg-muted/40 p-5 sm:p-7">
                 <div className="max-w-[82%]">
-                    <p className="mb-1 text-xs font-medium text-slate-500">
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
                         Mrs. Cruz · Adviser
                     </p>
-                    <div className="rounded-xl rounded-bl-sm border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700">
+                    <div className="rounded-xl rounded-bl-sm border border-border bg-card px-4 py-3 text-sm leading-6 text-foreground">
                         Good morning. The project outline is due this Friday. I
                         pinned the checklist for everyone.
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">8:42 AM</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        8:42 AM
+                    </p>
                 </div>
 
                 <div className="ml-auto max-w-[78%]">
-                    <div className="rounded-xl rounded-br-sm bg-blue-700 px-4 py-3 text-sm leading-6 text-white">
+                    <div className="rounded-xl rounded-br-sm bg-brand-solid px-4 py-3 text-sm leading-6 text-brand-foreground">
                         Thank you. We have received the checklist.
                     </div>
-                    <p className="mt-1 flex items-center justify-end gap-1 text-xs text-blue-700">
+                    <p className="mt-1 flex items-center justify-end gap-1 text-xs text-brand">
                         <CheckCheck className="size-3.5" /> Seen
                     </p>
                 </div>
 
-                <div className="max-w-[72%] rounded-xl rounded-bl-sm border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                <div className="max-w-[72%] rounded-xl rounded-bl-sm border border-border bg-card px-4 py-3 text-sm text-foreground">
                     Noted. Thank you for the reminder.
                 </div>
             </div>
 
-            <div className="flex items-center gap-3 border-t border-slate-200 p-4">
-                <div className="flex h-10 flex-1 items-center rounded-lg bg-slate-100 px-3 text-sm text-slate-400">
+            <div className="flex items-center gap-3 border-t border-border p-4">
+                <div className="flex h-10 flex-1 items-center rounded-lg bg-muted px-3 text-sm text-muted-foreground">
                     Write a message…
                 </div>
-                <span className="grid size-10 place-items-center rounded-lg bg-blue-700 text-white">
+                <span className="grid size-10 place-items-center rounded-lg bg-brand-solid text-brand-foreground">
                     <ArrowRight className="size-4" />
                 </span>
             </div>

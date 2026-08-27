@@ -2113,20 +2113,20 @@ export default function Messenger({
     return (
         <>
             <Head title="Messenger" />
-            <div className="flex h-[calc(100vh-6.5rem)] min-h-[680px] flex-col overflow-hidden bg-white">
-                <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+            <div className="flex h-[calc(100vh-6.5rem)] min-h-[680px] flex-col overflow-hidden bg-card">
+                <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-5 py-4">
                     <div className="min-w-0">
-                        <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                             {workspace.name}
                         </p>
-                        <h1 className="truncate text-2xl font-bold text-slate-950">
+                        <h1 className="truncate text-2xl font-bold text-foreground">
                             {archived ? 'Archived' : 'Chat'}
                         </h1>
                     </div>
                     <div className="flex items-center gap-2">
                         <a
                             aria-label={archived ? 'Back to inbox' : 'Archive'}
-                            className="grid size-10 place-items-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition hover:bg-slate-200 hover:text-slate-900"
+                            className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground shadow-sm transition hover:bg-muted hover:text-foreground"
                             href={
                                 archived
                                     ? `/${workspace.slug}/messenger`
@@ -2142,7 +2142,7 @@ export default function Messenger({
                         {!archived && (
                             <button
                                 aria-label="New message"
-                                className="grid size-10 place-items-center rounded-full bg-[#0054b8] text-white shadow-sm transition hover:bg-[#004996]"
+                                className="grid size-10 place-items-center rounded-full bg-brand-solid text-white shadow-sm transition hover:bg-brand-solid/90"
                                 onClick={() => setComposerOpen(true)}
                                 type="button"
                             >
@@ -2153,17 +2153,17 @@ export default function Messenger({
                 </div>
 
                 <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_320px]">
-                    <aside className="hidden min-h-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
-                        <div className="border-b border-slate-100 p-4">
+                    <aside className="hidden min-h-0 border-r border-border bg-card lg:flex lg:flex-col">
+                        <div className="border-b border-border p-4">
                             <div className="mb-3 flex items-center">
-                                <h2 className="text-lg font-bold text-slate-950">
+                                <h2 className="text-lg font-bold text-foreground">
                                     {archived ? 'Archives' : 'Chats'}
                                 </h2>
                             </div>
-                            <label className="flex h-10 items-center gap-2 rounded-lg bg-slate-100 px-3 text-slate-400">
+                            <label className="flex h-10 items-center gap-2 rounded-lg bg-muted px-3 text-muted-foreground">
                                 <Search className="size-4" />
                                 <input
-                                    className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                                    className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                                     onChange={(event) =>
                                         setSearch(event.target.value)
                                     }
@@ -2184,11 +2184,11 @@ export default function Messenger({
 
                                     return (
                                         <button
-                                            className={`flex w-full gap-3 border-b border-slate-100 px-4 py-4 text-left transition ${
+                                            className={`flex w-full gap-3 border-b border-border px-4 py-4 text-left transition ${
                                                 conversation.id ===
                                                 activeConversationId
-                                                    ? 'bg-sky-50'
-                                                    : 'bg-white hover:bg-slate-50'
+                                                    ? 'bg-brand/10'
+                                                    : 'bg-card hover:bg-muted/40'
                                             }`}
                                             key={conversation.id}
                                             onClick={() =>
@@ -2211,14 +2211,14 @@ export default function Messenger({
                                             />
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-start justify-between gap-3">
-                                                    <p className="truncate text-sm font-semibold text-slate-950">
+                                                    <p className="truncate text-sm font-semibold text-foreground">
                                                         {
                                                             conversation.display_name
                                                         }
                                                     </p>
-                                                    <span className="flex shrink-0 items-center gap-1 text-slate-400">
+                                                    <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
                                                         {conversation.pinned_at && (
-                                                            <Pin className="size-3.5 text-[#0054b8]" />
+                                                            <Pin className="size-3.5 text-brand" />
                                                         )}
                                                         {conversation.muted_at && (
                                                             <BellOff className="size-3.5" />
@@ -2226,7 +2226,7 @@ export default function Messenger({
                                                     </span>
                                                     {conversation.unread_count >
                                                         0 && (
-                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#0054b8] text-[10px] font-bold text-white">
+                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-solid text-[10px] font-bold text-white">
                                                             {
                                                                 conversation.unread_count
                                                             }
@@ -2234,7 +2234,7 @@ export default function Messenger({
                                                     )}
                                                     {conversation.unread_mentions_count >
                                                         0 && (
-                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-amber-400 text-[11px] font-bold text-slate-950">
+                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-amber-400 text-[11px] font-bold text-amber-950">
                                                             @
                                                         </span>
                                                     )}
@@ -2242,8 +2242,8 @@ export default function Messenger({
                                                 <p
                                                     className={`mt-1 truncate text-xs ${
                                                         typingUsers.length > 0
-                                                            ? 'font-medium text-[#0054b8]'
-                                                            : 'text-slate-500'
+                                                            ? 'font-medium text-brand'
+                                                            : 'text-muted-foreground'
                                                     }`}
                                                 >
                                                     {typingUsers.length > 0
@@ -2254,7 +2254,7 @@ export default function Messenger({
                                                               conversation.latest_message,
                                                           )}
                                                 </p>
-                                                <p className="mt-2 text-[11px] font-medium text-slate-400">
+                                                <p className="mt-2 text-[11px] font-medium text-muted-foreground">
                                                     {conversationStatusLabel(
                                                         conversation,
                                                         auth.user.id,
@@ -2290,7 +2290,7 @@ export default function Messenger({
                         </div>
                     </aside>
 
-                    <section className="flex min-h-0 flex-col bg-[#f0f2f5]">
+                    <section className="flex min-h-0 flex-col bg-background">
                         {activeConversation ? (
                             <>
                                 <ConversationHeader
@@ -2323,12 +2323,12 @@ export default function Messenger({
                                     typingUsers={activeTypingUsers}
                                 />
                                 {messageSearchOpen && (
-                                    <div className="border-b border-slate-200 bg-white px-4 py-3 md:px-6">
-                                        <label className="flex h-10 items-center gap-2 rounded-lg bg-slate-100 px-3 text-slate-400">
+                                    <div className="border-b border-border bg-card px-4 py-3 md:px-6">
+                                        <label className="flex h-10 items-center gap-2 rounded-lg bg-muted px-3 text-muted-foreground">
                                             <Search className="size-4" />
                                             <input
                                                 autoFocus
-                                                className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                                                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                                                 onChange={(event) =>
                                                     setMessageSearch(
                                                         event.target.value,
@@ -2340,7 +2340,7 @@ export default function Messenger({
                                             />
                                             <button
                                                 aria-label="Close search"
-                                                className="grid size-7 place-items-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                                                className="grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                                                 onClick={() => {
                                                     setMessageSearch('');
                                                     setMessageSearchOpen(false);
@@ -2370,7 +2370,7 @@ export default function Messenger({
                                                 className={`rounded-2xl transition ${
                                                     highlightedMessageId ===
                                                     message.id
-                                                        ? 'bg-sky-100/70 ring-2 ring-[#0054b8]/30'
+                                                        ? 'bg-brand/15 ring-2 ring-brand/30'
                                                         : ''
                                                 }`}
                                                 key={message.id}
@@ -2441,7 +2441,7 @@ export default function Messenger({
                                     <div ref={messagesEndRef} />
                                 </div>
                                 <form
-                                    className="shrink-0 border-t border-slate-200 bg-white p-4"
+                                    className="shrink-0 border-t border-border bg-card p-4"
                                     onSubmit={sendMessage}
                                 >
                                     {editingMessage && (
@@ -2467,21 +2467,21 @@ export default function Messenger({
                                             {selectedFiles.map(
                                                 (file, index) => (
                                                     <span
-                                                        className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700"
+                                                        className="inline-flex max-w-full items-center gap-2 rounded-full bg-muted px-3 py-2 text-xs font-medium text-foreground"
                                                         key={`${file.name}-${file.lastModified}-${index}`}
                                                     >
                                                         <FileText className="size-3.5 shrink-0" />
                                                         <span className="max-w-48 truncate">
                                                             {file.name}
                                                         </span>
-                                                        <span className="text-slate-400">
+                                                        <span className="text-muted-foreground">
                                                             {formatFileSize(
                                                                 file.size,
                                                             )}
                                                         </span>
                                                         <button
                                                             aria-label={`Remove ${file.name}`}
-                                                            className="grid size-5 place-items-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                                                            className="grid size-5 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                                                             onClick={() =>
                                                                 setSelectedFiles(
                                                                     (files) =>
@@ -2506,11 +2506,11 @@ export default function Messenger({
                                     )}
                                     {mentionQuery !== null &&
                                         filteredMentionOptions.length > 0 && (
-                                            <div className="mb-3 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                                            <div className="mb-3 max-h-56 overflow-y-auto rounded-xl border border-border bg-card p-2 shadow-lg">
                                                 {filteredMentionOptions.map(
                                                     (option) => (
                                                         <button
-                                                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-50"
+                                                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-muted/40"
                                                             key={option.id}
                                                             onMouseDown={(
                                                                 event,
@@ -2522,7 +2522,7 @@ export default function Messenger({
                                                             }}
                                                             type="button"
                                                         >
-                                                            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-sky-50 text-xs font-bold text-[#0054b8]">
+                                                            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand/10 text-xs font-bold text-brand">
                                                                 {option.id ===
                                                                 'everyone'
                                                                     ? '@'
@@ -2531,12 +2531,12 @@ export default function Messenger({
                                                                       )}
                                                             </span>
                                                             <span className="min-w-0 flex-1">
-                                                                <span className="block truncate text-sm font-semibold text-slate-950">
+                                                                <span className="block truncate text-sm font-semibold text-foreground">
                                                                     {
                                                                         option.token
                                                                     }
                                                                 </span>
-                                                                <span className="block truncate text-xs text-slate-500">
+                                                                <span className="block truncate text-xs text-muted-foreground">
                                                                     {
                                                                         option.description
                                                                     }
@@ -2568,7 +2568,7 @@ export default function Messenger({
                                         />
                                         <button
                                             aria-label="Attach file"
-                                            className="grid size-10 place-items-center rounded-full text-slate-400 hover:bg-slate-100"
+                                            className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted"
                                             onClick={() =>
                                                 fileInputRef.current?.click()
                                             }
@@ -2578,7 +2578,7 @@ export default function Messenger({
                                             <Paperclip className="size-5" />
                                         </button>
                                         <input
-                                            className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm transition outline-none focus:border-[#0054b8] focus:bg-white"
+                                            className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-muted/40 px-4 text-sm transition outline-none focus:border-brand focus:bg-card"
                                             onClick={(event) =>
                                                 syncMentionQueryFromInput(
                                                     event.currentTarget,
@@ -2600,7 +2600,7 @@ export default function Messenger({
                                         />
                                         <button
                                             aria-label="Send message"
-                                            className="grid size-11 place-items-center rounded-full bg-[#0054b8] text-white shadow-sm transition hover:bg-[#004996] disabled:cursor-not-allowed disabled:bg-slate-300"
+                                            className="grid size-11 place-items-center rounded-full bg-brand-solid text-white shadow-sm transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted"
                                             disabled={
                                                 (!messageBody.trim() &&
                                                     selectedFiles.length ===
@@ -2623,7 +2623,7 @@ export default function Messenger({
                         )}
                     </section>
 
-                    <aside className="hidden min-h-0 border-l border-slate-200 bg-white xl:flex xl:flex-col">
+                    <aside className="hidden min-h-0 border-l border-border bg-card xl:flex xl:flex-col">
                         <div className="min-h-0 flex-1 overflow-y-auto p-4">
                             {activeConversation ? (
                                 <ChatDetails
@@ -2759,18 +2759,18 @@ function ConversationComposer({
     };
 
     return (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
             <form
-                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl"
                 onSubmit={submit}
             >
-                <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
-                    <h2 className="text-base font-semibold text-slate-950">
+                <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                    <h2 className="text-base font-semibold text-foreground">
                         New message
                     </h2>
                     <button
                         aria-label="Close"
-                        className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                        className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted"
                         onClick={onClose}
                         type="button"
                     >
@@ -2778,14 +2778,14 @@ function ConversationComposer({
                     </button>
                 </div>
 
-                <div className="shrink-0 space-y-3 border-b border-slate-100 p-4">
-                    <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+                <div className="shrink-0 space-y-3 border-b border-border p-4">
+                    <div className="grid grid-cols-2 rounded-xl bg-muted p-1">
                         {(['direct', 'group'] as const).map((item) => (
                             <button
                                 className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
                                     mode === item
-                                        ? 'bg-white text-[#0054b8] shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-800'
+                                        ? 'bg-card text-brand shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground'
                                 }`}
                                 key={item}
                                 onClick={() => chooseMode(item)}
@@ -2798,17 +2798,17 @@ function ConversationComposer({
 
                     {mode === 'group' && (
                         <input
-                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm transition outline-none focus:border-[#0054b8]"
+                            className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm transition outline-none focus:border-brand"
                             onChange={(event) => setTitle(event.target.value)}
                             placeholder="Group name"
                             value={title}
                         />
                     )}
 
-                    <label className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 px-3 text-slate-400">
+                    <label className="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 text-muted-foreground">
                         <Search className="size-4" />
                         <input
-                            className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                             onChange={(event) => setQuery(event.target.value)}
                             placeholder="Search people"
                             type="search"
@@ -2824,7 +2824,7 @@ function ConversationComposer({
 
                             return (
                                 <button
-                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
+                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-muted/40"
                                     key={contact.id}
                                     onClick={() => toggleContact(contact.id)}
                                     type="button"
@@ -2833,18 +2833,18 @@ function ConversationComposer({
                                         {initials(contact.name)}
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-sm font-semibold text-slate-950">
+                                        <span className="block truncate text-sm font-semibold text-foreground">
                                             {contact.name}
                                         </span>
-                                        <span className="block truncate text-xs text-slate-500 capitalize">
+                                        <span className="block truncate text-xs text-muted-foreground capitalize">
                                             {contact.school_role}
                                         </span>
                                     </span>
                                     <span
                                         className={`grid size-6 shrink-0 place-items-center rounded-full border ${
                                             selected
-                                                ? 'border-[#0054b8] bg-[#0054b8] text-white'
-                                                : 'border-slate-300 text-transparent'
+                                                ? 'border-brand bg-brand-solid text-white'
+                                                : 'border-border text-transparent'
                                         }`}
                                     >
                                         <Check className="size-4" />
@@ -2854,13 +2854,13 @@ function ConversationComposer({
                         })
                     ) : (
                         <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
-                            <span className="grid size-12 place-items-center rounded-full bg-slate-100 text-slate-400">
+                            <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
                                 <UsersRound className="size-6" />
                             </span>
-                            <h3 className="mt-3 text-sm font-semibold text-slate-900">
+                            <h3 className="mt-3 text-sm font-semibold text-foreground">
                                 No people found
                             </h3>
-                            <p className="mt-1 max-w-72 text-sm leading-6 text-slate-500">
+                            <p className="mt-1 max-w-72 text-sm leading-6 text-muted-foreground">
                                 Team members will appear here when they are
                                 added to this school.
                             </p>
@@ -2868,14 +2868,14 @@ function ConversationComposer({
                     )}
                 </div>
 
-                <div className="shrink-0 border-t border-slate-200 p-4">
+                <div className="shrink-0 border-t border-border p-4">
                     {error && (
-                        <p className="mb-3 text-sm font-medium text-rose-600">
+                        <p className="mb-3 text-sm font-medium text-rose-600 dark:text-rose-400">
                             {error}
                         </p>
                     )}
                     <button
-                        className="h-11 w-full rounded-xl bg-[#0054b8] px-4 text-sm font-semibold text-white transition hover:bg-[#004996] disabled:cursor-not-allowed disabled:bg-slate-300"
+                        className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-white transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted"
                         disabled={!canSubmit || submitting}
                         type="submit"
                     >
@@ -2929,18 +2929,18 @@ function ForwardMessageDialog({
     };
 
     return (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
             <form
-                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl"
                 onSubmit={submit}
             >
-                <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
-                    <h2 className="text-base font-semibold text-slate-950">
+                <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                    <h2 className="text-base font-semibold text-foreground">
                         Forward message
                     </h2>
                     <button
                         aria-label="Close"
-                        className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                        className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted"
                         onClick={onClose}
                         type="button"
                     >
@@ -2948,16 +2948,16 @@ function ForwardMessageDialog({
                     </button>
                 </div>
 
-                <div className="shrink-0 space-y-3 border-b border-slate-100 p-4">
-                    <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                <div className="shrink-0 space-y-3 border-b border-border p-4">
+                    <div className="rounded-xl bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
                         <span className="line-clamp-2">
                             {messagePreview(message)}
                         </span>
                     </div>
-                    <label className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 px-3 text-slate-400">
+                    <label className="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 text-muted-foreground">
                         <Search className="size-4" />
                         <input
-                            className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                             onChange={(event) => setQuery(event.target.value)}
                             placeholder="Search chats"
                             type="search"
@@ -2975,7 +2975,7 @@ function ForwardMessageDialog({
 
                             return (
                                 <button
-                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
+                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-muted/40"
                                     key={conversation.id}
                                     onClick={() =>
                                         toggleConversation(conversation.id)
@@ -2987,10 +2987,10 @@ function ForwardMessageDialog({
                                         type={conversation.type}
                                     />
                                     <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-sm font-semibold text-slate-950">
+                                        <span className="block truncate text-sm font-semibold text-foreground">
                                             {conversation.display_name}
                                         </span>
-                                        <span className="block truncate text-xs text-slate-500">
+                                        <span className="block truncate text-xs text-muted-foreground">
                                             {conversationPreview(
                                                 conversation.latest_message,
                                             )}
@@ -2999,8 +2999,8 @@ function ForwardMessageDialog({
                                     <span
                                         className={`grid size-6 shrink-0 place-items-center rounded-full border ${
                                             selected
-                                                ? 'border-[#0054b8] bg-[#0054b8] text-white'
-                                                : 'border-slate-300 text-transparent'
+                                                ? 'border-brand bg-brand-solid text-white'
+                                                : 'border-border text-transparent'
                                         }`}
                                     >
                                         <Check className="size-4" />
@@ -3010,19 +3010,19 @@ function ForwardMessageDialog({
                         })
                     ) : (
                         <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
-                            <span className="grid size-12 place-items-center rounded-full bg-slate-100 text-slate-400">
+                            <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
                                 <Forward className="size-6" />
                             </span>
-                            <h3 className="mt-3 text-sm font-semibold text-slate-900">
+                            <h3 className="mt-3 text-sm font-semibold text-foreground">
                                 No chats found
                             </h3>
                         </div>
                     )}
                 </div>
 
-                <div className="shrink-0 border-t border-slate-200 p-4">
+                <div className="shrink-0 border-t border-border p-4">
                     <button
-                        className="h-11 w-full rounded-xl bg-[#0054b8] px-4 text-sm font-semibold text-white transition hover:bg-[#004996] disabled:cursor-not-allowed disabled:bg-slate-300"
+                        className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-white transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted"
                         disabled={!canSubmit}
                         type="submit"
                     >
@@ -3071,26 +3071,26 @@ function ConversationHeader({
     );
 
     return (
-        <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-4 md:px-6">
+        <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-4 md:px-6">
             <Avatar
                 label={conversation.display_name}
                 online={online}
                 type={conversation.type}
             />
             <div className="min-w-0 flex-1">
-                <h2 className="truncate text-base font-semibold text-slate-950">
+                <h2 className="truncate text-base font-semibold text-foreground">
                     {conversation.display_name}
                 </h2>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     {typingUsers.length > 0 ? (
-                        <span className="font-medium text-[#0054b8]">
+                        <span className="font-medium text-brand">
                             {typingLabel(typingUsers)}
                         </span>
                     ) : (
                         <>
                             <span
                                 className={`size-2 rounded-full ${
-                                    online ? 'bg-emerald-500' : 'bg-slate-300'
+                                    online ? 'bg-emerald-500' : 'bg-muted'
                                 }`}
                             />
                             <span>{status}</span>
@@ -3101,7 +3101,7 @@ function ConversationHeader({
             <div className="flex shrink-0 items-center gap-1">
                 <button
                     aria-label="Search messages"
-                    className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                    className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
                     onClick={onOpenMessageSearch}
                     type="button"
                 >
@@ -3111,7 +3111,7 @@ function ConversationHeader({
                     <>
                         <button
                             aria-label="Restore chat"
-                            className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-[#0054b8]"
+                            className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-brand"
                             onClick={() => onRestore(conversation)}
                             type="button"
                         >
@@ -3119,7 +3119,7 @@ function ConversationHeader({
                         </button>
                         <button
                             aria-label="Delete permanently"
-                            className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                            className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
                             onClick={() => onDeleteArchived(conversation)}
                             type="button"
                         >
@@ -3129,7 +3129,7 @@ function ConversationHeader({
                 ) : (
                     <button
                         aria-label="Archive chat"
-                        className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                        className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
                         onClick={() => onArchive(conversation)}
                         type="button"
                     >
@@ -3142,8 +3142,8 @@ function ConversationHeader({
                     }
                     className={`grid size-9 place-items-center rounded-full transition ${
                         conversation.pinned_at
-                            ? 'bg-sky-50 text-[#0054b8]'
-                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                            ? 'bg-brand/10 text-brand'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     }`}
                     onClick={() => onTogglePin(conversation)}
                     type="button"
@@ -3160,8 +3160,8 @@ function ConversationHeader({
                     }
                     className={`grid size-9 place-items-center rounded-full transition ${
                         conversation.muted_at
-                            ? 'bg-slate-100 text-slate-700'
-                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                            ? 'bg-muted text-foreground'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     }`}
                     onClick={() => onToggleMute(conversation)}
                     type="button"
@@ -3292,10 +3292,10 @@ function ChatDetails({
                     )}
                     type={conversation.type}
                 />
-                <h2 className="mt-3 max-w-full truncate text-base font-semibold text-slate-950">
+                <h2 className="mt-3 max-w-full truncate text-base font-semibold text-foreground">
                     {conversation.display_name}
                 </h2>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                     {conversation.type === 'direct'
                         ? 'Direct message'
                         : 'Group chat'}
@@ -3306,15 +3306,15 @@ function ChatDetails({
                         icon={<Bell className="size-4" />}
                         title="Notifications"
                     />
-                    <div className="mt-3 grid grid-cols-3 rounded-xl bg-slate-100 p-1">
+                    <div className="mt-3 grid grid-cols-3 rounded-xl bg-muted p-1">
                         {(['all', 'mentions', 'muted'] as const).map(
                             (preference) => (
                                 <button
                                     className={`rounded-lg px-2 py-2 text-xs font-semibold capitalize transition ${
                                         conversation.notification_preference ===
                                         preference
-                                            ? 'bg-white text-[#0054b8] shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-800'
+                                            ? 'bg-card text-brand shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                     disabled={savingPreference}
                                     key={preference}
@@ -3347,13 +3347,13 @@ function ChatDetails({
                         icon={<Paperclip className="size-4" />}
                         title="Media, Links and Files"
                     />
-                    <div className="mt-3 grid grid-cols-3 rounded-xl bg-slate-100 p-1">
+                    <div className="mt-3 grid grid-cols-3 rounded-xl bg-muted p-1">
                         {tabs.map((tab) => (
                             <button
                                 className={`rounded-lg px-2 py-2 text-xs font-semibold transition ${
                                     activeTab === tab.id
-                                        ? 'bg-white text-[#0054b8] shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-800'
+                                        ? 'bg-card text-brand shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground'
                                 }`}
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
@@ -3361,7 +3361,7 @@ function ChatDetails({
                             >
                                 {tab.label}
                                 {tab.count > 0 && (
-                                    <span className="ml-1 text-[10px] text-slate-400">
+                                    <span className="ml-1 text-[10px] text-muted-foreground">
                                         {tab.count}
                                     </span>
                                 )}
@@ -3397,7 +3397,7 @@ function ChatDetails({
                                 onSubmit={saveTitle}
                             >
                                 <input
-                                    className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0054b8]"
+                                    className="min-w-0 flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-brand"
                                     onChange={(event) =>
                                         setTitle(event.target.value)
                                     }
@@ -3405,7 +3405,7 @@ function ChatDetails({
                                     value={title}
                                 />
                                 <button
-                                    className="rounded-lg bg-[#0054b8] px-3 py-2 text-xs font-semibold text-white disabled:bg-slate-300"
+                                    className="rounded-lg bg-brand-solid px-3 py-2 text-xs font-semibold text-white disabled:bg-muted"
                                     disabled={
                                         savingTitle ||
                                         !title.trim() ||
@@ -3421,7 +3421,7 @@ function ChatDetails({
                         {conversation.permissions.can_add_members &&
                             addableContacts.length > 0 && (
                                 <button
-                                    className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800"
+                                    className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                                     onClick={() => setAddingMembers(true)}
                                     type="button"
                                 >
@@ -3431,7 +3431,7 @@ function ChatDetails({
                             )}
 
                         <button
-                            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40"
                             onClick={() => onLeave(conversation)}
                             type="button"
                         >
@@ -3449,17 +3449,17 @@ function ChatDetails({
                     <div className="mt-3 space-y-2">
                         {conversation.participants.map((participant) => (
                             <div
-                                className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
+                                className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/40"
                                 key={participant.id}
                             >
-                                <span className="relative grid size-9 place-items-center rounded-full bg-slate-200 text-xs font-bold text-slate-700">
+                                <span className="relative grid size-9 place-items-center rounded-full bg-muted text-xs font-bold text-foreground">
                                     {initials(participant.name)}
                                     {onlineUserIds.has(participant.id) && (
-                                        <span className="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                                        <span className="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-card bg-emerald-500" />
                                     )}
                                 </span>
                                 <div className="min-w-0">
-                                    <p className="truncate text-sm font-medium text-slate-900">
+                                    <p className="truncate text-sm font-medium text-foreground">
                                         {participant.name}
                                         {participant.id === currentUserId
                                             ? ' (You)'
@@ -3468,8 +3468,8 @@ function ChatDetails({
                                     <p
                                         className={`truncate text-xs ${
                                             onlineUserIds.has(participant.id)
-                                                ? 'font-medium text-emerald-600'
-                                                : 'text-slate-500 capitalize'
+                                                ? 'font-medium text-emerald-600 dark:text-emerald-400'
+                                                : 'text-muted-foreground capitalize'
                                         }`}
                                     >
                                         {onlineUserIds.has(participant.id)
@@ -3481,7 +3481,7 @@ function ChatDetails({
                                     participant.id !== currentUserId && (
                                         <button
                                             aria-label={`Remove ${participant.name}`}
-                                            className="ml-auto grid size-8 shrink-0 place-items-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                                            className="ml-auto grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
                                             onClick={() =>
                                                 onRemoveMember(
                                                     conversation,
@@ -3571,18 +3571,18 @@ function AddMembersDialog({
     };
 
     return (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
             <form
-                className="flex max-h-[min(620px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                className="flex max-h-[min(620px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl"
                 onSubmit={submit}
             >
-                <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
-                    <h2 className="text-base font-semibold text-slate-950">
+                <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                    <h2 className="text-base font-semibold text-foreground">
                         Add members
                     </h2>
                     <button
                         aria-label="Close"
-                        className="grid size-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                        className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted"
                         onClick={onClose}
                         type="button"
                     >
@@ -3590,11 +3590,11 @@ function AddMembersDialog({
                     </button>
                 </div>
 
-                <div className="shrink-0 border-b border-slate-100 p-4">
-                    <label className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 px-3 text-slate-400">
+                <div className="shrink-0 border-b border-border p-4">
+                    <label className="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 text-muted-foreground">
                         <Search className="size-4" />
                         <input
-                            className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                             onChange={(event) => setQuery(event.target.value)}
                             placeholder="Search people"
                             type="search"
@@ -3610,7 +3610,7 @@ function AddMembersDialog({
 
                             return (
                                 <button
-                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
+                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-muted/40"
                                     key={contact.id}
                                     onClick={() => toggleContact(contact.id)}
                                     type="button"
@@ -3619,18 +3619,18 @@ function AddMembersDialog({
                                         {initials(contact.name)}
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-sm font-semibold text-slate-950">
+                                        <span className="block truncate text-sm font-semibold text-foreground">
                                             {contact.name}
                                         </span>
-                                        <span className="block truncate text-xs text-slate-500 capitalize">
+                                        <span className="block truncate text-xs text-muted-foreground capitalize">
                                             {contact.school_role}
                                         </span>
                                     </span>
                                     <span
                                         className={`grid size-6 shrink-0 place-items-center rounded-full border ${
                                             selected
-                                                ? 'border-[#0054b8] bg-[#0054b8] text-white'
-                                                : 'border-slate-300 text-transparent'
+                                                ? 'border-brand bg-brand-solid text-white'
+                                                : 'border-border text-transparent'
                                         }`}
                                     >
                                         <Check className="size-4" />
@@ -3640,24 +3640,24 @@ function AddMembersDialog({
                         })
                     ) : (
                         <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
-                            <span className="grid size-12 place-items-center rounded-full bg-slate-100 text-slate-400">
+                            <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
                                 <UsersRound className="size-6" />
                             </span>
-                            <h3 className="mt-3 text-sm font-semibold text-slate-900">
+                            <h3 className="mt-3 text-sm font-semibold text-foreground">
                                 No people found
                             </h3>
                         </div>
                     )}
                 </div>
 
-                <div className="shrink-0 border-t border-slate-200 p-4">
+                <div className="shrink-0 border-t border-border p-4">
                     {error && (
-                        <p className="mb-3 text-sm font-medium text-rose-600">
+                        <p className="mb-3 text-sm font-medium text-rose-600 dark:text-rose-400">
                             {error}
                         </p>
                     )}
                     <button
-                        className="h-11 w-full rounded-xl bg-[#0054b8] px-4 text-sm font-semibold text-white transition hover:bg-[#004996] disabled:cursor-not-allowed disabled:bg-slate-300"
+                        className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-white transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted"
                         disabled={!canSubmit}
                         type="submit"
                     >
@@ -3688,7 +3688,7 @@ function SharedMediaGrid({ media }: { media: SharedAttachment[] }) {
 
                 return (
                     <a
-                        className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                        className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted"
                         href={item.preview_url ?? item.url}
                         key={item.id}
                         rel="noreferrer"
@@ -3703,7 +3703,7 @@ function SharedMediaGrid({ media }: { media: SharedAttachment[] }) {
                                 src={item.preview_url}
                             />
                         ) : (
-                            <span className="grid size-full place-items-center text-[#0054b8]">
+                            <span className="grid size-full place-items-center text-brand">
                                 {isVideo ? (
                                     <Video className="size-6" />
                                 ) : (
@@ -3732,20 +3732,20 @@ function SharedLinksList({ links }: { links: SharedLink[] }) {
         <div className="space-y-2">
             {links.map((link) => (
                 <a
-                    className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 transition hover:border-[#0054b8] hover:bg-sky-50"
+                    className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 transition hover:border-brand hover:bg-brand/10"
                     href={link.url}
                     key={`${link.message_id}-${link.url}`}
                     rel="noreferrer"
                     target="_blank"
                 >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-[#0054b8]">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
                         <LinkIcon className="size-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-slate-900">
+                        <span className="block truncate text-sm font-medium text-foreground">
                             {link.host}
                         </span>
-                        <span className="block truncate text-xs text-slate-500">
+                        <span className="block truncate text-xs text-muted-foreground">
                             {link.url}
                         </span>
                     </span>
@@ -3769,20 +3769,20 @@ function SharedFilesList({ files }: { files: SharedAttachment[] }) {
         <div className="space-y-2">
             {files.map((file) => (
                 <a
-                    className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 transition hover:border-[#0054b8] hover:bg-sky-50"
+                    className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 transition hover:border-brand hover:bg-brand/10"
                     href={file.url}
                     key={file.id}
                     rel="noreferrer"
                     target="_blank"
                 >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-[#0054b8]">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-brand">
                         <FileText className="size-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-slate-900">
+                        <span className="block truncate text-sm font-medium text-foreground">
                             {file.name}
                         </span>
-                        <span className="block text-xs text-slate-500">
+                        <span className="block text-xs text-muted-foreground">
                             {formatFileSize(file.size)}
                         </span>
                     </span>
@@ -3831,7 +3831,7 @@ function PinnedMessagesList({
         <div className="mt-3 space-y-2">
             {messages.map((message) => (
                 <div
-                    className="group flex min-w-0 items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-[#0054b8] hover:bg-sky-50"
+                    className="group flex min-w-0 items-start gap-3 rounded-lg border border-border bg-card px-3 py-2 text-left transition hover:border-brand hover:bg-brand/10"
                     key={message.id}
                 >
                     <button
@@ -3839,19 +3839,19 @@ function PinnedMessagesList({
                         onClick={() => onOpen(message)}
                         type="button"
                     >
-                        <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-[#0054b8]">
+                        <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
                             <Pin className="size-4" />
                         </span>
                         <span className="min-w-0 flex-1">
-                            <span className="block truncate text-xs font-semibold text-slate-500">
+                            <span className="block truncate text-xs font-semibold text-muted-foreground">
                                 {message.sender?.name ?? 'System'} ·{' '}
                                 {formatTime(message.pinned_at)}
                             </span>
-                            <span className="mt-0.5 line-clamp-2 block text-sm leading-5 font-medium text-slate-900">
+                            <span className="mt-0.5 line-clamp-2 block text-sm leading-5 font-medium text-foreground">
                                 {messagePreview(message)}
                             </span>
                             {message.pinned_by && (
-                                <span className="mt-1 block truncate text-[11px] text-slate-500">
+                                <span className="mt-1 block truncate text-[11px] text-muted-foreground">
                                     Pinned by {message.pinned_by.name}
                                 </span>
                             )}
@@ -3860,7 +3860,7 @@ function PinnedMessagesList({
                     {canUnpin && (
                         <button
                             aria-label="Unpin message"
-                            className="grid size-8 shrink-0 place-items-center rounded-full text-slate-400 opacity-100 transition hover:bg-white hover:text-[#0054b8] md:opacity-0 md:group-hover:opacity-100"
+                            className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground opacity-100 transition hover:bg-card hover:text-brand md:opacity-0 md:group-hover:opacity-100"
                             onClick={() => onUnpin(message)}
                             type="button"
                         >
@@ -3881,11 +3881,13 @@ function SharedContentEmpty({
     title: string;
 }) {
     return (
-        <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 text-center">
-            <span className="grid size-10 place-items-center rounded-full bg-white text-slate-400">
+        <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 px-3 text-center">
+            <span className="grid size-10 place-items-center rounded-full bg-card text-muted-foreground">
                 {icon}
             </span>
-            <p className="mt-2 text-xs font-semibold text-slate-500">{title}</p>
+            <p className="mt-2 text-xs font-semibold text-muted-foreground">
+                {title}
+            </p>
         </div>
     );
 }
@@ -3900,21 +3902,21 @@ function ComposerContext({
     onCancel: () => void;
 }) {
     return (
-        <div className="mb-3 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white text-[#0054b8]">
+        <div className="mb-3 flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-3 py-2">
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-card text-brand">
                 <Reply className="size-4" />
             </span>
             <span className="min-w-0 flex-1">
-                <span className="block text-xs font-semibold text-[#0054b8]">
+                <span className="block text-xs font-semibold text-brand">
                     {label}
                 </span>
-                <span className="block truncate text-sm text-slate-600">
+                <span className="block truncate text-sm text-muted-foreground">
                     {body}
                 </span>
             </span>
             <button
                 aria-label="Cancel"
-                className="grid size-8 shrink-0 place-items-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                 onClick={onCancel}
                 type="button"
             >
@@ -3934,20 +3936,20 @@ function PinnedMessageBanner({
     onUnpin: (message: MessengerMessage) => void;
 }) {
     return (
-        <div className="border-b border-slate-200 bg-white px-4 py-3 md:px-6">
-            <div className="flex items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2">
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-[#0054b8] shadow-sm">
+        <div className="border-b border-border bg-card px-4 py-3 md:px-6">
+            <div className="flex items-center gap-3 rounded-xl border border-brand/20 bg-brand/10 px-3 py-2">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-card text-brand shadow-sm">
                     <Pin className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-[#0054b8]">
+                    <p className="text-xs font-semibold text-brand">
                         Pinned message
                     </p>
-                    <p className="truncate text-sm text-slate-700">
+                    <p className="truncate text-sm text-foreground">
                         {messagePreview(message)}
                     </p>
                     {message.pinned_by && (
-                        <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                             Pinned by {message.pinned_by.name}
                         </p>
                     )}
@@ -3955,7 +3957,7 @@ function PinnedMessageBanner({
                 {canUnpin && (
                     <button
                         aria-label="Unpin message"
-                        className="grid size-8 shrink-0 place-items-center rounded-full text-slate-500 hover:bg-white hover:text-[#0054b8]"
+                        className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-card hover:text-brand"
                         onClick={() => onUnpin(message)}
                         type="button"
                     >
@@ -4002,7 +4004,7 @@ function MessageBubble({
     if (system) {
         return (
             <div className="flex w-full justify-center px-6">
-                <div className="max-w-[min(82%,32rem)] rounded-full bg-slate-200/80 px-3 py-1.5 text-center text-xs leading-5 font-medium text-slate-600">
+                <div className="max-w-[min(82%,32rem)] rounded-full bg-muted/80 px-3 py-1.5 text-center text-xs leading-5 font-medium text-muted-foreground">
                     {message.body}
                 </div>
             </div>
@@ -4022,7 +4024,7 @@ function MessageBubble({
                     >
                         <button
                             aria-label="Reply"
-                            className="grid size-7 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-[#0054b8]"
+                            className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
                             onClick={() => onReply(message)}
                             type="button"
                         >
@@ -4030,7 +4032,7 @@ function MessageBubble({
                         </button>
                         <button
                             aria-label="Forward"
-                            className="grid size-7 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-[#0054b8]"
+                            className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
                             onClick={() => onForward(message)}
                             type="button"
                         >
@@ -4043,10 +4045,10 @@ function MessageBubble({
                                         ? 'Unpin message'
                                         : 'Pin message'
                                 }
-                                className={`grid size-7 place-items-center rounded-full bg-white shadow-sm ring-1 ring-slate-200 ${
+                                className={`grid size-7 place-items-center rounded-full bg-card shadow-sm ring-1 ring-border ${
                                     message.pinned_at
-                                        ? 'text-[#0054b8] hover:text-slate-600'
-                                        : 'text-slate-500 hover:text-[#0054b8]'
+                                        ? 'text-brand hover:text-muted-foreground'
+                                        : 'text-muted-foreground hover:text-brand'
                                 }`}
                                 onClick={() => onPin(message)}
                                 type="button"
@@ -4062,7 +4064,7 @@ function MessageBubble({
                             <>
                                 <button
                                     aria-label="Edit"
-                                    className="grid size-7 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-[#0054b8]"
+                                    className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
                                     onClick={() => onEdit(message)}
                                     type="button"
                                 >
@@ -4070,7 +4072,7 @@ function MessageBubble({
                                 </button>
                                 <button
                                     aria-label="Unsend"
-                                    className="grid size-7 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-rose-600"
+                                    className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-rose-600 dark:hover:text-rose-400"
                                     onClick={() => onUnsend(message)}
                                     type="button"
                                 >
@@ -4084,13 +4086,13 @@ function MessageBubble({
                     className={`relative min-w-0 rounded-2xl px-4 py-3 shadow-sm ${
                         mine
                             ? unsent
-                                ? 'rounded-br-md bg-slate-100 text-slate-500'
-                                : 'rounded-br-md bg-[#cfe8ff] text-slate-950'
-                            : 'rounded-bl-md bg-white text-slate-950'
+                                ? 'rounded-br-md bg-muted text-muted-foreground'
+                                : 'rounded-br-md bg-message-outgoing text-foreground'
+                            : 'rounded-bl-md bg-card text-foreground'
                     } mb-3`}
                 >
                     {!mine && message.sender && (
-                        <p className="mb-1 text-xs font-semibold text-[#0054b8]">
+                        <p className="mb-1 text-xs font-semibold text-brand">
                             {message.sender.name}
                         </p>
                     )}
@@ -4102,7 +4104,7 @@ function MessageBubble({
                         />
                     )}
                     {unsent ? (
-                        <p className="text-sm text-slate-500 italic">
+                        <p className="text-sm text-muted-foreground italic">
                             {mine
                                 ? 'You unsent a message.'
                                 : 'This message was unsent.'}
@@ -4127,7 +4129,7 @@ function MessageBubble({
                             ))}
                         </div>
                     )}
-                    <div className="mt-2 text-right text-[11px] text-slate-500">
+                    <div className="mt-2 text-right text-[11px] text-muted-foreground">
                         {message.edited_at && !unsent && (
                             <span className="mr-1">Edited</span>
                         )}
@@ -4137,7 +4139,7 @@ function MessageBubble({
                         <div className="absolute right-2 -bottom-3 flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1">
                             <button
                                 aria-label="Add reaction"
-                                className="grid size-7 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-100 shadow-sm transition hover:scale-105 hover:text-[#0054b8] md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                                className="grid size-7 place-items-center rounded-full border border-border bg-card text-muted-foreground opacity-100 shadow-sm transition hover:scale-105 hover:text-brand md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
                                 onClick={() =>
                                     setReactionPickerOpen((open) => !open)
                                 }
@@ -4148,7 +4150,7 @@ function MessageBubble({
                             {message.reactions.map((reaction) => (
                                 <button
                                     aria-label={`Reacted with ${reaction.emoji}`}
-                                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 shadow-sm transition hover:bg-slate-50"
+                                    className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1 text-xs text-muted-foreground shadow-sm transition hover:bg-muted/40"
                                     key={reaction.emoji}
                                     onClick={() =>
                                         handleReaction(reaction.emoji)
@@ -4168,14 +4170,14 @@ function MessageBubble({
 
                 {reactionPickerOpen && !unsent && (
                     <div
-                        className={`absolute bottom-11 z-10 flex gap-1 rounded-full border border-slate-200 bg-white p-1.5 shadow-xl ${
+                        className={`absolute bottom-11 z-10 flex gap-1 rounded-full border border-border bg-card p-1.5 shadow-xl ${
                             mine ? 'right-0' : 'left-0'
                         }`}
                     >
                         {REACTION_OPTIONS.map((emoji) => (
                             <button
                                 aria-label={`React with ${emoji}`}
-                                className="grid size-9 place-items-center rounded-full text-lg transition hover:scale-125 hover:bg-slate-100"
+                                className="grid size-9 place-items-center rounded-full text-lg transition hover:scale-125 hover:bg-muted"
                                 key={emoji}
                                 onClick={() => handleReaction(emoji)}
                                 type="button"
@@ -4188,7 +4190,7 @@ function MessageBubble({
             </div>
 
             {deliveryStatus && (
-                <p className="mt-1 text-right text-[11px] font-medium text-slate-500">
+                <p className="mt-1 text-right text-[11px] font-medium text-muted-foreground">
                     {deliveryStatus}
                 </p>
             )}
@@ -4199,18 +4201,18 @@ function MessageBubble({
 function TypingIndicator({ users }: { users: TypingUser[] }) {
     return (
         <div className="flex w-full flex-col items-start">
-            <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm">
+            <div className="rounded-2xl rounded-bl-md bg-card px-4 py-3 shadow-sm">
                 <div className="flex items-center gap-1.5">
                     {[0, 1, 2].map((index) => (
                         <span
-                            className="size-2 animate-bounce rounded-full bg-slate-400"
+                            className="size-2 animate-bounce rounded-full bg-muted-foreground"
                             key={index}
                             style={{ animationDelay: `${index * 120}ms` }}
                         />
                     ))}
                 </div>
             </div>
-            <p className="mt-1 text-xs font-medium text-slate-500">
+            <p className="mt-1 text-xs font-medium text-muted-foreground">
                 {typingLabel(users)}
             </p>
         </div>
@@ -4228,16 +4230,16 @@ function ReplyPreview({
 }) {
     return (
         <div
-            className={`mb-2 rounded-lg border-l-4 border-[#0054b8] px-3 py-2 text-left ${
-                mine ? 'bg-white/60' : 'bg-slate-100'
+            className={`mb-2 rounded-lg border-l-4 border-brand px-3 py-2 text-left ${
+                mine ? 'bg-card/60' : 'bg-muted'
             }`}
         >
-            <p className="truncate text-xs font-semibold text-[#0054b8]">
+            <p className="truncate text-xs font-semibold text-brand">
                 {replyTo.sender?.id === currentUserId
                     ? 'You'
                     : (replyTo.sender?.name ?? 'Message')}
             </p>
-            <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-600">
+            <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
                 {replyMessagePreview(replyTo)}
             </p>
         </div>
@@ -4257,8 +4259,8 @@ function MessageAttachmentPreview({
     const isVideo = canPreview && mimeType.startsWith('video/');
     const isAudio = canPreview && mimeType.startsWith('audio/');
     const shellClass = mine
-        ? 'border-sky-200 bg-white/60'
-        : 'border-slate-200 bg-slate-50';
+        ? 'border-brand/30 bg-card/60'
+        : 'border-border bg-muted/40';
 
     if (isImage) {
         return (
@@ -4306,8 +4308,8 @@ function MessageAttachmentPreview({
             <div
                 className={`max-w-full rounded-xl border px-3 py-2 ${shellClass}`}
             >
-                <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-600">
-                    <Mic className="size-3.5 text-[#0054b8]" />
+                <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Mic className="size-3.5 text-brand" />
                     <span className="min-w-0 truncate">{attachment.name}</span>
                 </div>
                 <audio
@@ -4324,21 +4326,21 @@ function MessageAttachmentPreview({
         <a
             className={`flex max-w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
                 mine
-                    ? 'border-sky-200 bg-white/60 hover:bg-white'
-                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                    ? 'border-brand/30 bg-card/60 hover:bg-card'
+                    : 'border-border bg-muted/40 hover:bg-muted'
             }`}
             href={attachment.url}
             rel="noreferrer"
             target="_blank"
         >
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-[#0054b8]">
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-card text-brand">
                 <FileText className="size-4" />
             </span>
             <span className="min-w-0 flex-1">
                 <span className="block max-w-full truncate text-sm font-medium">
                     {attachment.name}
                 </span>
-                <span className="block text-xs text-slate-500">
+                <span className="block text-xs text-muted-foreground">
                     {formatFileSize(attachment.size)}
                 </span>
             </span>
@@ -4352,7 +4354,7 @@ function LinkedMessageText({ text }: { text: string }) {
             {linkifyText(text).map((part, index) =>
                 part.type === 'link' ? (
                     <a
-                        className="font-medium text-[#0054b8] underline decoration-[#0054b8]/30 underline-offset-2 hover:decoration-[#0054b8]"
+                        className="font-medium text-brand underline decoration-brand/30 underline-offset-2 hover:decoration-brand"
                         href={part.href}
                         key={`${part.href}-${index}`}
                         rel="noreferrer"
@@ -4364,7 +4366,7 @@ function LinkedMessageText({ text }: { text: string }) {
                     mentionifyText(part.text).map((mentionPart, partIndex) =>
                         mentionPart.type === 'mention' ? (
                             <span
-                                className="font-semibold text-[#0054b8]"
+                                className="font-semibold text-brand"
                                 key={`${mentionPart.text}-${index}-${partIndex}`}
                             >
                                 {mentionPart.text}
@@ -4392,7 +4394,7 @@ function AttachmentCaption({
 }) {
     return (
         <a
-            className="flex max-w-full min-w-0 items-center gap-1.5 text-xs text-slate-500 hover:text-[#0054b8]"
+            className="flex max-w-full min-w-0 items-center gap-1.5 text-xs text-muted-foreground hover:text-brand"
             href={attachment.url}
             rel="noreferrer"
             target="_blank"
@@ -4416,7 +4418,7 @@ function Avatar({
     return (
         <span
             className={`relative grid size-11 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${
-                type === 'direct' ? 'bg-rose-500' : 'bg-[#0054b8]'
+                type === 'direct' ? 'bg-rose-500' : 'bg-brand-solid'
             }`}
         >
             {type === 'direct' ? (
@@ -4425,7 +4427,7 @@ function Avatar({
                 <UsersRound className="size-5" />
             )}
             {online && (
-                <span className="absolute right-0 bottom-0 size-3 rounded-full border-2 border-white bg-emerald-500" />
+                <span className="absolute right-0 bottom-0 size-3 rounded-full border-2 border-card bg-emerald-500" />
             )}
         </span>
     );
@@ -4442,7 +4444,7 @@ function PanelTitle({
 }) {
     return (
         <div
-            className={`flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-500 uppercase ${className}`}
+            className={`flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase ${className}`}
         >
             {icon}
             {title}
@@ -4461,13 +4463,13 @@ function EmptyState({
 }) {
     return (
         <div className="flex h-full min-h-48 flex-col items-center justify-center px-6 text-center">
-            <span className="grid size-12 place-items-center rounded-full bg-slate-100 text-slate-400">
+            <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
                 {icon}
             </span>
-            <h3 className="mt-3 text-sm font-semibold text-slate-900">
+            <h3 className="mt-3 text-sm font-semibold text-foreground">
                 {title}
             </h3>
-            <p className="mt-1 max-w-72 text-sm leading-6 text-slate-500">
+            <p className="mt-1 max-w-72 text-sm leading-6 text-muted-foreground">
                 {body}
             </p>
         </div>
