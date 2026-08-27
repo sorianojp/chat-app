@@ -47,6 +47,7 @@ class TeamPolicy
     public function leave(User $user, Team $team): bool
     {
         return ! $team->is_personal
+            && $team->external_source === null
             && $user->belongsToTeam($team)
             && ! $user->ownsTeam($team);
     }
@@ -96,7 +97,9 @@ class TeamPolicy
      */
     public function delete(User $user, Team $team): bool
     {
-        return ! $team->is_personal && $this->canManageTeam($user, $team, TeamPermission::DeleteTeam);
+        return ! $team->is_personal
+            && $team->external_source === null
+            && $this->canManageTeam($user, $team, TeamPermission::DeleteTeam);
     }
 
     /**

@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property string $name
  * @property string $slug
+ * @property string|null $external_source
  * @property bool $is_personal
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -30,7 +31,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, SchoolClass> $schoolClasses
  * @property-read Collection<int, Student> $students
  */
-#[Fillable(['name', 'slug', 'is_personal'])]
+#[Fillable(['name', 'slug', 'external_source', 'is_personal'])]
 class Team extends Model
 {
     /** @use HasFactory<TeamFactory> */

@@ -1,14 +1,9 @@
-import { Form, Head, usePage } from '@inertiajs/react';
-import { Link } from '@inertiajs/react';
-import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
-import DeleteUser from '@/components/delete-user';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { ExternalLink, ShieldCheck } from 'lucide-react';
 import Heading from '@/components/heading';
-import InputError from '@/components/input-error';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { edit } from '@/routes/profile';
-import { send } from '@/routes/verification';
 import type { Auth } from '@/types';
 
 type PageProps = {
@@ -16,11 +11,9 @@ type PageProps = {
 };
 
 export default function Profile({
-    mustVerifyEmail,
-    status,
+    stepAccountUrl,
 }: {
-    mustVerifyEmail: boolean;
-    status?: string;
+    stepAccountUrl?: string | null;
 }) {
     const { auth } = usePage<PageProps>().props;
 
@@ -33,98 +26,65 @@ export default function Profile({
             <div className="space-y-6">
                 <Heading
                     variant="small"
-                    title="Profile"
-                    description="Update your name and email address"
+                    title="STEP profile"
+                    description="Your identity and roles are synchronized from STEP each time you sign in."
                 />
 
-                <Form
-                    {...ProfileController.update.form()}
-                    options={{
-                        preserveScroll: true,
-                    }}
-                    className="space-y-6"
-                >
-                    {({ processing, errors }) => (
-                        <>
-                            <div className="grid gap-2">
-                                <Label htmlFor="name">Name</Label>
+                <div className="space-y-5 rounded-xl border bg-card p-6">
+                    <ReadOnlyField label="Name" value={auth.user.name} />
+                    <ReadOnlyField
+                        label="Email address"
+                        value={auth.user.email}
+                    />
 
-                                <Input
-                                    id="name"
-                                    className="mt-1 block w-full"
-                                    defaultValue={auth.user.name}
-                                    name="name"
-                                    required
-                                    autoComplete="name"
-                                    placeholder="Full name"
-                                />
+                    <div className="grid gap-2">
+                        <p className="text-sm font-medium">STEP roles</p>
+                        <div className="flex flex-wrap gap-2">
+                            {auth.user.step_roles.length > 0 ? (
+                                auth.user.step_roles.map((role) => (
+                                    <Badge key={role} variant="secondary">
+                                        {role}
+                                    </Badge>
+                                ))
+                            ) : (
+                                <span className="text-sm text-muted-foreground">
+                                    No roles synchronized yet
+                                </span>
+                            )}
+                        </div>
+                    </div>
 
-                                <InputError
-                                    className="mt-2"
-                                    message={errors.name}
-                                />
-                            </div>
+                    <div className="flex items-start gap-3 rounded-lg bg-muted p-4 text-sm text-muted-foreground">
+                        <ShieldCheck className="mt-0.5 size-5 shrink-0" />
+                        <p>
+                            Change your name, email, password, or assigned role
+                            in STEP. Messenger will refresh them on your next
+                            sign-in.
+                        </p>
+                    </div>
 
-                            <div className="grid gap-2">
-                                <Label htmlFor="email">Email address</Label>
-
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    className="mt-1 block w-full"
-                                    defaultValue={auth.user.email}
-                                    name="email"
-                                    required
-                                    autoComplete="username"
-                                    placeholder="Email address"
-                                />
-
-                                <InputError
-                                    className="mt-2"
-                                    message={errors.email}
-                                />
-                            </div>
-
-                            {mustVerifyEmail &&
-                                auth.user.email_verified_at === null && (
-                                    <div>
-                                        <p className="-mt-4 text-sm text-muted-foreground">
-                                            Your email address is unverified.{' '}
-                                            <Link
-                                                href={send()}
-                                                as="button"
-                                                className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
-                                            >
-                                                Click here to re-send the
-                                                verification email.
-                                            </Link>
-                                        </p>
-
-                                        {status ===
-                                            'verification-link-sent' && (
-                                            <div className="mt-2 text-sm font-medium text-green-600">
-                                                A new verification link has been
-                                                sent to your email address.
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                            <div className="flex items-center gap-4">
-                                <Button
-                                    disabled={processing}
-                                    data-test="update-profile-button"
-                                >
-                                    Save
-                                </Button>
-                            </div>
-                        </>
+                    {stepAccountUrl && (
+                        <Button asChild>
+                            <Link href={stepAccountUrl} target="_blank">
+                                Manage account in STEP
+                                <ExternalLink className="size-4" />
+                            </Link>
+                        </Button>
                     )}
-                </Form>
+                </div>
             </div>
-
-            <DeleteUser />
         </>
+    );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="grid gap-1">
+            <p className="text-sm font-medium">{label}</p>
+            <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                {value}
+            </p>
+        </div>
     );
 }
 

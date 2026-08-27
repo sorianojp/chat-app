@@ -4,7 +4,7 @@ import type { TeamInvitationContext } from '@/types';
 
 type Props = {
     invitation: TeamInvitationContext;
-    action: 'Log in' | 'Register';
+    action: 'Log in' | 'Register' | 'Sign in';
 };
 
 export default function TeamInvitationAlert({ invitation, action }: Props) {

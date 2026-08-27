@@ -1,44 +1,37 @@
-import { Form, Head, Link } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import {
+    AlertCircle,
     ArrowLeft,
     ArrowRight,
     Check,
     GraduationCap,
     LockKeyhole,
+    ShieldCheck,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
-import InputError from '@/components/input-error';
-import PasskeyVerify from '@/components/passkey-verify';
-import PasswordInput from '@/components/password-input';
 import TeamInvitationAlert from '@/components/team-invitation-alert';
-import TextLink from '@/components/text-link';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Spinner } from '@/components/ui/spinner';
-import { home, register } from '@/routes';
-import { store } from '@/routes/login';
-import { request } from '@/routes/password';
+import { home } from '@/routes';
 import type { TeamInvitationContext } from '@/types';
 
 type Props = {
     status?: string;
-    canResetPassword: boolean;
+    ssoError?: string;
+    stepSsoUrl: string;
     teamInvitation?: TeamInvitationContext | null;
 };
 
 export default function Login({
     status,
-    canResetPassword,
+    ssoError,
+    stepSsoUrl,
     teamInvitation,
 }: Props) {
     return (
         <>
-            <Head title="Log in">
+            <Head title="Sign in">
                 <meta
                     name="description"
-                    content="Log in to STEP Messenger to continue to your school community."
+                    content="Sign in to STEP Messenger with your STEP account."
                 />
             </Head>
 
@@ -71,11 +64,11 @@ export default function Login({
                     <div className="w-full max-w-md">
                         <div className="mb-7 text-center">
                             <h1 className="text-3xl font-bold tracking-tight">
-                                Log in to your account
+                                Sign in to Messenger
                             </h1>
                             <p className="mt-2 text-sm leading-6 text-slate-600">
-                                Enter your details to continue to STEP
-                                Messenger.
+                                Use the same STEP account and role assigned to
+                                you by the school.
                             </p>
                         </div>
 
@@ -83,143 +76,48 @@ export default function Login({
                             {teamInvitation && (
                                 <TeamInvitationAlert
                                     invitation={teamInvitation}
-                                    action="Log in"
+                                    action="Sign in"
                                 />
                             )}
 
                             {status && (
-                                <div
-                                    aria-live="polite"
-                                    className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-medium text-emerald-800"
-                                >
+                                <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-medium text-emerald-800">
                                     <Check className="mt-0.5 size-4 shrink-0" />
                                     {status}
                                 </div>
                             )}
 
-                            <div className="[&_button]:h-11 [&_button]:rounded-lg [&_button]:border-slate-300 [&_button]:font-semibold [&_button]:text-slate-700 [&_button]:shadow-none [&_button]:hover:bg-slate-50">
-                                <PasskeyVerify separator="Or use your email" />
+                            {ssoError && (
+                                <div
+                                    aria-live="polite"
+                                    className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-800"
+                                >
+                                    <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                                    {ssoError}
+                                </div>
+                            )}
+
+                            <div className="flex items-start gap-3 rounded-lg bg-blue-50 p-4 text-sm leading-6 text-blue-950">
+                                <ShieldCheck className="mt-0.5 size-5 shrink-0 text-blue-700" />
+                                <p>
+                                    You will be redirected to STEP to verify
+                                    your account, then returned here securely.
+                                </p>
                             </div>
 
-                            <Form
-                                {...store.form()}
-                                resetOnSuccess={['password']}
-                                className="grid gap-5"
+                            <a
+                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-semibold text-white transition hover:bg-blue-800 focus-visible:ring-3 focus-visible:ring-blue-200 focus-visible:outline-none"
+                                data-test="step-sso-button"
+                                href={stepSsoUrl}
                             >
-                                {({ processing, errors }) => (
-                                    <>
-                                        <div className="grid gap-2">
-                                            <Label
-                                                className="text-sm font-semibold text-slate-800"
-                                                htmlFor="email"
-                                            >
-                                                Email address
-                                            </Label>
-                                            <Input
-                                                autoComplete="email"
-                                                autoFocus
-                                                className="h-11 rounded-lg border-slate-300 bg-white px-3 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:border-blue-600 focus-visible:ring-blue-100"
-                                                id="email"
-                                                name="email"
-                                                placeholder="you@school.edu"
-                                                required
-                                                tabIndex={1}
-                                                type="email"
-                                            />
-                                            <InputError
-                                                message={errors.email}
-                                            />
-                                        </div>
-
-                                        <div className="grid gap-2">
-                                            <div className="flex items-center justify-between gap-4">
-                                                <Label
-                                                    className="text-sm font-semibold text-slate-800"
-                                                    htmlFor="password"
-                                                >
-                                                    Password
-                                                </Label>
-                                                {canResetPassword && (
-                                                    <TextLink
-                                                        className="text-sm font-medium text-blue-700 no-underline hover:underline"
-                                                        href={request()}
-                                                        tabIndex={5}
-                                                    >
-                                                        Forgot password?
-                                                    </TextLink>
-                                                )}
-                                            </div>
-                                            <PasswordInput
-                                                autoComplete="current-password"
-                                                className="h-11 rounded-lg border-slate-300 bg-white px-3 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:border-blue-600 focus-visible:ring-blue-100"
-                                                id="password"
-                                                name="password"
-                                                placeholder="Enter your password"
-                                                required
-                                                tabIndex={2}
-                                            />
-                                            <InputError
-                                                message={errors.password}
-                                            />
-                                        </div>
-
-                                        <div className="flex items-center gap-3">
-                                            <Checkbox
-                                                className="border-slate-300 data-[state=checked]:border-blue-700 data-[state=checked]:bg-blue-700"
-                                                id="remember"
-                                                name="remember"
-                                                tabIndex={3}
-                                            />
-                                            <Label
-                                                className="cursor-pointer text-sm font-medium text-slate-600"
-                                                htmlFor="remember"
-                                            >
-                                                Remember me
-                                            </Label>
-                                        </div>
-
-                                        <Button
-                                            className="h-11 w-full rounded-lg bg-blue-700 text-sm font-semibold text-white shadow-none hover:bg-blue-800 focus-visible:ring-blue-200"
-                                            data-test="login-button"
-                                            disabled={processing}
-                                            tabIndex={4}
-                                            type="submit"
-                                        >
-                                            {processing ? (
-                                                <>
-                                                    <Spinner /> Logging in…
-                                                </>
-                                            ) : (
-                                                <>
-                                                    Log in
-                                                    <ArrowRight className="size-4" />
-                                                </>
-                                            )}
-                                        </Button>
-                                    </>
-                                )}
-                            </Form>
+                                Continue with STEP
+                                <ArrowRight className="size-4" />
+                            </a>
                         </div>
-
-                        <p className="mt-6 text-center text-sm text-slate-600">
-                            Need an account?{' '}
-                            <TextLink
-                                className="font-semibold text-blue-700 no-underline hover:underline"
-                                data-test="register-link"
-                                href={register({
-                                    query: {
-                                        invitation: teamInvitation?.code,
-                                    },
-                                })}
-                                tabIndex={6}
-                            >
-                                Create one
-                            </TextLink>
-                        </p>
 
                         <p className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400">
                             <LockKeyhole className="size-3.5" />
-                            Secure account access
+                            Accounts and roles are managed in STEP
                         </p>
                     </div>
                 </section>

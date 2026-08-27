@@ -6,7 +6,7 @@ import {
     GraduationCap,
     MessageCircle,
 } from 'lucide-react';
-import { login, messenger, register } from '@/routes';
+import { login, messenger } from '@/routes';
 import type { User } from '@/types';
 
 type WelcomeProps = {
@@ -40,21 +40,13 @@ export default function Welcome() {
                         <Brand />
 
                         <div className="flex items-center gap-2">
-                            {!isAuthenticated && (
-                                <Link
-                                    className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
-                                    href={login()}
-                                >
-                                    Log in
-                                </Link>
-                            )}
                             <Link
                                 className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 focus-visible:ring-3 focus-visible:ring-blue-200 focus-visible:outline-none"
-                                href={isAuthenticated ? appHref : register()}
+                                href={isAuthenticated ? appHref : login()}
                             >
                                 {isAuthenticated
                                     ? 'Open messenger'
-                                    : 'Create account'}
+                                    : 'Sign in with STEP'}
                                 <ArrowRight className="size-4" />
                             </Link>
                         </div>
@@ -82,17 +74,9 @@ export default function Welcome() {
                             >
                                 {isAuthenticated
                                     ? 'Go to your messages'
-                                    : 'Log in to STEP'}
+                                    : 'Sign in with STEP'}
                                 <ArrowRight className="size-4" />
                             </Link>
-                            {!isAuthenticated && (
-                                <Link
-                                    className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:ring-3 focus-visible:ring-slate-200 focus-visible:outline-none"
-                                    href={register()}
-                                >
-                                    Create account
-                                </Link>
-                            )}
                         </div>
 
                         <ul className="mt-8 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">

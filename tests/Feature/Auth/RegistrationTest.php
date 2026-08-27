@@ -1,48 +1,31 @@
 <?php
 
-use App\Enums\TeamRole;
-use App\Models\Team;
-use App\Models\TeamInvitation;
 use App\Models\User;
-use Inertia\Testing\AssertableInertia as Assert;
 
-test('registration screen can be rendered', function () {
-    $response = $this->get(route('register'));
+test('local registration is unavailable', function () {
+    $this->get('/register')->assertNotFound();
 
-    $response->assertOk();
-});
-
-test('registration screen includes team invitation context', function () {
-    $owner = User::factory()->create();
-    $team = Team::factory()->create(['name' => 'Laravel Team']);
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
-
-    $invitation = TeamInvitation::factory()->create([
-        'team_id' => $team->id,
-        'email' => 'invited@example.com',
-        'invited_by' => $owner->id,
-    ]);
-
-    $response = $this->get(route('register', ['invitation' => $invitation->code]));
-
-    $response->assertOk();
-    $response->assertInertia(fn (Assert $page) => $page
-        ->component('auth/register')
-        ->where('teamInvitation.code', $invitation->code)
-        ->where('teamInvitation.teamName', 'Laravel Team'),
-    );
-});
-
-test('new users can register', function () {
-    $response = $this->post(route('register.store'), [
-        'name' => 'Test User',
-        'email' => 'test@example.com',
+    $this->post('/register', [
+        'name' => 'Local User',
+        'email' => 'local@example.edu',
         'password' => 'password',
         'password_confirmation' => 'password',
-    ]);
+    ])->assertNotFound();
 
-    $this->assertAuthenticated();
+    expect(User::count())->toBe(0);
+    $this->assertGuest();
+});
 
-    $user = User::where('email', 'test@example.com')->first();
-    $response->assertRedirect(route('messenger', ['current_team' => $user->personalTeam()->slug]));
+test('all local credential authentication endpoints are unavailable', function () {
+    $this->post('/login', [
+        'email' => 'local@example.edu',
+        'password' => 'password',
+    ])->assertMethodNotAllowed();
+
+    $this->get('/forgot-password')->assertNotFound();
+    $this->post('/forgot-password')->assertNotFound();
+    $this->get('/user/confirm-password')->assertNotFound();
+    $this->post('/user/confirm-password')->assertNotFound();
+    $this->get('/two-factor-challenge')->assertNotFound();
+    $this->post('/two-factor-challenge')->assertNotFound();
 });

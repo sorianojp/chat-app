@@ -35,4 +35,16 @@ return [
         ],
     ],
 
+    'step_sso' => [
+        'base_url' => env('STEP_SSO_BASE_URL'),
+        'client_id' => env('STEP_SSO_CLIENT_ID'),
+        'client_secret' => env('STEP_SSO_CLIENT_SECRET'),
+        'redirect_uri' => env('STEP_SSO_REDIRECT_URI'),
+        'scopes' => env('STEP_SSO_SCOPES', 'chat:identity'),
+        'timeout' => (int) env('STEP_SSO_TIMEOUT', 10),
+        'team_name' => env('STEP_SSO_TEAM_NAME', 'STEP Messenger'),
+        'team_slug' => env('STEP_SSO_TEAM_SLUG', 'step-messenger'),
+        'account_url' => env('STEP_SSO_ACCOUNT_URL'),
+    ],
+
 ];

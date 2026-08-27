@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\MessageController as ApiMessageController;
+use App\Http\Controllers\Auth\StepSsoController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
@@ -8,6 +9,17 @@ use App\Models\Team;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+Route::get('login', [StepSsoController::class, 'login'])->name('login');
+Route::get('auth/step', [StepSsoController::class, 'redirect'])
+    ->middleware('throttle:20,1')
+    ->name('step-sso.redirect');
+Route::get('auth/step/callback', [StepSsoController::class, 'callback'])
+    ->middleware('throttle:20,1')
+    ->name('step-sso.callback');
+Route::post('logout', [StepSsoController::class, 'logout'])
+    ->middleware('auth')
+    ->name('logout');
 
 Route::prefix('{current_team}')
     ->middleware(['auth', 'verified', EnsureTeamMembership::class])
