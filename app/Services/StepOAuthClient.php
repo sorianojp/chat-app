@@ -6,6 +6,7 @@ use App\Data\StepIdentity;
 use App\Exceptions\StepSsoException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class StepOAuthClient
 {
@@ -61,6 +62,11 @@ class StepOAuthClient
         }
 
         if (! $response->successful()) {
+            Log::warning('STEP SSO identity request failed.', [
+                'status' => $response->status(),
+                'content_type' => $response->header('Content-Type'),
+            ]);
+
             throw new StepSsoException('STEP could not load your account. Please try again.');
         }
 
