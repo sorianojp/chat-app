@@ -62,6 +62,30 @@ test('conversation participants can send messages with attachments', function ()
     Storage::disk('local')->assertExists($attachment->path);
 });
 
+test('attachments use the configured default filesystem disk', function () {
+    config(['filesystems.default' => 's3']);
+    Storage::fake('s3');
+
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForUsers($sender, $recipient, $team);
+
+    $this
+        ->actingAs($sender)
+        ->post("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'attachments' => [
+                UploadedFile::fake()->create('spaces-report.pdf', 64, 'application/pdf'),
+            ],
+        ])
+        ->assertCreated();
+
+    $attachment = Message::firstOrFail()->attachments()->firstOrFail();
+
+    expect($attachment->disk)->toBe('s3');
+    Storage::disk('s3')->assertExists($attachment->path);
+});
+
 test('messages can contain only attachments', function () {
     Storage::fake('local');
 

@@ -123,6 +123,7 @@ class MessageController extends Controller
         $message = DB::transaction(function () use ($request, $conversation): Message {
             $attachments = $request->file('attachments', []);
             $hasAttachments = count($attachments) > 0;
+            $attachmentDisk = (string) config('filesystems.default', 'local');
 
             $message = $conversation->messages()->create([
                 'sender_id' => $request->user()->id,
@@ -133,10 +134,13 @@ class MessageController extends Controller
             ]);
 
             foreach ($attachments as $attachment) {
-                $path = $attachment->store("message-attachments/{$conversation->team_id}/{$conversation->id}", 'local');
+                $path = $attachment->store(
+                    "message-attachments/{$conversation->team_id}/{$conversation->id}",
+                    $attachmentDisk,
+                );
 
                 $message->attachments()->create([
-                    'disk' => 'local',
+                    'disk' => $attachmentDisk,
                     'path' => $path,
                     'original_name' => $attachment->getClientOriginalName(),
                     'mime_type' => $attachment->getClientMimeType(),
