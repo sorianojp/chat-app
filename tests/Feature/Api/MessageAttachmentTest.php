@@ -58,8 +58,41 @@ test('conversation participants can send messages with attachments', function ()
         'attachment' => $attachment,
     ]));
     expect($response->json('data.attachments.0.preview_url'))->toBeNull();
+    expect($attachment->path)->toStartWith('message-attachments/documents/');
 
     Storage::disk('local')->assertExists($attachment->path);
+});
+
+test('attachments are grouped into storage folders by file type', function () {
+    Storage::fake('local');
+
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForUsers($sender, $recipient, $team);
+
+    $this
+        ->actingAs($sender)
+        ->post("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'attachments' => [
+                UploadedFile::fake()->create('photo.jpg', 16, 'image/jpeg'),
+                UploadedFile::fake()->create('clip.mp4', 16, 'video/mp4'),
+                UploadedFile::fake()->create('voice.mp3', 16, 'audio/mpeg'),
+                UploadedFile::fake()->create('documents.zip', 16, 'application/zip'),
+                UploadedFile::fake()->create('notes.txt', 16, 'text/plain'),
+            ],
+        ])
+        ->assertCreated();
+
+    $paths = Message::firstOrFail()
+        ->attachments()
+        ->pluck('path', 'original_name');
+
+    expect($paths['photo.jpg'])->toStartWith('message-attachments/images/')
+        ->and($paths['clip.mp4'])->toStartWith('message-attachments/videos/')
+        ->and($paths['voice.mp3'])->toStartWith('message-attachments/audio/')
+        ->and($paths['documents.zip'])->toStartWith('message-attachments/archives/')
+        ->and($paths['notes.txt'])->toStartWith('message-attachments/documents/');
 });
 
 test('attachments use the configured default filesystem disk', function () {

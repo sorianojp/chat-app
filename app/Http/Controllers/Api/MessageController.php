@@ -134,8 +134,9 @@ class MessageController extends Controller
             ]);
 
             foreach ($attachments as $attachment) {
+                $mimeType = $attachment->getMimeType();
                 $path = $attachment->store(
-                    "message-attachments/{$conversation->team_id}/{$conversation->id}",
+                    $this->attachmentDirectory($mimeType),
                     $attachmentDisk,
                 );
 
@@ -143,7 +144,7 @@ class MessageController extends Controller
                     'disk' => $attachmentDisk,
                     'path' => $path,
                     'original_name' => $attachment->getClientOriginalName(),
-                    'mime_type' => $attachment->getClientMimeType(),
+                    'mime_type' => $mimeType,
                     'size' => $attachment->getSize(),
                 ]);
             }
@@ -264,7 +265,9 @@ class MessageController extends Controller
                 foreach ($message->attachments as $attachment) {
                     abort_unless(Storage::disk($attachment->disk)->exists($attachment->path), 404);
 
-                    $path = "message-attachments/{$targetConversation->team_id}/{$targetConversation->id}/".Str::uuid().'-'.$attachment->original_name;
+                    $extension = Str::lower(pathinfo($attachment->original_name, PATHINFO_EXTENSION));
+                    $filename = Str::uuid().($extension !== '' ? ".{$extension}" : '');
+                    $path = $this->attachmentDirectory($attachment->mime_type).'/'.$filename;
                     Storage::disk($attachment->disk)->copy($attachment->path, $path);
 
                     $forwardedMessage->attachments()->create([
@@ -503,6 +506,32 @@ class MessageController extends Controller
             && $conversation->team_id === $team->id
             && $request->user()->teams()->whereKey($team->id)->exists()
             && $conversation->participants()->whereKey($request->user()->id)->exists();
+    }
+
+    /**
+     * Get the object storage directory for an attachment MIME type.
+     */
+    private function attachmentDirectory(?string $mimeType): string
+    {
+        $mimeType = Str::lower((string) $mimeType);
+
+        $category = match (true) {
+            Str::startsWith($mimeType, 'image/') => 'images',
+            Str::startsWith($mimeType, 'video/') => 'videos',
+            Str::startsWith($mimeType, 'audio/') => 'audio',
+            Str::startsWith($mimeType, [
+                'application/gzip',
+                'application/vnd.rar',
+                'application/x-7z-compressed',
+                'application/x-rar-compressed',
+                'application/x-tar',
+                'application/zip',
+            ]) => 'archives',
+            Str::startsWith($mimeType, ['application/', 'text/']) => 'documents',
+            default => 'other',
+        };
+
+        return "message-attachments/{$category}";
     }
 
     private function ensureAttachmentBelongsToMessage(Conversation $conversation, Message $message, MessageAttachment $attachment): void
