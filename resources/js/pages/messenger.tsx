@@ -4150,7 +4150,12 @@ function MessageBubble({
                             {message.reactions.map((reaction) => (
                                 <button
                                     aria-label={`Reacted with ${reaction.emoji}`}
-                                    className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1 text-xs text-muted-foreground shadow-sm transition hover:bg-muted/40"
+                                    aria-pressed={reaction.reacted_by_me}
+                                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs shadow-sm transition ${
+                                        reaction.reacted_by_me
+                                            ? 'border-brand/40 bg-brand/15 text-brand hover:bg-brand/20'
+                                            : 'border-border bg-card text-muted-foreground hover:bg-muted/40'
+                                    }`}
                                     key={reaction.emoji}
                                     onClick={() =>
                                         handleReaction(reaction.emoji)
