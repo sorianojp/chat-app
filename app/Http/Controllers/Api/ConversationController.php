@@ -40,7 +40,7 @@ class ConversationController extends Controller
                 fn ($query) => $query->whereNotNull('conversation_participants.archived_at'),
                 fn ($query) => $query->whereNull('conversation_participants.archived_at'),
             )
-            ->with(['latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.sender:id,name', 'participants:id,name,email,school_role,last_seen_at'])
+            ->with(['latestMessage.deliveries.user:id,name', 'latestMessage.eventRsvps.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.pollVotes.user:id,name', 'latestMessage.sender:id,name', 'participants:id,name,email,school_role,last_seen_at'])
             ->withCount('messages')
             ->orderByDesc('conversation_participants.pinned_at')
             ->orderByDesc('last_message_at')
@@ -95,7 +95,7 @@ class ConversationController extends Controller
             [],
         ));
 
-        $conversation->load(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role,last_seen_at', 'schoolClass'])
+        $conversation->load(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.eventRsvps.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.pollVotes.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role,last_seen_at', 'schoolClass'])
             ->loadCount('messages');
 
         return response()->json([
@@ -510,7 +510,7 @@ class ConversationController extends Controller
         return $request->user()
             ->conversations()
             ->whereKey($conversation->id)
-            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role,last_seen_at', 'schoolClass'])
+            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.eventRsvps.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.pollVotes.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role,last_seen_at', 'schoolClass'])
             ->withCount('messages')
             ->firstOrFail();
     }

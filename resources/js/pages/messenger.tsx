@@ -1214,6 +1214,8 @@ export default function Messenger({
         );
 
         if (!response.ok) {
+            window.alert(await apiErrorMessage(response));
+
             return false;
         }
 
@@ -1243,6 +1245,8 @@ export default function Messenger({
         );
 
         if (!response.ok) {
+            window.alert(await apiErrorMessage(response));
+
             return false;
         }
 
@@ -1304,7 +1308,8 @@ export default function Messenger({
                     'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
                 },
                 body: JSON.stringify({
-                    status: message.event?.my_response === status ? null : status,
+                    status:
+                        message.event?.my_response === status ? null : status,
                 }),
             },
         );
@@ -2175,7 +2180,10 @@ export default function Messenger({
 
         const payload = (await response.json()) as ConversationMutationPayload;
         replaceConversation(payload.data);
-        if (payload.system_message) appendMessage(payload.system_message);
+
+        if (payload.system_message) {
+            appendMessage(payload.system_message);
+        }
 
         return true;
     };
@@ -2199,7 +2207,10 @@ export default function Messenger({
 
         const payload = (await response.json()) as ConversationMutationPayload;
         replaceConversation(payload.data);
-        if (payload.system_message) appendMessage(payload.system_message);
+
+        if (payload.system_message) {
+            appendMessage(payload.system_message);
+        }
 
         return true;
     };
@@ -2229,7 +2240,10 @@ export default function Messenger({
 
         const payload = (await response.json()) as ConversationMutationPayload;
         replaceConversation(payload.data);
-        if (payload.system_message) appendMessage(payload.system_message);
+
+        if (payload.system_message) {
+            appendMessage(payload.system_message);
+        }
 
         return true;
     };
@@ -3003,9 +3017,7 @@ export default function Messenger({
                                     onRemoveMember={removeConversationMember}
                                     onRename={renameConversation}
                                     onRemovePhoto={removeConversationPhoto}
-                                    onUpdateNickname={
-                                        updateParticipantNickname
-                                    }
+                                    onUpdateNickname={updateParticipantNickname}
                                     onUpdatePhoto={updateConversationPhoto}
                                     onOpenPinnedMessage={openPinnedMessage}
                                     onUnpinPinnedMessage={toggleMessagePin}
@@ -3068,12 +3080,18 @@ function PollComposer({
     const [allowMultiple, setAllowMultiple] = useState(false);
     const [closesAt, setClosesAt] = useState('');
     const [submitting, setSubmitting] = useState(false);
-    const usableOptions = options.map((option) => option.trim()).filter(Boolean);
+    const usableOptions = options
+        .map((option) => option.trim())
+        .filter(Boolean);
     const canSubmit = question.trim() !== '' && usableOptions.length >= 2;
 
     const submit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!canSubmit || submitting) return;
+
+        if (!canSubmit || submitting) {
+            return;
+        }
+
         setSubmitting(true);
         const created = await onCreate({
             question: question.trim(),
@@ -3082,7 +3100,10 @@ function PollComposer({
             closes_at: closesAt ? new Date(closesAt).toISOString() : null,
         });
         setSubmitting(false);
-        if (created) onClose();
+
+        if (created) {
+            onClose();
+        }
     };
 
     return (
@@ -3186,7 +3207,7 @@ function PollComposer({
                     Close voting (optional)
                     <input
                         className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 font-normal outline-none focus:border-brand"
-                        min={new Date().toISOString().slice(0, 16)}
+                        min={localDateTimeInputValue(1)}
                         onChange={(event) => setClosesAt(event.target.value)}
                         type="datetime-local"
                         value={closesAt}
@@ -3220,7 +3241,11 @@ function EventComposer({
 
     const submit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!canSubmit || submitting) return;
+
+        if (!canSubmit || submitting) {
+            return;
+        }
+
         setSubmitting(true);
         const created = await onCreate({
             title: title.trim(),
@@ -3229,7 +3254,10 @@ function EventComposer({
             location: location.trim() || null,
         });
         setSubmitting(false);
-        if (created) onClose();
+
+        if (created) {
+            onClose();
+        }
     };
 
     return (
@@ -3267,7 +3295,7 @@ function EventComposer({
                     />
                     <input
                         className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-brand"
-                        min={new Date().toISOString().slice(0, 16)}
+                        min={localDateTimeInputValue(1)}
                         onChange={(event) => setStartsAt(event.target.value)}
                         type="datetime-local"
                         value={startsAt}
@@ -3945,9 +3973,11 @@ function ChatDetails({
                                 className="sr-only"
                                 onChange={(event) => {
                                     const photo = event.target.files?.[0];
+
                                     if (photo) {
                                         void onUpdatePhoto(conversation, photo);
                                     }
+
                                     event.target.value = '';
                                 }}
                                 ref={photoInputRef}
@@ -4172,6 +4202,7 @@ function ChatDetails({
                                                     `Nickname for ${participant.name}`,
                                                     participant.nickname ?? '',
                                                 );
+
                                                 if (nickname !== null) {
                                                     void onUpdateNickname(
                                                         conversation,
@@ -4188,20 +4219,20 @@ function ChatDetails({
                                     {conversation.permissions
                                         .can_remove_members &&
                                         participant.id !== currentUserId && (
-                                        <button
-                                            aria-label={`Remove ${participant.name}`}
-                                            className="ml-auto grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
-                                            onClick={() =>
-                                                onRemoveMember(
-                                                    conversation,
-                                                    participant.id,
-                                                )
-                                            }
-                                            type="button"
-                                        >
-                                            <UserMinus className="size-4" />
-                                        </button>
-                                    )}
+                                            <button
+                                                aria-label={`Remove ${participant.name}`}
+                                                className="ml-auto grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+                                                onClick={() =>
+                                                    onRemoveMember(
+                                                        conversation,
+                                                        participant.id,
+                                                    )
+                                                }
+                                                type="button"
+                                            >
+                                                <UserMinus className="size-4" />
+                                            </button>
+                                        )}
                                 </div>
                             </div>
                         ))}
@@ -4834,7 +4865,9 @@ function MessageBubble({
                                 : 'This message was unsent.'}
                         </p>
                     ) : (
-                        message.body && !message.poll && !message.event && (
+                        message.body &&
+                        !message.poll &&
+                        !message.event && (
                             <LinkedMessageText text={message.body} />
                         )
                     )}
@@ -4957,14 +4990,29 @@ function PollCard({
     onVote: (optionId: string) => void;
 }) {
     const poll = message.poll;
-    if (!poll) return null;
+    const [currentTime, setCurrentTime] = useState<number | null>(null);
+
+    useEffect(() => {
+        const updateCurrentTime = () => setCurrentTime(Date.now());
+
+        updateCurrentTime();
+        const interval = window.setInterval(updateCurrentTime, 60_000);
+
+        return () => window.clearInterval(interval);
+    }, []);
+
+    if (!poll) {
+        return null;
+    }
+
     const totalVotes = poll.options.reduce(
         (total, option) => total + option.vote_count,
         0,
     );
-    const closed = poll.closes_at
-        ? new Date(poll.closes_at).getTime() <= Date.now()
-        : false;
+    const closed =
+        poll.closes_at && currentTime !== null
+            ? new Date(poll.closes_at).getTime() <= currentTime
+            : false;
 
     return (
         <div className="min-w-64">
@@ -5070,7 +5118,7 @@ function EventCard({
                 </div>
             </div>
             {event.description && (
-                <p className="mt-3 text-sm leading-5 text-muted-foreground whitespace-pre-wrap">
+                <p className="mt-3 text-sm leading-5 whitespace-pre-wrap text-muted-foreground">
                     {event.description}
                 </p>
             )}
@@ -5794,6 +5842,29 @@ function formatEventDate(value: string) {
         dateStyle: 'medium',
         timeStyle: 'short',
     }).format(new Date(value));
+}
+
+function localDateTimeInputValue(minutesAhead = 0) {
+    const date = new Date(Date.now() + minutesAhead * 60_000);
+    const localTime = new Date(
+        date.getTime() - date.getTimezoneOffset() * 60_000,
+    );
+
+    return localTime.toISOString().slice(0, 16);
+}
+
+async function apiErrorMessage(response: Response) {
+    try {
+        const payload = (await response.json()) as {
+            message?: string;
+            errors?: Record<string, string[]>;
+        };
+        const validationMessage = Object.values(payload.errors ?? {})[0]?.[0];
+
+        return validationMessage ?? payload.message ?? 'Please try again.';
+    } catch {
+        return 'Please try again.';
+    }
 }
 
 function messageLinkPreviews(message: MessengerMessage): LinkPreview[] {

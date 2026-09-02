@@ -36,7 +36,7 @@ class MessageController extends Controller
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
 
         $messages = $conversation->messages()
-            ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+            ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'eventRsvps.user:id,name', 'mentions.user:id,name', 'pollVotes.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
             ->when($request->string('search')->isNotEmpty(), function ($query) use ($request) {
                 $search = $request->string('search')->toString();
 
@@ -103,7 +103,7 @@ class MessageController extends Controller
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
 
         $messages = $conversation->messages()
-            ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'pinner:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+            ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'eventRsvps.user:id,name', 'mentions.user:id,name', 'pinner:id,name', 'pollVotes.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
             ->whereNotNull('pinned_at')
             ->whereNull('unsent_at')
             ->latest('pinned_at')
@@ -315,6 +315,7 @@ class MessageController extends Controller
         $this->ensureMessageBelongsToConversation($conversation, $message);
         abort_unless($message->sender_id === $request->user()->id, 403);
         abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot be edited.');
+        abort_unless(in_array($message->type, ['text', 'attachment'], true), 422, 'This message type cannot be edited.');
 
         $data = $request->validate([
             'body' => ['required', 'string', 'max:5000'],

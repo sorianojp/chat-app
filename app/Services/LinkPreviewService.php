@@ -50,7 +50,7 @@ class LinkPreviewService
                 ->withUserAgent('SchoolMessengerLinkPreview/1.0')
                 ->connectTimeout(2)
                 ->timeout(4)
-                ->withOptions(['allow_redirects' => ['max' => 2]])
+                ->withOptions(['allow_redirects' => false])
                 ->get($url);
 
             if (! $this->isHtmlResponse($response)) {

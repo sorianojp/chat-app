@@ -30,7 +30,7 @@ class MessengerController extends Controller
                 fn ($query) => $query->whereNotNull('conversation_participants.archived_at'),
                 fn ($query) => $query->whereNull('conversation_participants.archived_at'),
             )
-            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role,last_seen_at', 'schoolClass'])
+            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.eventRsvps.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.pollVotes.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role,last_seen_at', 'schoolClass'])
             ->withCount('messages')
             ->orderByDesc('conversation_participants.pinned_at')
             ->orderByDesc('last_message_at')
@@ -46,7 +46,7 @@ class MessengerController extends Controller
         $messages = $activeConversationId
             ? Message::query()
                 ->where('conversation_id', $activeConversationId)
-                ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+                ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'eventRsvps.user:id,name', 'mentions.user:id,name', 'pollVotes.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
                 ->oldest()
                 ->limit(80)
                 ->get()
