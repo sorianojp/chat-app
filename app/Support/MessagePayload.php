@@ -23,6 +23,8 @@ class MessagePayload
             'conversation.team',
             'deliveries.user:id,name',
             'mentions.user:id,name',
+            'pollVotes.user:id,name',
+            'eventRsvps.user:id,name',
             'replyTo.sender:id,name',
             'sender:id,name,school_role',
             'pinner:id,name',
@@ -46,6 +48,8 @@ class MessagePayload
             'type' => $message->type,
             'body' => $isUnsent ? '' : $message->body,
             'metadata' => $isUnsent ? null : $message->metadata,
+            'poll' => $isUnsent ? null : self::poll($message, $currentUserId),
+            'event' => $isUnsent ? null : self::event($message, $currentUserId),
             'reply_to' => $isUnsent ? null : self::replyTo($message),
             'attachments' => $isUnsent ? [] : $message->attachments->map(fn (MessageAttachment $attachment) => [
                 'id' => $attachment->id,
@@ -184,6 +188,74 @@ class MessagePayload
             'body' => $replyTo->unsent_at ? '' : $replyTo->body,
             'attachment_count' => $replyTo->unsent_at ? 0 : $replyTo->attachments()->count(),
             'unsent_at' => $replyTo->unsent_at?->toISOString(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function poll(Message $message, ?int $currentUserId): ?array
+    {
+        $poll = $message->metadata['poll'] ?? null;
+
+        if ($message->type !== 'poll' || ! is_array($poll)) {
+            return null;
+        }
+
+        $message->loadMissing(['pollVotes.user:id,name']);
+        $votes = $message->pollVotes->groupBy('option_id');
+
+        return [
+            'question' => (string) ($poll['question'] ?? $message->body),
+            'allow_multiple' => (bool) ($poll['allow_multiple'] ?? false),
+            'closes_at' => $poll['closes_at'] ?? null,
+            'total_voters' => $message->pollVotes->pluck('user_id')->unique()->count(),
+            'options' => collect($poll['options'] ?? [])->map(function (array $option) use ($votes, $currentUserId) {
+                $optionVotes = $votes->get($option['id'], collect());
+
+                return [
+                    'id' => $option['id'],
+                    'label' => $option['label'],
+                    'vote_count' => $optionVotes->count(),
+                    'voted_by_me' => $currentUserId !== null && $optionVotes->contains('user_id', $currentUserId),
+                    'voters' => $optionVotes->map(fn ($vote) => [
+                        'id' => $vote->user->id,
+                        'name' => $vote->user->name,
+                    ])->values(),
+                ];
+            })->values(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function event(Message $message, ?int $currentUserId): ?array
+    {
+        $event = $message->metadata['event'] ?? null;
+
+        if ($message->type !== 'event' || ! is_array($event)) {
+            return null;
+        }
+
+        $message->loadMissing(['eventRsvps.user:id,name']);
+
+        return [
+            'title' => (string) ($event['title'] ?? $message->body),
+            'description' => $event['description'] ?? null,
+            'starts_at' => $event['starts_at'] ?? null,
+            'location' => $event['location'] ?? null,
+            'my_response' => $currentUserId !== null
+                ? $message->eventRsvps->firstWhere('user_id', $currentUserId)?->status
+                : null,
+            'responses' => collect(['attending', 'maybe', 'declined'])->mapWithKeys(fn (string $status) => [
+                $status => $message->eventRsvps
+                    ->where('status', $status)
+                    ->map(fn ($rsvp) => [
+                        'id' => $rsvp->user->id,
+                        'name' => $rsvp->user->name,
+                    ])->values(),
+            ]),
         ];
     }
 }

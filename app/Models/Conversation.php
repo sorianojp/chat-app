@@ -20,6 +20,8 @@ use Illuminate\Support\Carbon;
  * @property int|null $created_by
  * @property ConversationType $type
  * @property string|null $title
+ * @property string|null $photo_disk
+ * @property string|null $photo_path
  * @property Carbon|null $last_message_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -31,7 +33,7 @@ use Illuminate\Support\Carbon;
  * @property-read SchoolClass|null $schoolClass
  * @property-read Team $team
  */
-#[Fillable(['team_id', 'school_class_id', 'created_by', 'type', 'title', 'last_message_at'])]
+#[Fillable(['team_id', 'school_class_id', 'created_by', 'type', 'title', 'photo_disk', 'photo_path', 'last_message_at'])]
 class Conversation extends Model
 {
     use SoftDeletes;
@@ -74,7 +76,7 @@ class Conversation extends Model
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'conversation_participants')
-            ->withPivot(['role', 'last_read_at', 'pinned_at', 'muted_at', 'notification_preference', 'archived_at'])
+            ->withPivot(['role', 'nickname', 'last_read_at', 'pinned_at', 'muted_at', 'notification_preference', 'archived_at'])
             ->withTimestamps();
     }
 

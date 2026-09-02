@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 test('team members can create direct conversations', function () {
     $sender = User::factory()->create();
-    $recipient = User::factory()->create();
+    $recipient = User::factory()->create(['last_seen_at' => now()->subHours(2)]);
     $team = Team::factory()->create();
 
     $team->members()->attach($sender, ['role' => TeamRole::Member->value]);
@@ -25,6 +25,14 @@ test('team members can create direct conversations', function () {
         ->assertCreated()
         ->assertJsonPath('data.type', ConversationType::Direct->value)
         ->assertJsonPath('data.display_name', $recipient->name)
+        ->assertJsonPath(
+            'data.participants.0.last_seen_at',
+            fn ($value) => $value === null || is_string($value),
+        )
+        ->assertJsonPath(
+            'data.participants.1.last_seen_at',
+            fn ($value) => $value === null || is_string($value),
+        )
         ->assertJsonCount(2, 'data.participants');
 
     $this->assertDatabaseHas('conversation_participants', [

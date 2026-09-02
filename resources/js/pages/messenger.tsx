@@ -5,6 +5,8 @@ import {
     ArchiveRestore,
     Bell,
     BellOff,
+    Calendar,
+    Camera,
     Check,
     FileText,
     Forward,
@@ -12,13 +14,16 @@ import {
     Inbox,
     Info,
     Link as LinkIcon,
+    ListChecks,
     LogOut,
+    MapPin,
     MessageCircle,
     Mic,
     Paperclip,
     PencilLine,
     Pin,
     PinOff,
+    Plus,
     Reply,
     Search,
     Send,
@@ -46,6 +51,8 @@ type Participant = {
     name: string;
     email: string;
     school_role: string;
+    last_seen_at: string | null;
+    nickname: string | null;
     conversation_role?: string | null;
 };
 
@@ -71,6 +78,7 @@ type ConversationPermissions = {
     can_remove_members: boolean;
     can_pin_messages: boolean;
     can_mention_everyone: boolean;
+    can_customize_group: boolean;
 };
 
 type Conversation = {
@@ -78,6 +86,7 @@ type Conversation = {
     type: 'direct' | 'group' | 'announcement';
     title: string | null;
     display_name: string;
+    photo_url: string | null;
     school_class: {
         id: number;
         name: string;
@@ -113,6 +122,8 @@ type MessengerMessage = {
     type: string;
     body: string;
     metadata: Record<string, unknown> | null;
+    poll: MessagePoll | null;
+    event: MessageEvent | null;
     reply_to: ReplyToMessage | null;
     attachments: MessageAttachment[];
     mentions: MessageMention[];
@@ -125,6 +136,53 @@ type MessengerMessage = {
     edited_at: string | null;
     unsent_at: string | null;
     pinned_at: string | null;
+};
+
+type LinkPreview = {
+    url: string;
+    host: string;
+    title: string | null;
+    description: string | null;
+    image_url: string | null;
+};
+
+type MessagePoll = {
+    question: string;
+    allow_multiple: boolean;
+    closes_at: string | null;
+    total_voters: number;
+    options: {
+        id: string;
+        label: string;
+        vote_count: number;
+        voted_by_me: boolean;
+        voters: { id: number; name: string }[];
+    }[];
+};
+
+type RsvpStatus = 'attending' | 'maybe' | 'declined';
+
+type MessageEvent = {
+    title: string;
+    description: string | null;
+    starts_at: string;
+    location: string | null;
+    my_response: RsvpStatus | null;
+    responses: Record<RsvpStatus, { id: number; name: string }[]>;
+};
+
+type NewPollPayload = {
+    question: string;
+    options: string[];
+    allow_multiple: boolean;
+    closes_at: string | null;
+};
+
+type NewEventPayload = {
+    title: string;
+    description: string | null;
+    starts_at: string;
+    location: string | null;
 };
 
 type ReplyToMessage = {
@@ -288,6 +346,7 @@ type NewConversationPayload = {
 const REACTION_OPTIONS = ['👍', '❤️', '😂', '😮', '🙏', '✅'];
 const TYPING_IDLE_MS = 3000;
 const TYPING_WHISPER_INTERVAL_MS = 1200;
+const PRESENCE_HEARTBEAT_INTERVAL_MS = 60_000;
 const EMPTY_SHARED_CONTENT: SharedContent = {
     media: [],
     files: [],
@@ -348,6 +407,7 @@ export default function Messenger({
     const [loadingPinnedConversationId, setLoadingPinnedConversationId] =
         useState<number | null>(initialConversationId);
     const [onlineUserIds, setOnlineUserIds] = useState<number[]>([]);
+    const [, setRelativeTimeTick] = useState(0);
     const [typingUsersByConversation, setTypingUsersByConversation] = useState<
         Record<number, Record<number, TypingUser>>
     >({});
@@ -358,6 +418,8 @@ export default function Messenger({
     );
     const [sending, setSending] = useState(false);
     const [composerOpen, setComposerOpen] = useState(false);
+    const [pollComposerOpen, setPollComposerOpen] = useState(false);
+    const [eventComposerOpen, setEventComposerOpen] = useState(false);
     const [highlightedMessageId, setHighlightedMessageId] = useState<
         number | null
     >(null);
@@ -790,7 +852,10 @@ export default function Messenger({
                     items.map((conversation) =>
                         conversation.id === message.conversation_id
                             ? {
-                                  ...conversation,
+                                  ...applyConversationSystemMessage(
+                                      conversation,
+                                      message,
+                                  ),
                                   latest_message: message,
                                   last_message_at: message.created_at,
                                   pinned_message: latestPinnedMessage([
@@ -1129,9 +1194,175 @@ export default function Messenger({
         return true;
     };
 
+    const createPoll = async (payload: NewPollPayload) => {
+        if (!activeConversationId) {
+            return false;
+        }
+
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${activeConversationId}/polls`,
+            {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify(payload),
+            },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const result = (await response.json()) as { data: MessengerMessage };
+        appendMessage(result.data);
+
+        return true;
+    };
+
+    const createEvent = async (payload: NewEventPayload) => {
+        if (!activeConversationId) {
+            return false;
+        }
+
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${activeConversationId}/events`,
+            {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify(payload),
+            },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const result = (await response.json()) as { data: MessengerMessage };
+        appendMessage(result.data);
+
+        return true;
+    };
+
+    const votePoll = async (message: MessengerMessage, optionId: string) => {
+        if (!message.poll) {
+            return;
+        }
+
+        const selectedIds = message.poll.options
+            .filter((option) => option.voted_by_me)
+            .map((option) => option.id);
+        const optionIds = message.poll.allow_multiple
+            ? selectedIds.includes(optionId)
+                ? selectedIds.filter((id) => id !== optionId)
+                : [...selectedIds, optionId]
+            : selectedIds.includes(optionId)
+              ? []
+              : [optionId];
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/poll-vote`,
+            {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify({ option_ids: optionIds }),
+            },
+        );
+
+        if (response.ok) {
+            const result = (await response.json()) as {
+                data: MessengerMessage;
+            };
+            replaceMessage(result.data);
+        }
+    };
+
+    const respondToEvent = async (
+        message: MessengerMessage,
+        status: RsvpStatus,
+    ) => {
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/rsvp`,
+            {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify({
+                    status: message.event?.my_response === status ? null : status,
+                }),
+            },
+        );
+
+        if (response.ok) {
+            const result = (await response.json()) as {
+                data: MessengerMessage;
+            };
+            replaceMessage(result.data);
+        }
+    };
+
     useEffect(() => {
         activeConversationIdRef.current = activeConversationId;
     }, [activeConversationId]);
+
+    useEffect(() => {
+        const heartbeat = () => {
+            if (document.visibilityState === 'hidden') {
+                return;
+            }
+
+            void fetch(`${apiBaseUrl}/presence`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                keepalive: true,
+            });
+        };
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                heartbeat();
+            }
+        };
+
+        heartbeat();
+        const heartbeatInterval = window.setInterval(
+            heartbeat,
+            PRESENCE_HEARTBEAT_INTERVAL_MS,
+        );
+        const relativeTimeInterval = window.setInterval(
+            () => setRelativeTimeTick((tick) => tick + 1),
+            PRESENCE_HEARTBEAT_INTERVAL_MS,
+        );
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.clearInterval(heartbeatInterval);
+            window.clearInterval(relativeTimeInterval);
+            document.removeEventListener(
+                'visibilitychange',
+                handleVisibilityChange,
+            );
+        };
+    }, [apiBaseUrl]);
 
     useEffect(() => {
         const channel = echo<'reverb'>().join(`teams.${workspace.id}.presence`);
@@ -1146,6 +1377,22 @@ export default function Messenger({
             .leaving((user: PresenceUser) => {
                 setOnlineUserIds((ids) =>
                     ids.filter((userId) => userId !== user.id),
+                );
+                const lastSeenAt = new Date().toISOString();
+
+                setConversations((items) =>
+                    items.map((conversation) => ({
+                        ...conversation,
+                        participants: conversation.participants.map(
+                            (participant) =>
+                                participant.id === user.id
+                                    ? {
+                                          ...participant,
+                                          last_seen_at: lastSeenAt,
+                                      }
+                                    : participant,
+                        ),
+                    })),
                 );
             });
 
@@ -1903,6 +2150,90 @@ export default function Messenger({
         return true;
     };
 
+    const updateConversationPhoto = async (
+        conversation: Conversation,
+        photo: File,
+    ) => {
+        const formData = new FormData();
+        formData.append('photo', photo);
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}/photo`,
+            {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: formData,
+            },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const payload = (await response.json()) as ConversationMutationPayload;
+        replaceConversation(payload.data);
+        if (payload.system_message) appendMessage(payload.system_message);
+
+        return true;
+    };
+
+    const removeConversationPhoto = async (conversation: Conversation) => {
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}/photo`,
+            {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+            },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const payload = (await response.json()) as ConversationMutationPayload;
+        replaceConversation(payload.data);
+        if (payload.system_message) appendMessage(payload.system_message);
+
+        return true;
+    };
+
+    const updateParticipantNickname = async (
+        conversation: Conversation,
+        userId: number,
+        nickname: string | null,
+    ) => {
+        const response = await fetch(
+            `${apiBaseUrl}/conversations/${conversation.id}/members/${userId}/nickname`,
+            {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
+                },
+                body: JSON.stringify({ nickname }),
+            },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const payload = (await response.json()) as ConversationMutationPayload;
+        replaceConversation(payload.data);
+        if (payload.system_message) appendMessage(payload.system_message);
+
+        return true;
+    };
+
     const addConversationMembers = async (
         conversation: Conversation,
         userIds: number[],
@@ -2207,6 +2538,9 @@ export default function Messenger({
                                                     auth.user.id,
                                                     onlineUserIdsSet,
                                                 )}
+                                                photoUrl={
+                                                    conversation.photo_url
+                                                }
                                                 type={conversation.type}
                                             />
                                             <div className="min-w-0 flex-1">
@@ -2259,7 +2593,6 @@ export default function Messenger({
                                                         conversation,
                                                         auth.user.id,
                                                         onlineUserIdsSet,
-                                                        conversation.last_message_at,
                                                     )}
                                                 </p>
                                             </div>
@@ -2387,6 +2720,9 @@ export default function Messenger({
                                                             .can_pin_messages
                                                     }
                                                     currentUserId={auth.user.id}
+                                                    conversation={
+                                                        activeConversation
+                                                    }
                                                     deliveryStatus={messageDeliveryStatus(
                                                         message,
                                                         auth.user.id,
@@ -2406,7 +2742,9 @@ export default function Messenger({
                                                     onPin={toggleMessagePin}
                                                     onReact={toggleReaction}
                                                     onReply={startReply}
+                                                    onRsvp={respondToEvent}
                                                     onUnsend={unsendMessage}
+                                                    onVote={votePoll}
                                                 />
                                             </div>
                                         ))
@@ -2577,6 +2915,28 @@ export default function Messenger({
                                         >
                                             <Paperclip className="size-5" />
                                         </button>
+                                        <button
+                                            aria-label="Create poll"
+                                            className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-brand"
+                                            disabled={isEditing}
+                                            onClick={() =>
+                                                setPollComposerOpen(true)
+                                            }
+                                            type="button"
+                                        >
+                                            <ListChecks className="size-5" />
+                                        </button>
+                                        <button
+                                            aria-label="Create event"
+                                            className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-brand"
+                                            disabled={isEditing}
+                                            onClick={() =>
+                                                setEventComposerOpen(true)
+                                            }
+                                            type="button"
+                                        >
+                                            <Calendar className="size-5" />
+                                        </button>
                                         <input
                                             className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-muted/40 px-4 text-sm transition outline-none focus:border-brand focus:bg-card"
                                             onClick={(event) =>
@@ -2642,6 +3002,11 @@ export default function Messenger({
                                     }
                                     onRemoveMember={removeConversationMember}
                                     onRename={renameConversation}
+                                    onRemovePhoto={removeConversationPhoto}
+                                    onUpdateNickname={
+                                        updateParticipantNickname
+                                    }
+                                    onUpdatePhoto={updateConversationPhoto}
                                     onOpenPinnedMessage={openPinnedMessage}
                                     onUnpinPinnedMessage={toggleMessagePin}
                                     pinnedMessages={activePinnedMessages}
@@ -2674,8 +3039,263 @@ export default function Messenger({
                         onForward={forwardMessage}
                     />
                 )}
+                {pollComposerOpen && (
+                    <PollComposer
+                        onClose={() => setPollComposerOpen(false)}
+                        onCreate={createPoll}
+                    />
+                )}
+                {eventComposerOpen && (
+                    <EventComposer
+                        onClose={() => setEventComposerOpen(false)}
+                        onCreate={createEvent}
+                    />
+                )}
             </div>
         </>
+    );
+}
+
+function PollComposer({
+    onClose,
+    onCreate,
+}: {
+    onClose: () => void;
+    onCreate: (payload: NewPollPayload) => Promise<boolean>;
+}) {
+    const [question, setQuestion] = useState('');
+    const [options, setOptions] = useState(['', '']);
+    const [allowMultiple, setAllowMultiple] = useState(false);
+    const [closesAt, setClosesAt] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const usableOptions = options.map((option) => option.trim()).filter(Boolean);
+    const canSubmit = question.trim() !== '' && usableOptions.length >= 2;
+
+    const submit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!canSubmit || submitting) return;
+        setSubmitting(true);
+        const created = await onCreate({
+            question: question.trim(),
+            options: usableOptions,
+            allow_multiple: allowMultiple,
+            closes_at: closesAt ? new Date(closesAt).toISOString() : null,
+        });
+        setSubmitting(false);
+        if (created) onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+            <form
+                className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl"
+                onSubmit={submit}
+            >
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-bold text-foreground">
+                            Create poll
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                            Ask the conversation to vote.
+                        </p>
+                    </div>
+                    <button
+                        aria-label="Close"
+                        className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted"
+                        onClick={onClose}
+                        type="button"
+                    >
+                        <X className="size-4" />
+                    </button>
+                </div>
+                <label className="mt-5 block text-sm font-semibold text-foreground">
+                    Question
+                    <input
+                        autoFocus
+                        className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 font-normal outline-none focus:border-brand"
+                        maxLength={300}
+                        onChange={(event) => setQuestion(event.target.value)}
+                        placeholder="What should we choose?"
+                        value={question}
+                    />
+                </label>
+                <div className="mt-4 space-y-2">
+                    <p className="text-sm font-semibold text-foreground">
+                        Options
+                    </p>
+                    {options.map((option, index) => (
+                        <div className="flex gap-2" key={index}>
+                            <input
+                                className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-brand"
+                                maxLength={120}
+                                onChange={(event) =>
+                                    setOptions((items) =>
+                                        items.map((item, itemIndex) =>
+                                            itemIndex === index
+                                                ? event.target.value
+                                                : item,
+                                        ),
+                                    )
+                                }
+                                placeholder={`Option ${index + 1}`}
+                                value={option}
+                            />
+                            {options.length > 2 && (
+                                <button
+                                    aria-label={`Remove option ${index + 1}`}
+                                    className="grid size-11 place-items-center rounded-xl text-muted-foreground hover:bg-muted hover:text-rose-600"
+                                    onClick={() =>
+                                        setOptions((items) =>
+                                            items.filter(
+                                                (_item, itemIndex) =>
+                                                    itemIndex !== index,
+                                            ),
+                                        )
+                                    }
+                                    type="button"
+                                >
+                                    <X className="size-4" />
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                    {options.length < 10 && (
+                        <button
+                            className="inline-flex items-center gap-2 text-sm font-semibold text-brand"
+                            onClick={() =>
+                                setOptions((items) => [...items, ''])
+                            }
+                            type="button"
+                        >
+                            <Plus className="size-4" /> Add option
+                        </button>
+                    )}
+                </div>
+                <label className="mt-4 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-3 text-sm font-medium">
+                    <input
+                        checked={allowMultiple}
+                        onChange={(event) =>
+                            setAllowMultiple(event.target.checked)
+                        }
+                        type="checkbox"
+                    />
+                    Allow multiple choices
+                </label>
+                <label className="mt-4 block text-sm font-semibold text-foreground">
+                    Close voting (optional)
+                    <input
+                        className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 font-normal outline-none focus:border-brand"
+                        min={new Date().toISOString().slice(0, 16)}
+                        onChange={(event) => setClosesAt(event.target.value)}
+                        type="datetime-local"
+                        value={closesAt}
+                    />
+                </label>
+                <button
+                    className="mt-6 h-11 w-full rounded-xl bg-brand-solid font-semibold text-white disabled:bg-muted"
+                    disabled={!canSubmit || submitting}
+                    type="submit"
+                >
+                    {submitting ? 'Creating…' : 'Create poll'}
+                </button>
+            </form>
+        </div>
+    );
+}
+
+function EventComposer({
+    onClose,
+    onCreate,
+}: {
+    onClose: () => void;
+    onCreate: (payload: NewEventPayload) => Promise<boolean>;
+}) {
+    const [title, setTitle] = useState('');
+    const [description, setDescription] = useState('');
+    const [startsAt, setStartsAt] = useState('');
+    const [location, setLocation] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const canSubmit = title.trim() !== '' && startsAt !== '';
+
+    const submit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!canSubmit || submitting) return;
+        setSubmitting(true);
+        const created = await onCreate({
+            title: title.trim(),
+            description: description.trim() || null,
+            starts_at: new Date(startsAt).toISOString(),
+            location: location.trim() || null,
+        });
+        setSubmitting(false);
+        if (created) onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+            <form
+                className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl"
+                onSubmit={submit}
+            >
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-bold text-foreground">
+                            Create event
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                            Invite everyone and collect RSVPs.
+                        </p>
+                    </div>
+                    <button
+                        aria-label="Close"
+                        className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted"
+                        onClick={onClose}
+                        type="button"
+                    >
+                        <X className="size-4" />
+                    </button>
+                </div>
+                <div className="mt-5 space-y-4">
+                    <input
+                        autoFocus
+                        className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-brand"
+                        maxLength={200}
+                        onChange={(event) => setTitle(event.target.value)}
+                        placeholder="Event title"
+                        value={title}
+                    />
+                    <input
+                        className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-brand"
+                        min={new Date().toISOString().slice(0, 16)}
+                        onChange={(event) => setStartsAt(event.target.value)}
+                        type="datetime-local"
+                        value={startsAt}
+                    />
+                    <input
+                        className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-brand"
+                        maxLength={240}
+                        onChange={(event) => setLocation(event.target.value)}
+                        placeholder="Location (optional)"
+                        value={location}
+                    />
+                    <textarea
+                        className="min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm outline-none focus:border-brand"
+                        maxLength={2000}
+                        onChange={(event) => setDescription(event.target.value)}
+                        placeholder="Description (optional)"
+                        value={description}
+                    />
+                </div>
+                <button
+                    className="mt-6 h-11 w-full rounded-xl bg-brand-solid font-semibold text-white disabled:bg-muted"
+                    disabled={!canSubmit || submitting}
+                    type="submit"
+                >
+                    {submitting ? 'Creating…' : 'Create event'}
+                </button>
+            </form>
+        </div>
     );
 }
 
@@ -2984,6 +3604,7 @@ function ForwardMessageDialog({
                                 >
                                     <Avatar
                                         label={conversation.display_name}
+                                        photoUrl={conversation.photo_url}
                                         type={conversation.type}
                                     />
                                     <span className="min-w-0 flex-1">
@@ -3075,6 +3696,7 @@ function ConversationHeader({
             <Avatar
                 label={conversation.display_name}
                 online={online}
+                photoUrl={conversation.photo_url}
                 type={conversation.type}
             />
             <div className="min-w-0 flex-1">
@@ -3190,6 +3812,9 @@ function ChatDetails({
     onOpenPinnedMessage,
     onRemoveMember,
     onRename,
+    onRemovePhoto,
+    onUpdateNickname,
+    onUpdatePhoto,
     onUnpinPinnedMessage,
     pinnedMessages,
     sharedContent,
@@ -3215,6 +3840,16 @@ function ChatDetails({
         userId: number,
     ) => Promise<boolean>;
     onRename: (conversation: Conversation, title: string) => Promise<boolean>;
+    onRemovePhoto: (conversation: Conversation) => Promise<boolean>;
+    onUpdateNickname: (
+        conversation: Conversation,
+        userId: number,
+        nickname: string | null,
+    ) => Promise<boolean>;
+    onUpdatePhoto: (
+        conversation: Conversation,
+        photo: File,
+    ) => Promise<boolean>;
     onUnpinPinnedMessage: (message: MessengerMessage) => void;
     pinnedMessages: MessengerMessage[];
     sharedContent: SharedContent;
@@ -3226,6 +3861,7 @@ function ChatDetails({
     const [addingMembers, setAddingMembers] = useState(false);
     const [savingTitle, setSavingTitle] = useState(false);
     const [savingPreference, setSavingPreference] = useState(false);
+    const photoInputRef = useRef<HTMLInputElement | null>(null);
     const addableContacts = contacts.filter(
         (contact) =>
             !conversation.participants.some(
@@ -3290,6 +3926,7 @@ function ChatDetails({
                         currentUserId,
                         onlineUserIds,
                     )}
+                    photoUrl={conversation.photo_url}
                     type={conversation.type}
                 />
                 <h2 className="mt-3 max-w-full truncate text-base font-semibold text-foreground">
@@ -3300,6 +3937,45 @@ function ChatDetails({
                         ? 'Direct message'
                         : 'Group chat'}
                 </p>
+                {conversation.type === 'group' &&
+                    conversation.permissions.can_customize_group && (
+                        <div className="mt-3 flex items-center gap-2">
+                            <input
+                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                className="sr-only"
+                                onChange={(event) => {
+                                    const photo = event.target.files?.[0];
+                                    if (photo) {
+                                        void onUpdatePhoto(conversation, photo);
+                                    }
+                                    event.target.value = '';
+                                }}
+                                ref={photoInputRef}
+                                type="file"
+                            />
+                            <button
+                                className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-foreground hover:text-brand"
+                                onClick={() => photoInputRef.current?.click()}
+                                type="button"
+                            >
+                                <Camera className="size-3.5" />
+                                {conversation.photo_url
+                                    ? 'Change photo'
+                                    : 'Add photo'}
+                            </button>
+                            {conversation.photo_url && (
+                                <button
+                                    className="rounded-full px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                                    onClick={() =>
+                                        void onRemovePhoto(conversation)
+                                    }
+                                    type="button"
+                                >
+                                    Remove
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                 <div className="mt-6 w-full text-left">
                     <PanelTitle
@@ -3458,13 +4134,19 @@ function ChatDetails({
                                         <span className="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-card bg-emerald-500" />
                                     )}
                                 </span>
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                     <p className="truncate text-sm font-medium text-foreground">
-                                        {participant.name}
+                                        {participant.nickname ||
+                                            participant.name}
                                         {participant.id === currentUserId
                                             ? ' (You)'
                                             : ''}
                                     </p>
+                                    {participant.nickname && (
+                                        <p className="truncate text-[11px] text-muted-foreground">
+                                            {participant.name}
+                                        </p>
+                                    )}
                                     <p
                                         className={`truncate text-xs ${
                                             onlineUserIds.has(participant.id)
@@ -3474,11 +4156,38 @@ function ChatDetails({
                                     >
                                         {onlineUserIds.has(participant.id)
                                             ? 'Active now'
-                                            : participant.school_role}
+                                            : offlineStatusLabel(
+                                                  participant.last_seen_at,
+                                              )}
                                     </p>
                                 </div>
-                                {conversation.permissions.can_remove_members &&
-                                    participant.id !== currentUserId && (
+                                <div className="ml-auto flex shrink-0 items-center gap-1">
+                                    {conversation.permissions
+                                        .can_customize_group && (
+                                        <button
+                                            aria-label={`Edit ${participant.name}'s nickname`}
+                                            className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-brand"
+                                            onClick={() => {
+                                                const nickname = window.prompt(
+                                                    `Nickname for ${participant.name}`,
+                                                    participant.nickname ?? '',
+                                                );
+                                                if (nickname !== null) {
+                                                    void onUpdateNickname(
+                                                        conversation,
+                                                        participant.id,
+                                                        nickname.trim() || null,
+                                                    );
+                                                }
+                                            }}
+                                            type="button"
+                                        >
+                                            <PencilLine className="size-4" />
+                                        </button>
+                                    )}
+                                    {conversation.permissions
+                                        .can_remove_members &&
+                                        participant.id !== currentUserId && (
                                         <button
                                             aria-label={`Remove ${participant.name}`}
                                             className="ml-auto grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
@@ -3493,6 +4202,7 @@ function ChatDetails({
                                             <UserMinus className="size-4" />
                                         </button>
                                     )}
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -3971,6 +4681,7 @@ function PinnedMessageBanner({
 
 function MessageBubble({
     canPin,
+    conversation,
     currentUserId,
     deliveryStatus,
     message,
@@ -3979,9 +4690,12 @@ function MessageBubble({
     onPin,
     onReact,
     onReply,
+    onRsvp,
     onUnsend,
+    onVote,
 }: {
     canPin: boolean;
+    conversation: Conversation;
     currentUserId: number;
     deliveryStatus: string | null;
     message: MessengerMessage;
@@ -3990,7 +4704,9 @@ function MessageBubble({
     onPin: (message: MessengerMessage) => void;
     onReact: (message: MessengerMessage, emoji: string) => void;
     onReply: (message: MessengerMessage) => void;
+    onRsvp: (message: MessengerMessage, status: RsvpStatus) => void;
     onUnsend: (message: MessengerMessage) => void;
+    onVote: (message: MessengerMessage, optionId: string) => void;
 }) {
     const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
     const system = message.type === 'system';
@@ -4062,14 +4778,18 @@ function MessageBubble({
                         )}
                         {mine && (
                             <>
-                                <button
-                                    aria-label="Edit"
-                                    className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
-                                    onClick={() => onEdit(message)}
-                                    type="button"
-                                >
-                                    <PencilLine className="size-3.5" />
-                                </button>
+                                {['text', 'attachment'].includes(
+                                    message.type,
+                                ) && (
+                                    <button
+                                        aria-label="Edit"
+                                        className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
+                                        onClick={() => onEdit(message)}
+                                        type="button"
+                                    >
+                                        <PencilLine className="size-3.5" />
+                                    </button>
+                                )}
                                 <button
                                     aria-label="Unsend"
                                     className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-rose-600 dark:hover:text-rose-400"
@@ -4093,7 +4813,11 @@ function MessageBubble({
                 >
                     {!mine && message.sender && (
                         <p className="mb-1 text-xs font-semibold text-brand">
-                            {message.sender.name}
+                            {participantDisplayName(
+                                conversation,
+                                message.sender.id,
+                                message.sender.name,
+                            )}
                         </p>
                     )}
                     {message.reply_to && (
@@ -4110,9 +4834,31 @@ function MessageBubble({
                                 : 'This message was unsent.'}
                         </p>
                     ) : (
-                        message.body && (
+                        message.body && !message.poll && !message.event && (
                             <LinkedMessageText text={message.body} />
                         )
+                    )}
+                    {!unsent && message.poll && (
+                        <PollCard
+                            message={message}
+                            onVote={(optionId) => onVote(message, optionId)}
+                        />
+                    )}
+                    {!unsent && message.event && (
+                        <EventCard
+                            event={message.event}
+                            onRsvp={(status) => onRsvp(message, status)}
+                        />
+                    )}
+                    {!unsent && messageLinkPreviews(message).length > 0 && (
+                        <div className="mt-3 space-y-2">
+                            {messageLinkPreviews(message).map((preview) => (
+                                <LinkPreviewCard
+                                    key={preview.url}
+                                    preview={preview}
+                                />
+                            ))}
+                        </div>
                     )}
                     {!unsent && message.attachments.length > 0 && (
                         <div
@@ -4200,6 +4946,191 @@ function MessageBubble({
                 </p>
             )}
         </div>
+    );
+}
+
+function PollCard({
+    message,
+    onVote,
+}: {
+    message: MessengerMessage;
+    onVote: (optionId: string) => void;
+}) {
+    const poll = message.poll;
+    if (!poll) return null;
+    const totalVotes = poll.options.reduce(
+        (total, option) => total + option.vote_count,
+        0,
+    );
+    const closed = poll.closes_at
+        ? new Date(poll.closes_at).getTime() <= Date.now()
+        : false;
+
+    return (
+        <div className="min-w-64">
+            <div className="mb-3 flex items-start gap-2">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand/15 text-brand">
+                    <ListChecks className="size-4" />
+                </span>
+                <div>
+                    <p className="font-semibold text-foreground">
+                        {poll.question}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        {poll.allow_multiple
+                            ? 'Choose one or more'
+                            : 'Choose one'}
+                    </p>
+                </div>
+            </div>
+            <div className="space-y-2">
+                {poll.options.map((option) => {
+                    const percent =
+                        totalVotes > 0
+                            ? Math.round((option.vote_count / totalVotes) * 100)
+                            : 0;
+
+                    return (
+                        <button
+                            aria-pressed={option.voted_by_me}
+                            className={`relative w-full overflow-hidden rounded-xl border px-3 py-2.5 text-left transition ${
+                                option.voted_by_me
+                                    ? 'border-brand bg-brand/10'
+                                    : 'border-border bg-card/70 hover:border-brand/50'
+                            }`}
+                            disabled={closed}
+                            key={option.id}
+                            onClick={() => onVote(option.id)}
+                            title={option.voters
+                                .map((voter) => voter.name)
+                                .join(', ')}
+                            type="button"
+                        >
+                            <span
+                                className="absolute inset-y-0 left-0 bg-brand/10"
+                                style={{ width: `${percent}%` }}
+                            />
+                            <span className="relative flex items-center justify-between gap-3 text-sm">
+                                <span className="font-medium">
+                                    {option.voted_by_me && '✓ '}
+                                    {option.label}
+                                </span>
+                                <span className="shrink-0 text-xs text-muted-foreground">
+                                    {option.vote_count} · {percent}%
+                                </span>
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+                {poll.total_voters}{' '}
+                {poll.total_voters === 1 ? 'person voted' : 'people voted'}
+                {closed
+                    ? ' · Poll closed'
+                    : poll.closes_at
+                      ? ` · Closes ${formatEventDate(poll.closes_at)}`
+                      : ''}
+            </p>
+        </div>
+    );
+}
+
+function EventCard({
+    event,
+    onRsvp,
+}: {
+    event: MessageEvent;
+    onRsvp: (status: RsvpStatus) => void;
+}) {
+    const choices: Array<{ status: RsvpStatus; label: string }> = [
+        { status: 'attending', label: 'Going' },
+        { status: 'maybe', label: 'Maybe' },
+        { status: 'declined', label: "Can't go" },
+    ];
+
+    return (
+        <div className="min-w-64">
+            <div className="flex items-start gap-3">
+                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand/15 text-brand">
+                    <Calendar className="size-5" />
+                </span>
+                <div className="min-w-0">
+                    <p className="font-semibold text-foreground">
+                        {event.title}
+                    </p>
+                    <p className="text-sm font-medium text-brand">
+                        {formatEventDate(event.starts_at)}
+                    </p>
+                    {event.location && (
+                        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="size-3.5" /> {event.location}
+                        </p>
+                    )}
+                </div>
+            </div>
+            {event.description && (
+                <p className="mt-3 text-sm leading-5 text-muted-foreground whitespace-pre-wrap">
+                    {event.description}
+                </p>
+            )}
+            <div className="mt-4 grid grid-cols-3 gap-2">
+                {choices.map(({ status, label }) => (
+                    <button
+                        aria-pressed={event.my_response === status}
+                        className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                            event.my_response === status
+                                ? 'border-brand bg-brand/15 text-brand'
+                                : 'border-border bg-card/70 text-muted-foreground hover:border-brand/50'
+                        }`}
+                        key={status}
+                        onClick={() => onRsvp(status)}
+                        title={event.responses[status]
+                            .map((user) => user.name)
+                            .join(', ')}
+                        type="button"
+                    >
+                        {label} · {event.responses[status].length}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function LinkPreviewCard({ preview }: { preview: LinkPreview }) {
+    return (
+        <a
+            className="block overflow-hidden rounded-xl border border-border bg-card/70 text-left transition hover:border-brand/50"
+            href={preview.url}
+            rel="noreferrer"
+            target="_blank"
+        >
+            {preview.image_url && (
+                <img
+                    alt=""
+                    className="max-h-52 w-full object-cover"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    src={preview.image_url}
+                />
+            )}
+            <span className="block p-3">
+                <span className="block text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                    {preview.host}
+                </span>
+                {preview.title && (
+                    <span className="mt-1 line-clamp-2 block text-sm font-semibold text-foreground">
+                        {preview.title}
+                    </span>
+                )}
+                {preview.description && (
+                    <span className="mt-1 line-clamp-2 block text-xs leading-5 text-muted-foreground">
+                        {preview.description}
+                    </span>
+                )}
+            </span>
+        </a>
     );
 }
 
@@ -4414,10 +5345,12 @@ function AttachmentCaption({
 function Avatar({
     label,
     online = false,
+    photoUrl,
     type,
 }: {
     label: string;
     online?: boolean;
+    photoUrl: string | null;
     type: Conversation['type'];
 }) {
     return (
@@ -4426,7 +5359,13 @@ function Avatar({
                 type === 'direct' ? 'bg-rose-500' : 'bg-brand-solid'
             }`}
         >
-            {type === 'direct' ? (
+            {photoUrl ? (
+                <img
+                    alt=""
+                    className="size-full rounded-full object-cover"
+                    src={photoUrl}
+                />
+            ) : type === 'direct' ? (
                 initials(label)
             ) : (
                 <UsersRound className="size-5" />
@@ -4497,7 +5436,6 @@ function conversationStatusLabel(
     conversation: Conversation,
     currentUserId: number,
     onlineUserIds: Set<number>,
-    fallbackTime?: string | null,
 ) {
     const onlineParticipants = conversation.participants.filter(
         (participant) =>
@@ -4506,11 +5444,15 @@ function conversationStatusLabel(
     );
 
     if (conversation.type === 'direct') {
-        return onlineParticipants.length > 0
-            ? 'Active now'
-            : fallbackTime
-              ? formatTime(fallbackTime)
-              : 'Offline';
+        if (onlineParticipants.length > 0) {
+            return 'Active now';
+        }
+
+        const otherParticipant = conversation.participants.find(
+            (participant) => participant.id !== currentUserId,
+        );
+
+        return offlineStatusLabel(otherParticipant?.last_seen_at ?? null);
     }
 
     if (onlineParticipants.length === 0) {
@@ -4518,6 +5460,39 @@ function conversationStatusLabel(
     }
 
     return `${onlineParticipants.length} active now`;
+}
+
+function offlineStatusLabel(lastSeenAt: string | null) {
+    return lastSeenAt
+        ? `Offline · ${formatRelativeLastSeen(lastSeenAt)}`
+        : 'Offline';
+}
+
+function formatRelativeLastSeen(value: string) {
+    const elapsedSeconds = Math.max(
+        0,
+        Math.floor((Date.now() - timestamp(value)) / 1000),
+    );
+
+    if (elapsedSeconds < 60) {
+        return 'just now';
+    }
+
+    const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+
+    if (elapsedMinutes < 60) {
+        return `${elapsedMinutes} min ago`;
+    }
+
+    const elapsedHours = Math.floor(elapsedMinutes / 60);
+
+    if (elapsedHours < 24) {
+        return `${elapsedHours} ${elapsedHours === 1 ? 'hour' : 'hours'} ago`;
+    }
+
+    const elapsedDays = Math.floor(elapsedHours / 24);
+
+    return `${elapsedDays} ${elapsedDays === 1 ? 'day' : 'days'} ago`;
 }
 
 function typingLabel(users: TypingUser[]) {
@@ -4598,6 +5573,14 @@ function messagePreview(message: MessengerMessage) {
         return message.sender
             ? `${message.sender.name} unsent a message`
             : 'Message unsent';
+    }
+
+    if (message.poll) {
+        return `Poll: ${message.poll.question}`;
+    }
+
+    if (message.event) {
+        return `Event: ${message.event.title}`;
     }
 
     if (message.body) {
@@ -4806,6 +5789,89 @@ function formatFileSize(size: number) {
     return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function formatEventDate(value: string) {
+    return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(new Date(value));
+}
+
+function messageLinkPreviews(message: MessengerMessage): LinkPreview[] {
+    const previews = message.metadata?.link_previews;
+
+    return Array.isArray(previews) ? (previews as LinkPreview[]) : [];
+}
+
+function participantDisplayName(
+    conversation: Conversation,
+    userId: number,
+    fallback: string,
+) {
+    const participant = conversation.participants.find(
+        (item) => item.id === userId,
+    );
+
+    return participant?.nickname || participant?.name || fallback;
+}
+
+function applyConversationSystemMessage(
+    conversation: Conversation,
+    message: MessengerMessage,
+) {
+    if (message.type !== 'system' || !message.metadata) {
+        return conversation;
+    }
+
+    const event = message.metadata.event;
+
+    if (
+        event === 'conversation_renamed' &&
+        typeof message.metadata.new_title === 'string'
+    ) {
+        return {
+            ...conversation,
+            title: message.metadata.new_title,
+            display_name: message.metadata.new_title,
+        };
+    }
+
+    if (event === 'group_photo_updated') {
+        return {
+            ...conversation,
+            photo_url:
+                typeof message.metadata.photo_url === 'string'
+                    ? message.metadata.photo_url
+                    : conversation.photo_url,
+        };
+    }
+
+    if (event === 'group_photo_removed') {
+        return { ...conversation, photo_url: null };
+    }
+
+    if (
+        event === 'participant_nickname_updated' &&
+        typeof message.metadata.participant_id === 'number'
+    ) {
+        return {
+            ...conversation,
+            participants: conversation.participants.map((participant) =>
+                participant.id === message.metadata?.participant_id
+                    ? {
+                          ...participant,
+                          nickname:
+                              typeof message.metadata?.nickname === 'string'
+                                  ? message.metadata.nickname
+                                  : null,
+                      }
+                    : participant,
+            ),
+        };
+    }
+
+    return conversation;
+}
+
 function formatSeenAt(value: string) {
     const seconds = Math.max(
         0,
@@ -4946,6 +6012,27 @@ function personalizeMessage(message: MessengerMessage, currentUserId: number) {
     return {
         ...message,
         reactions: personalizeReactions(message.reactions, currentUserId),
+        poll: message.poll
+            ? {
+                  ...message.poll,
+                  options: message.poll.options.map((option) => ({
+                      ...option,
+                      voted_by_me: option.voters.some(
+                          (voter) => voter.id === currentUserId,
+                      ),
+                  })),
+              }
+            : null,
+        event: message.event
+            ? {
+                  ...message.event,
+                  my_response:
+                      (Object.entries(message.event.responses).find(
+                          ([, users]) =>
+                              users.some((user) => user.id === currentUserId),
+                      )?.[0] as RsvpStatus | undefined) ?? null,
+              }
+            : null,
     };
 }
 

@@ -3,18 +3,25 @@
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\NoticeController;
+use App\Http\Controllers\Api\PresenceController;
 use App\Http\Controllers\Api\SchoolClassController;
 use App\Http\Controllers\Api\StudentController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('teams/{team:slug}')->group(function () {
+        Route::post('presence', [PresenceController::class, 'store']);
+
         Route::get('school-classes', [SchoolClassController::class, 'index']);
         Route::get('students', [StudentController::class, 'index']);
 
         Route::get('conversations', [ConversationController::class, 'index']);
         Route::post('conversations', [ConversationController::class, 'store']);
         Route::patch('conversations/{conversation}', [ConversationController::class, 'update']);
+        Route::post('conversations/{conversation}/photo', [ConversationController::class, 'updatePhoto']);
+        Route::delete('conversations/{conversation}/photo', [ConversationController::class, 'destroyPhoto']);
+        Route::get('conversations/{conversation}/photo', [ConversationController::class, 'showPhoto']);
+        Route::patch('conversations/{conversation}/members/{user}/nickname', [ConversationController::class, 'updateNickname']);
         Route::delete('conversations/{conversation}', [ConversationController::class, 'destroy']);
         Route::patch('conversations/{conversation}/pin', [ConversationController::class, 'pin']);
         Route::patch('conversations/{conversation}/archive', [ConversationController::class, 'archive']);
@@ -27,6 +34,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('conversations/{conversation}/shared', [MessageController::class, 'shared']);
         Route::get('conversations/{conversation}/messages/pinned', [MessageController::class, 'pinned']);
         Route::post('conversations/{conversation}/messages', [MessageController::class, 'store']);
+        Route::post('conversations/{conversation}/polls', [MessageController::class, 'storePoll']);
+        Route::patch('conversations/{conversation}/messages/{message}/poll-vote', [MessageController::class, 'votePoll']);
+        Route::post('conversations/{conversation}/events', [MessageController::class, 'storeEvent']);
+        Route::patch('conversations/{conversation}/messages/{message}/rsvp', [MessageController::class, 'rsvp']);
         Route::patch('conversations/{conversation}/messages/{message}', [MessageController::class, 'update']);
         Route::delete('conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
         Route::post('conversations/{conversation}/messages/{message}/forward', [MessageController::class, 'forward']);

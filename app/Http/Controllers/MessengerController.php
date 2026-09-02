@@ -30,7 +30,7 @@ class MessengerController extends Controller
                 fn ($query) => $query->whereNotNull('conversation_participants.archived_at'),
                 fn ($query) => $query->whereNull('conversation_participants.archived_at'),
             )
-            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role,last_seen_at', 'schoolClass'])
             ->withCount('messages')
             ->orderByDesc('conversation_participants.pinned_at')
             ->orderByDesc('last_message_at')
@@ -69,6 +69,7 @@ class MessengerController extends Controller
                     'name' => $contact->name,
                     'email' => $contact->email,
                     'school_role' => $contact->school_role->value,
+                    'last_seen_at' => $contact->last_seen_at?->toISOString(),
                 ]),
             'conversations' => $conversations,
             'initialConversationId' => $activeConversationId,
@@ -94,7 +95,7 @@ class MessengerController extends Controller
         $displayName = $conversation->title;
 
         if ($displayName === null && $participant !== null) {
-            $displayName = $participant->name;
+            $displayName = $participant->getAttribute('pivot')?->getAttribute('nickname') ?: $participant->name;
         }
 
         return [
@@ -102,6 +103,7 @@ class MessengerController extends Controller
             'type' => $conversation->type->value,
             'title' => $conversation->title,
             'display_name' => $displayName ?? 'Conversation',
+            'photo_url' => $this->photoUrl($conversation),
             'school_class' => $conversation->schoolClass ? [
                 'id' => $conversation->schoolClass->id,
                 'name' => $conversation->schoolClass->name,
@@ -111,6 +113,8 @@ class MessengerController extends Controller
                 'name' => $participant->name,
                 'email' => $participant->email,
                 'school_role' => $participant->school_role->value,
+                'last_seen_at' => $participant->last_seen_at?->toISOString(),
+                'nickname' => $participant->getAttribute('pivot')?->getAttribute('nickname'),
                 'conversation_role' => $participant->getAttribute('pivot')?->getAttribute('role'),
             ])->values(),
             'latest_message' => $latestMessage ? MessagePayload::from($latestMessage, $userId) : null,
@@ -147,7 +151,17 @@ class MessengerController extends Controller
             'can_remove_members' => $group && $owner,
             'can_pin_messages' => ! $group || $owner,
             'can_mention_everyone' => ! $group || $owner,
+            'can_customize_group' => $group && $owner,
         ];
+    }
+
+    private function photoUrl(Conversation $conversation): ?string
+    {
+        if (! $conversation->photo_path) {
+            return null;
+        }
+
+        return url("/api/teams/{$conversation->team->slug}/conversations/{$conversation->id}/photo").'?v='.$conversation->updated_at?->timestamp;
     }
 
     private function pivotTimestamp(mixed $value): ?string

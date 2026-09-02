@@ -15,9 +15,11 @@ use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\LinkPreviewService;
 use App\Support\MessagePayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -116,21 +118,28 @@ class MessageController extends Controller
     /**
      * Store a new message and broadcast it to conversation participants.
      */
-    public function store(StoreMessageRequest $request, Team $team, Conversation $conversation): JsonResponse
+    public function store(StoreMessageRequest $request, Team $team, Conversation $conversation, LinkPreviewService $linkPreviewService): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
 
-        $message = DB::transaction(function () use ($request, $conversation): Message {
+        $message = DB::transaction(function () use ($request, $conversation, $linkPreviewService): Message {
             $attachments = $request->file('attachments', []);
             $hasAttachments = count($attachments) > 0;
             $attachmentDisk = (string) config('filesystems.default', 'local');
+
+            $metadata = $request->validated('metadata') ?? [];
+            $linkPreviews = $linkPreviewService->previewsFor((string) $request->validated('body'));
+
+            if ($linkPreviews !== []) {
+                $metadata['link_previews'] = $linkPreviews;
+            }
 
             $message = $conversation->messages()->create([
                 'sender_id' => $request->user()->id,
                 'reply_to_message_id' => $this->replyToMessageId($request, $conversation),
                 'type' => $request->validated('type', $hasAttachments ? 'attachment' : 'text'),
                 'body' => $request->validated('body') ?? '',
-                'metadata' => $request->validated('metadata'),
+                'metadata' => $metadata ?: null,
             ]);
 
             foreach ($attachments as $attachment) {
@@ -164,10 +173,143 @@ class MessageController extends Controller
         ], 201);
     }
 
+    public function storePoll(Request $request, Team $team, Conversation $conversation): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+
+        $data = $request->validate([
+            'question' => ['required', 'string', 'max:300'],
+            'options' => ['required', 'array', 'min:2', 'max:10'],
+            'options.*' => ['required', 'string', 'max:120', 'distinct:ignore_case'],
+            'allow_multiple' => ['sometimes', 'boolean'],
+            'closes_at' => ['nullable', 'date', 'after:now'],
+        ]);
+
+        $message = DB::transaction(function () use ($conversation, $request, $data): Message {
+            $message = $conversation->messages()->create([
+                'sender_id' => $request->user()->id,
+                'type' => 'poll',
+                'body' => $data['question'],
+                'metadata' => [
+                    'poll' => [
+                        'question' => $data['question'],
+                        'options' => collect($data['options'])->map(fn (string $label) => [
+                            'id' => (string) Str::uuid(),
+                            'label' => $label,
+                        ])->all(),
+                        'allow_multiple' => (bool) ($data['allow_multiple'] ?? false),
+                        'closes_at' => isset($data['closes_at']) ? Carbon::parse($data['closes_at'])->toISOString() : null,
+                    ],
+                ],
+            ]);
+
+            $this->touchConversationAfterMessage($conversation, $request);
+
+            return $message;
+        });
+
+        broadcast(new MessageCreated($message))->toOthers();
+
+        return response()->json(['data' => MessagePayload::from($message, $request->user()->id)], 201);
+    }
+
+    public function votePoll(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureMessageBelongsToConversation($conversation, $message);
+        abort_unless($message->type === 'poll' && $message->unsent_at === null, 422, 'This message is not an active poll.');
+
+        $poll = $message->metadata['poll'] ?? [];
+        $closesAt = $poll['closes_at'] ?? null;
+        abort_if($closesAt && now()->greaterThanOrEqualTo($closesAt), 422, 'This poll is closed.');
+        $data = $request->validate([
+            'option_ids' => ['present', 'array', 'max:10'],
+            'option_ids.*' => ['uuid', 'distinct'],
+        ]);
+        $optionIds = collect($data['option_ids'])->values();
+        $validOptionIds = collect($poll['options'] ?? [])->pluck('id');
+        abort_unless($optionIds->every(fn (string $id): bool => $validOptionIds->contains($id)), 422, 'A selected poll option is invalid.');
+        abort_if(! ($poll['allow_multiple'] ?? false) && $optionIds->count() > 1, 422, 'This poll only allows one choice.');
+
+        DB::transaction(function () use ($message, $request, $optionIds) {
+            $message->pollVotes()->where('user_id', $request->user()->id)->delete();
+            $message->pollVotes()->createMany($optionIds->map(fn (string $optionId) => [
+                'user_id' => $request->user()->id,
+                'option_id' => $optionId,
+            ])->all());
+        });
+
+        $message->load(['pollVotes.user:id,name']);
+        broadcast(new MessageUpdated($message))->toOthers();
+
+        return response()->json(['data' => MessagePayload::from($message, $request->user()->id)]);
+    }
+
+    public function storeEvent(Request $request, Team $team, Conversation $conversation): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:200'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'starts_at' => ['required', 'date'],
+            'location' => ['nullable', 'string', 'max:240'],
+        ]);
+
+        $message = DB::transaction(function () use ($conversation, $request, $data): Message {
+            $message = $conversation->messages()->create([
+                'sender_id' => $request->user()->id,
+                'type' => 'event',
+                'body' => $data['title'],
+                'metadata' => [
+                    'event' => [
+                        'title' => $data['title'],
+                        'description' => $data['description'] ?? null,
+                        'starts_at' => Carbon::parse($data['starts_at'])->toISOString(),
+                        'location' => $data['location'] ?? null,
+                    ],
+                ],
+            ]);
+
+            $this->touchConversationAfterMessage($conversation, $request);
+
+            return $message;
+        });
+
+        broadcast(new MessageCreated($message))->toOthers();
+
+        return response()->json(['data' => MessagePayload::from($message, $request->user()->id)], 201);
+    }
+
+    public function rsvp(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureMessageBelongsToConversation($conversation, $message);
+        abort_unless($message->type === 'event' && $message->unsent_at === null, 422, 'This message is not an active event.');
+
+        $data = $request->validate([
+            'status' => ['nullable', Rule::in(['attending', 'maybe', 'declined'])],
+        ]);
+
+        if ($data['status'] ?? null) {
+            $message->eventRsvps()->updateOrCreate(
+                ['user_id' => $request->user()->id],
+                ['status' => $data['status']],
+            );
+        } else {
+            $message->eventRsvps()->where('user_id', $request->user()->id)->delete();
+        }
+
+        $message->load(['eventRsvps.user:id,name']);
+        broadcast(new MessageUpdated($message))->toOthers();
+
+        return response()->json(['data' => MessagePayload::from($message, $request->user()->id)]);
+    }
+
     /**
      * Edit an existing message owned by the authenticated user.
      */
-    public function update(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
+    public function update(Request $request, Team $team, Conversation $conversation, Message $message, LinkPreviewService $linkPreviewService): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
         $this->ensureMessageBelongsToConversation($conversation, $message);
@@ -178,8 +320,17 @@ class MessageController extends Controller
             'body' => ['required', 'string', 'max:5000'],
         ]);
 
+        $metadata = $message->metadata ?? [];
+        $linkPreviews = $linkPreviewService->previewsFor($data['body']);
+        unset($metadata['link_previews']);
+
+        if ($linkPreviews !== []) {
+            $metadata['link_previews'] = $linkPreviews;
+        }
+
         $message->forceFill([
             'body' => $data['body'],
+            'metadata' => $metadata ?: null,
             'edited_at' => now(),
         ])->save();
         $this->syncMessageMentions($message, $conversation, $request);
@@ -506,6 +657,12 @@ class MessageController extends Controller
             && $conversation->team_id === $team->id
             && $request->user()->teams()->whereKey($team->id)->exists()
             && $conversation->participants()->whereKey($request->user()->id)->exists();
+    }
+
+    private function touchConversationAfterMessage(Conversation $conversation, Request $request): void
+    {
+        $conversation->forceFill(['last_message_at' => now()])->save();
+        $conversation->participants()->updateExistingPivot($request->user()->id, ['last_read_at' => now()]);
     }
 
     /**

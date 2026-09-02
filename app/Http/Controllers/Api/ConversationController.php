@@ -15,8 +15,11 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ConversationController extends Controller
 {
@@ -37,7 +40,7 @@ class ConversationController extends Controller
                 fn ($query) => $query->whereNotNull('conversation_participants.archived_at'),
                 fn ($query) => $query->whereNull('conversation_participants.archived_at'),
             )
-            ->with(['latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.sender:id,name', 'participants:id,name,email,school_role'])
+            ->with(['latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.sender:id,name', 'participants:id,name,email,school_role,last_seen_at'])
             ->withCount('messages')
             ->orderByDesc('conversation_participants.pinned_at')
             ->orderByDesc('last_message_at')
@@ -92,7 +95,7 @@ class ConversationController extends Controller
             [],
         ));
 
-        $conversation->load(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+        $conversation->load(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role,last_seen_at', 'schoolClass'])
             ->loadCount('messages');
 
         return response()->json([
@@ -109,7 +112,7 @@ class ConversationController extends Controller
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
 
         return response()->json([
-            'data' => $conversation->load(['participants:id,name,email,school_role', 'schoolClass']),
+            'data' => $conversation->load(['participants:id,name,email,school_role,last_seen_at', 'schoolClass']),
         ]);
     }
 
@@ -271,6 +274,110 @@ class ConversationController extends Controller
         ]);
     }
 
+    public function updatePhoto(Request $request, Team $team, Conversation $conversation): JsonResponse
+    {
+        abort_unless($this->belongsToTeam($request, $team), 403);
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        abort_unless($conversation->type === ConversationType::Group, 404);
+        abort_unless($this->canManageConversation($request, $conversation), 403);
+
+        $data = $request->validate([
+            'photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+        ]);
+        $disk = (string) config('filesystems.default', 'local');
+        $oldDisk = $conversation->photo_disk;
+        $oldPath = $conversation->photo_path;
+        $path = $data['photo']->store('conversation-photos', $disk);
+
+        $conversation->forceFill([
+            'photo_disk' => $disk,
+            'photo_path' => $path,
+        ])->save();
+
+        if ($oldDisk && $oldPath) {
+            Storage::disk($oldDisk)->delete($oldPath);
+        }
+
+        $systemMessage = $this->createSystemMessage(
+            $conversation,
+            "{$request->user()->name} changed the group photo.",
+            'group_photo_updated',
+            $request->user(),
+            ['photo_url' => $this->photoUrl($conversation)],
+        );
+
+        return response()->json([
+            'data' => $this->conversationPayload($this->conversationForUser($request, $conversation), $request->user()->id),
+            'system_message' => MessagePayload::from($systemMessage, $request->user()->id),
+        ]);
+    }
+
+    public function destroyPhoto(Request $request, Team $team, Conversation $conversation): JsonResponse
+    {
+        abort_unless($this->belongsToTeam($request, $team), 403);
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        abort_unless($conversation->type === ConversationType::Group, 404);
+        abort_unless($this->canManageConversation($request, $conversation), 403);
+
+        if ($conversation->photo_disk && $conversation->photo_path) {
+            Storage::disk($conversation->photo_disk)->delete($conversation->photo_path);
+        }
+
+        $conversation->forceFill(['photo_disk' => null, 'photo_path' => null])->save();
+        $systemMessage = $this->createSystemMessage(
+            $conversation,
+            "{$request->user()->name} removed the group photo.",
+            'group_photo_removed',
+            $request->user(),
+        );
+
+        return response()->json([
+            'data' => $this->conversationPayload($this->conversationForUser($request, $conversation), $request->user()->id),
+            'system_message' => MessagePayload::from($systemMessage, $request->user()->id),
+        ]);
+    }
+
+    public function showPhoto(Request $request, Team $team, Conversation $conversation): StreamedResponse
+    {
+        abort_unless($this->belongsToTeam($request, $team), 403);
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        abort_unless($conversation->photo_disk && $conversation->photo_path, 404);
+        abort_unless(Storage::disk($conversation->photo_disk)->exists($conversation->photo_path), 404);
+
+        return Storage::disk($conversation->photo_disk)->response($conversation->photo_path);
+    }
+
+    public function updateNickname(Request $request, Team $team, Conversation $conversation, User $user): JsonResponse
+    {
+        abort_unless($this->belongsToTeam($request, $team), 403);
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        abort_unless($conversation->type === ConversationType::Group, 404);
+        abort_unless($this->canManageConversation($request, $conversation), 403);
+        abort_unless($conversation->participants()->whereKey($user->id)->exists(), 404);
+
+        $data = $request->validate([
+            'nickname' => ['nullable', 'string', 'max:80'],
+        ]);
+        $nickname = filled($data['nickname'] ?? null) ? Str::squish($data['nickname']) : null;
+
+        $conversation->participants()->updateExistingPivot($user->id, ['nickname' => $nickname]);
+        $body = $nickname
+            ? "{$request->user()->name} set {$user->name}'s nickname to {$nickname}."
+            : "{$request->user()->name} removed {$user->name}'s nickname.";
+        $systemMessage = $this->createSystemMessage(
+            $conversation,
+            $body,
+            'participant_nickname_updated',
+            $request->user(),
+            ['participant_id' => $user->id, 'nickname' => $nickname],
+        );
+
+        return response()->json([
+            'data' => $this->conversationPayload($this->conversationForUser($request, $conversation), $request->user()->id),
+            'system_message' => MessagePayload::from($systemMessage, $request->user()->id),
+        ]);
+    }
+
     /**
      * Add members to a group conversation.
      */
@@ -403,7 +510,7 @@ class ConversationController extends Controller
         return $request->user()
             ->conversations()
             ->whereKey($conversation->id)
-            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role', 'schoolClass'])
+            ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role,last_seen_at', 'schoolClass'])
             ->withCount('messages')
             ->firstOrFail();
     }
@@ -461,7 +568,7 @@ class ConversationController extends Controller
         $displayName = $conversation->title;
 
         if ($displayName === null && $participant !== null) {
-            $displayName = $participant->name;
+            $displayName = $participant->getAttribute('pivot')?->getAttribute('nickname') ?: $participant->name;
         }
 
         return [
@@ -469,6 +576,7 @@ class ConversationController extends Controller
             'type' => $conversation->type->value,
             'title' => $conversation->title,
             'display_name' => $displayName ?? 'Conversation',
+            'photo_url' => $this->photoUrl($conversation),
             'school_class' => $conversation->schoolClass ? [
                 'id' => $conversation->schoolClass->id,
                 'name' => $conversation->schoolClass->name,
@@ -478,6 +586,8 @@ class ConversationController extends Controller
                 'name' => $participant->name,
                 'email' => $participant->email,
                 'school_role' => $participant->school_role->value,
+                'last_seen_at' => $participant->last_seen_at?->toISOString(),
+                'nickname' => $participant->getAttribute('pivot')?->getAttribute('nickname'),
                 'conversation_role' => $participant->getAttribute('pivot')?->getAttribute('role'),
             ])->values(),
             'latest_message' => $latestMessage ? MessagePayload::from($latestMessage, $userId) : null,
@@ -514,7 +624,17 @@ class ConversationController extends Controller
             'can_remove_members' => $group && $owner,
             'can_pin_messages' => ! $group || $owner,
             'can_mention_everyone' => ! $group || $owner,
+            'can_customize_group' => $group && $owner,
         ];
+    }
+
+    private function photoUrl(Conversation $conversation): ?string
+    {
+        if (! $conversation->photo_path) {
+            return null;
+        }
+
+        return url("/api/teams/{$conversation->team->slug}/conversations/{$conversation->id}/photo").'?v='.$conversation->updated_at?->timestamp;
     }
 
     private function pivotTimestamp(mixed $value): ?string

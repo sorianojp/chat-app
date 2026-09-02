@@ -30,6 +30,8 @@ use Illuminate\Support\Carbon;
  * @property-read Conversation $conversation
  * @property-read Collection<int, MessageDelivery> $deliveries
  * @property-read Collection<int, MessageMention> $mentions
+ * @property-read Collection<int, MessagePollVote> $pollVotes
+ * @property-read Collection<int, MessageEventRsvp> $eventRsvps
  * @property-read User|null $pinner
  * @property-read Collection<int, MessageReaction> $reactions
  * @property-read Collection<int, User> $readers
@@ -119,6 +121,16 @@ class Message extends Model
     public function reactions(): HasMany
     {
         return $this->hasMany(MessageReaction::class);
+    }
+
+    public function pollVotes(): HasMany
+    {
+        return $this->hasMany(MessagePollVote::class);
+    }
+
+    public function eventRsvps(): HasMany
+    {
+        return $this->hasMany(MessageEventRsvp::class);
     }
 
     /**

@@ -30,6 +30,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property SchoolRole $school_role
  * @property string|null $phone
  * @property Carbon|null $email_verified_at
+ * @property Carbon|null $last_seen_at
  * @property string $password
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
@@ -63,6 +64,7 @@ class User extends Authenticatable implements PasskeyUser
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_seen_at' => 'datetime',
             'password' => 'hashed',
             'school_role' => SchoolRole::class,
             'step_roles' => 'array',
@@ -79,7 +81,7 @@ class User extends Authenticatable implements PasskeyUser
     public function conversations(): BelongsToMany
     {
         return $this->belongsToMany(Conversation::class, 'conversation_participants')
-            ->withPivot(['role', 'last_read_at', 'pinned_at', 'muted_at', 'notification_preference', 'archived_at'])
+            ->withPivot(['role', 'nickname', 'last_read_at', 'pinned_at', 'muted_at', 'notification_preference', 'archived_at'])
             ->withTimestamps();
     }
 
