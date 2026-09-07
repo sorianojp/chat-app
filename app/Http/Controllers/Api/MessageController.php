@@ -193,7 +193,7 @@ class MessageController extends Controller
                 'metadata' => [
                     'poll' => [
                         'question' => $data['question'],
-                        'options' => collect($data['options'])->map(fn (string $label) => [
+                        'options' => $request->collect('options')->map(fn (string $label) => [
                             'id' => (string) Str::uuid(),
                             'label' => $label,
                         ])->all(),
@@ -222,12 +222,12 @@ class MessageController extends Controller
         $poll = $message->metadata['poll'] ?? [];
         $closesAt = $poll['closes_at'] ?? null;
         abort_if($closesAt && now()->greaterThanOrEqualTo($closesAt), 422, 'This poll is closed.');
-        $data = $request->validate([
+        $request->validate([
             'option_ids' => ['present', 'array', 'max:10'],
             'option_ids.*' => ['uuid', 'distinct'],
         ]);
-        $optionIds = collect($data['option_ids'])->values();
-        $validOptionIds = collect($poll['options'] ?? [])->pluck('id');
+        $optionIds = $request->collect('option_ids')->values();
+        $validOptionIds = collect(is_array($poll['options'] ?? null) ? $poll['options'] : [])->pluck('id');
         abort_unless($optionIds->every(fn (string $id): bool => $validOptionIds->contains($id)), 422, 'A selected poll option is invalid.');
         abort_if(! ($poll['allow_multiple'] ?? false) && $optionIds->count() > 1, 422, 'This poll only allows one choice.');
 

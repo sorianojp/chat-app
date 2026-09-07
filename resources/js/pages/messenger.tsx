@@ -3,6 +3,7 @@ import { echo } from '@laravel/echo-react';
 import {
     Archive,
     ArchiveRestore,
+    ArrowLeft,
     Bell,
     BellOff,
     Calendar,
@@ -869,7 +870,7 @@ export default function Messenger({
         [conversations],
     );
 
-    const selectConversation = (conversationId: number) => {
+    const selectConversation = (conversationId: number | null) => {
         stopOwnTyping(activeConversationIdRef.current);
         setActiveConversationId(conversationId);
         setConversations((items) =>
@@ -893,11 +894,15 @@ export default function Messenger({
         setSelectedFiles([]);
         setLoadingSharedConversationId(conversationId);
         setLoadingPinnedConversationId(conversationId);
-        window.history.replaceState(
-            {},
-            '',
-            `${window.location.pathname}?conversation=${conversationId}`,
-        );
+        const url = new URL(window.location.href);
+
+        if (conversationId === null) {
+            url.searchParams.delete('conversation');
+        } else {
+            url.searchParams.set('conversation', String(conversationId));
+        }
+
+        window.history.replaceState({}, '', url);
     };
 
     const createConversation = async (payload: NewConversationPayload) => {
@@ -2199,7 +2204,7 @@ export default function Messenger({
     return (
         <>
             <Head title="Messenger" />
-            <div className="flex h-[calc(100vh-6.5rem)] min-h-[680px] flex-col overflow-hidden bg-card">
+            <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-card md:h-[calc(100dvh-6.5rem)]">
                 <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-5 py-4">
                     <div className="min-w-0">
                         <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -2210,6 +2215,16 @@ export default function Messenger({
                         </h1>
                     </div>
                     <div className="flex items-center gap-2">
+                        {activeConversation && (
+                            <button
+                                aria-label="Back to chats"
+                                className="grid size-10 place-items-center rounded-full bg-muted text-foreground transition hover:bg-accent lg:hidden"
+                                onClick={() => selectConversation(null)}
+                                type="button"
+                            >
+                                <ArrowLeft className="size-5" />
+                            </button>
+                        )}
                         <a
                             aria-label={archived ? 'Back to inbox' : 'Archive'}
                             className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground shadow-sm transition hover:bg-muted hover:text-foreground"
@@ -2228,7 +2243,7 @@ export default function Messenger({
                         {!archived && (
                             <button
                                 aria-label="New message"
-                                className="grid size-10 place-items-center rounded-full bg-brand-solid text-white shadow-sm transition hover:bg-brand-solid/90"
+                                className="grid size-10 place-items-center rounded-full bg-brand-solid text-brand-foreground shadow-sm transition hover:bg-brand-solid/90"
                                 onClick={() => setComposerOpen(true)}
                                 type="button"
                             >
@@ -2239,7 +2254,9 @@ export default function Messenger({
                 </div>
 
                 <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_320px]">
-                    <aside className="hidden min-h-0 border-r border-border bg-card lg:flex lg:flex-col">
+                    <aside
+                        className={`min-h-0 flex-col border-r border-border bg-card lg:flex ${activeConversation ? 'hidden' : 'flex'}`}
+                    >
                         <div className="border-b border-border p-4">
                             <div className="mb-3 flex items-center">
                                 <h2 className="text-lg font-bold text-foreground">
@@ -2315,7 +2332,7 @@ export default function Messenger({
                                                     </span>
                                                     {conversation.unread_count >
                                                         0 && (
-                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-solid text-[10px] font-bold text-white">
+                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-solid text-[10px] font-bold text-brand-foreground">
                                                             {
                                                                 conversation.unread_count
                                                             }
@@ -2323,7 +2340,7 @@ export default function Messenger({
                                                     )}
                                                     {conversation.unread_mentions_count >
                                                         0 && (
-                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-amber-400 text-[11px] font-bold text-amber-950">
+                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full border border-foreground/15 bg-muted text-[11px] font-bold text-foreground">
                                                             @
                                                         </span>
                                                     )}
@@ -2378,7 +2395,9 @@ export default function Messenger({
                         </div>
                     </aside>
 
-                    <section className="flex min-h-0 flex-col bg-background">
+                    <section
+                        className={`min-h-0 flex-col bg-background lg:flex ${activeConversation ? 'flex' : 'hidden'}`}
+                    >
                         {activeConversation ? (
                             <>
                                 <ConversationHeader
@@ -2715,7 +2734,7 @@ export default function Messenger({
                                         />
                                         <button
                                             aria-label="Send message"
-                                            className="grid size-11 place-items-center rounded-full bg-brand-solid text-white shadow-sm transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted"
+                                            className="grid size-11 place-items-center rounded-full bg-brand-solid text-brand-foreground shadow-sm transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                                             disabled={
                                                 (!messageBody.trim() &&
                                                     selectedFiles.length ===
@@ -2959,7 +2978,7 @@ function ConversationComposer({
                                     onClick={() => toggleContact(contact.id)}
                                     type="button"
                                 >
-                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-rose-500 text-sm font-bold text-white">
+                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-bold text-foreground ring-1 ring-border">
                                         {initials(contact.name)}
                                     </span>
                                     <span className="min-w-0 flex-1">
@@ -2973,7 +2992,7 @@ function ConversationComposer({
                                     <span
                                         className={`grid size-6 shrink-0 place-items-center rounded-full border ${
                                             selected
-                                                ? 'border-brand bg-brand-solid text-white'
+                                                ? 'border-brand bg-brand-solid text-brand-foreground'
                                                 : 'border-border text-transparent'
                                         }`}
                                     >
@@ -3005,7 +3024,7 @@ function ConversationComposer({
                         </p>
                     )}
                     <button
-                        className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-white transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted"
+                        className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-brand-foreground transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                         disabled={!canSubmit || submitting}
                         type="submit"
                     >
@@ -3130,7 +3149,7 @@ function ForwardMessageDialog({
                                     <span
                                         className={`grid size-6 shrink-0 place-items-center rounded-full border ${
                                             selected
-                                                ? 'border-brand bg-brand-solid text-white'
+                                                ? 'border-brand bg-brand-solid text-brand-foreground'
                                                 : 'border-border text-transparent'
                                         }`}
                                     >
@@ -3153,7 +3172,7 @@ function ForwardMessageDialog({
 
                 <div className="shrink-0 border-t border-border p-4">
                     <button
-                        className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-white transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted"
+                        className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-brand-foreground transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                         disabled={!canSubmit}
                         type="submit"
                     >
@@ -3593,7 +3612,7 @@ function ChatDetails({
                                     value={title}
                                 />
                                 <button
-                                    className="rounded-lg bg-brand-solid px-3 py-2 text-xs font-semibold text-white disabled:bg-muted"
+                                    className="rounded-lg bg-brand-solid px-3 py-2 text-xs font-semibold text-brand-foreground disabled:bg-muted disabled:text-muted-foreground"
                                     disabled={
                                         savingTitle ||
                                         !title.trim() ||
@@ -3838,7 +3857,7 @@ function AddMembersDialog({
                                     onClick={() => toggleContact(contact.id)}
                                     type="button"
                                 >
-                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-rose-500 text-sm font-bold text-white">
+                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-bold text-foreground ring-1 ring-border">
                                         {initials(contact.name)}
                                     </span>
                                     <span className="min-w-0 flex-1">
@@ -3852,7 +3871,7 @@ function AddMembersDialog({
                                     <span
                                         className={`grid size-6 shrink-0 place-items-center rounded-full border ${
                                             selected
-                                                ? 'border-brand bg-brand-solid text-white'
+                                                ? 'border-brand bg-brand-solid text-brand-foreground'
                                                 : 'border-border text-transparent'
                                         }`}
                                     >
@@ -3880,7 +3899,7 @@ function AddMembersDialog({
                         </p>
                     )}
                     <button
-                        className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-white transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted"
+                        className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-brand-foreground transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                         disabled={!canSubmit}
                         type="submit"
                     >
@@ -4685,8 +4704,10 @@ function Avatar({
 }) {
     return (
         <span
-            className={`relative grid size-11 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${
-                type === 'direct' ? 'bg-rose-500' : 'bg-brand-solid'
+            className={`relative grid size-11 shrink-0 place-items-center rounded-full text-sm font-bold ${
+                type === 'direct'
+                    ? 'bg-foreground text-background'
+                    : 'bg-muted text-foreground ring-1 ring-border'
             }`}
         >
             {photoUrl ? (

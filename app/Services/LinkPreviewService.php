@@ -93,12 +93,16 @@ class LinkPreviewService
 
     private function meta(DOMXPath $xpath, string $property): string
     {
-        return trim((string) $xpath->query("//meta[@property='{$property}']/@content")?->item(0)?->nodeValue);
+        $nodes = $xpath->query("//meta[@property='{$property}']/@content");
+
+        return $nodes === false ? '' : trim((string) $nodes->item(0)?->nodeValue);
     }
 
     private function namedMeta(DOMXPath $xpath, string $name): string
     {
-        return trim((string) $xpath->query("//meta[translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='{$name}']/@content")?->item(0)?->nodeValue);
+        $nodes = $xpath->query("//meta[translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='{$name}']/@content");
+
+        return $nodes === false ? '' : trim((string) $nodes->item(0)?->nodeValue);
     }
 
     private function isPublicUrl(string $url): bool

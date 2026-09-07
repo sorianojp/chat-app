@@ -9,11 +9,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable(['message_id', 'user_id', 'status'])]
 class MessageEventRsvp extends Model
 {
+    /**
+     * @return BelongsTo<Message, $this>
+     */
     public function message(): BelongsTo
     {
         return $this->belongsTo(Message::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

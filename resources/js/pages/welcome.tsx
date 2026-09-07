@@ -90,7 +90,7 @@ export default function Welcome() {
                                     className="flex items-center gap-2"
                                     key={item}
                                 >
-                                    <Check className="size-4 text-emerald-600 dark:text-emerald-400" />
+                                    <Check className="size-4 text-foreground" />
                                     {item}
                                 </li>
                             ))}

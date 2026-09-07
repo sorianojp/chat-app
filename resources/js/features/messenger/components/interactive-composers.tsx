@@ -152,7 +152,7 @@ export function PollComposer({
                     />
                 </label>
                 <button
-                    className="mt-6 h-11 w-full rounded-xl bg-brand-solid font-semibold text-white disabled:bg-muted"
+                    className="mt-6 h-11 w-full rounded-xl bg-brand-solid font-semibold text-brand-foreground disabled:bg-muted disabled:text-muted-foreground"
                     disabled={!canSubmit || submitting}
                     type="submit"
                 >
@@ -254,7 +254,7 @@ export function EventComposer({
                     />
                 </div>
                 <button
-                    className="mt-6 h-11 w-full rounded-xl bg-brand-solid font-semibold text-white disabled:bg-muted"
+                    className="mt-6 h-11 w-full rounded-xl bg-brand-solid font-semibold text-brand-foreground disabled:bg-muted disabled:text-muted-foreground"
                     disabled={!canSubmit || submitting}
                     type="submit"
                 >

@@ -210,7 +210,7 @@ class MessagePayload
             'allow_multiple' => (bool) ($poll['allow_multiple'] ?? false),
             'closes_at' => $poll['closes_at'] ?? null,
             'total_voters' => $message->pollVotes->pluck('user_id')->unique()->count(),
-            'options' => collect($poll['options'] ?? [])->map(function (array $option) use ($votes, $currentUserId) {
+            'options' => collect(is_array($poll['options'] ?? null) ? $poll['options'] : [])->map(function (array $option) use ($votes, $currentUserId) {
                 $optionVotes = $votes->get($option['id'], collect());
 
                 return [

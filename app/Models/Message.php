@@ -123,11 +123,17 @@ class Message extends Model
         return $this->hasMany(MessageReaction::class);
     }
 
+    /**
+     * @return HasMany<MessagePollVote, $this>
+     */
     public function pollVotes(): HasMany
     {
         return $this->hasMany(MessagePollVote::class);
     }
 
+    /**
+     * @return HasMany<MessageEventRsvp, $this>
+     */
     public function eventRsvps(): HasMany
     {
         return $this->hasMany(MessageEventRsvp::class);
