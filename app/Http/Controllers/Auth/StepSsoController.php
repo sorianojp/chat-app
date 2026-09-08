@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Actions\Auth\ProvisionStepUser;
 use App\Exceptions\StepSsoException;
+use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Controller;
 use App\Models\TeamInvitation;
 use App\Services\StepOAuthClient;
@@ -101,6 +102,10 @@ class StepSsoController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
+        if ($mobileResponse = MobileAuthController::complete($request, $user)) {
+            return $mobileResponse;
+        }
+
         if (is_string($invitation) && $this->teamInvitation($invitation, $user->email)) {
             return to_route('invitations.index')
                 ->with('status', 'Signed in with STEP. Review your pending invitation below.');
@@ -154,6 +159,10 @@ class StepSsoController extends Controller
 
     private function failed(string $message): RedirectResponse
     {
+        if ($mobileResponse = MobileAuthController::fail(request())) {
+            return $mobileResponse;
+        }
+
         return to_route('login')->with('sso_error', $message);
     }
 }

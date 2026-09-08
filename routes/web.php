@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\MessageController as ApiMessageController;
+use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Auth\StepSsoController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Teams\TeamInvitationController;
@@ -9,6 +10,11 @@ use App\Models\Team;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+Route::get('auth/mobile/{state}', [MobileAuthController::class, 'authorize'])
+    ->where('state', '[A-Za-z0-9]{64}')
+    ->middleware('throttle:20,1')
+    ->name('mobile.authorize');
 
 Route::get('login', [StepSsoController::class, 'login'])->name('login');
 Route::get('auth/step', [StepSsoController::class, 'redirect'])

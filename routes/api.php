@@ -2,14 +2,25 @@
 
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\MessageController;
+use App\Http\Controllers\Api\MobileAuthController;
+use App\Http\Controllers\Api\MobileSessionController;
 use App\Http\Controllers\Api\NoticeController;
 use App\Http\Controllers\Api\PresenceController;
 use App\Http\Controllers\Api\SchoolClassController;
 use App\Http\Controllers\Api\StudentController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
+Route::post('mobile/auth/start', [MobileAuthController::class, 'start'])->middleware('throttle:10,1');
+Route::post('mobile/auth/exchange', [MobileAuthController::class, 'exchange'])->middleware('throttle:10,1');
+
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('mobile/session', [MobileSessionController::class, 'show']);
+    Route::delete('mobile/session', [MobileAuthController::class, 'destroy']);
+    Route::post('mobile/broadcasting/auth', fn (Request $request) => Broadcast::auth($request));
     Route::prefix('teams/{team:slug}')->group(function () {
+        Route::get('contacts', [MobileSessionController::class, 'contacts']);
         Route::post('presence', [PresenceController::class, 'store']);
 
         Route::get('school-classes', [SchoolClassController::class, 'index']);
@@ -46,6 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'react']);
         Route::delete('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'unreact']);
         Route::get('conversations/{conversation}/messages/{message}/attachments/{attachment}', [MessageController::class, 'downloadAttachment']);
+        Route::get('conversations/{conversation}/messages/{message}/attachments/{attachment}/preview', [MessageController::class, 'previewAttachment']);
         Route::patch('conversations/{conversation}/read', [MessageController::class, 'markRead']);
         Route::get('conversations/{conversation}', [ConversationController::class, 'show']);
 
