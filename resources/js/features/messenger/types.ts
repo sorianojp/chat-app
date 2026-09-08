@@ -217,6 +217,31 @@ export type SharedLink = {
     } | null;
 };
 
+export type NoticeCategory = 'announcement' | 'reminder' | 'event' | 'billing';
+
+export type Notice = {
+    id: number;
+    team_id: number;
+    school_class: {
+        id: number;
+        name: string;
+    } | null;
+    author: {
+        id: number;
+        name: string;
+        school_role?: string;
+    } | null;
+    category: NoticeCategory;
+    title: string;
+    body: string;
+    published_at: string | null;
+    expires_at?: string | null;
+};
+
+export type NoticePublishedPayload = {
+    notice: Notice;
+};
+
 export type MessengerPageProps = {
     apiBaseUrl: string;
     workspace: {
