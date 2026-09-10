@@ -9,7 +9,7 @@
 
 @theme {
     --font-sans:
-        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
 
@@ -49,6 +49,11 @@
     --color-brand-solid: var(--brand-solid);
     --color-brand-foreground: var(--brand-foreground);
     --color-message-outgoing: var(--message-outgoing);
+    --color-message-outgoing-foreground: var(--message-outgoing-foreground);
+    --color-message-incoming: var(--message-incoming);
+    --color-highlight: var(--highlight);
+    --color-highlight-foreground: var(--highlight-foreground);
+    --color-online: var(--online);
 
     --color-chart-1: var(--chart-1);
     --color-chart-2: var(--chart-2);
@@ -66,83 +71,100 @@
     --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/*
+ * STEP Messenger identity. Deep pine carries every action; brass marks the few
+ * things that interrupt you (unread, mentions). Neutrals are biased green so
+ * greys sit beside the brand instead of fighting it.
+ *
+ * These values are mirrored in step_messenger/lib/src/theme.dart — change both.
+ */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --destructive-foreground: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.87 0 0);
-    --brand: var(--primary);
-    --brand-solid: var(--primary);
-    --brand-foreground: var(--primary-foreground);
-    --message-outgoing: oklch(0.94 0 0);
-    --chart-1: oklch(0.205 0 0);
-    --chart-2: oklch(0.35 0 0);
-    --chart-3: oklch(0.5 0 0);
-    --chart-4: oklch(0.65 0 0);
-    --chart-5: oklch(0.8 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.87 0 0);
+    --background: #f5f7f5;
+    --foreground: #151d1a;
+    --card: #ffffff;
+    --card-foreground: #151d1a;
+    --popover: #ffffff;
+    --popover-foreground: #151d1a;
+    --primary: #0f5a4c;
+    --primary-foreground: #ffffff;
+    --secondary: #e8ece9;
+    --secondary-foreground: #1d2a26;
+    --muted: #eceeeb;
+    --muted-foreground: #5d6a65;
+    --accent: #dfeae6;
+    --accent-foreground: #0f5a4c;
+    --destructive: #b3261e;
+    --destructive-foreground: #ffffff;
+    --border: #dbe1dd;
+    --input: #dbe1dd;
+    --ring: #0f5a4c;
+    --brand: #0f5a4c;
+    --brand-solid: #0f5a4c;
+    --brand-foreground: #ffffff;
+    --message-outgoing: #0f5a4c;
+    --message-outgoing-foreground: #f2f8f6;
+    --message-incoming: #ffffff;
+    --highlight: #a86a12;
+    --online: #22a06b;
+    --highlight-foreground: #ffffff;
+    --chart-1: #0f5a4c;
+    --chart-2: #2f8570;
+    --chart-3: #a86a12;
+    --chart-4: #5d6a65;
+    --chart-5: #9fb3ab;
+    --radius: 0.75rem;
+    --sidebar: #eef1ee;
+    --sidebar-foreground: #151d1a;
+    --sidebar-primary: #0f5a4c;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #dfeae6;
+    --sidebar-accent-foreground: #0f5a4c;
+    --sidebar-border: #d7ded9;
+    --sidebar-ring: #0f5a4c;
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.145 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.145 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.985 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.396 0.141 25.723);
-    --destructive-foreground: oklch(0.637 0.237 25.331);
-    --border: oklch(0.269 0 0);
-    --input: oklch(0.269 0 0);
-    --ring: oklch(0.439 0 0);
-    --brand: var(--primary);
-    --brand-solid: var(--primary);
-    --brand-foreground: var(--primary-foreground);
-    --message-outgoing: oklch(0.269 0 0);
-    --chart-1: oklch(0.985 0 0);
-    --chart-2: oklch(0.85 0 0);
-    --chart-3: oklch(0.7 0 0);
-    --chart-4: oklch(0.55 0 0);
-    --chart-5: oklch(0.4 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.985 0 0);
-    --sidebar-primary-foreground: oklch(0.205 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(0.269 0 0);
-    --sidebar-ring: oklch(0.439 0 0);
+    --background: #0e1412;
+    --foreground: #e6ebe8;
+    --card: #151d1a;
+    --card-foreground: #e6ebe8;
+    --popover: #151d1a;
+    --popover-foreground: #e6ebe8;
+    --primary: #4fb99f;
+    --primary-foreground: #06211b;
+    --secondary: #1e2724;
+    --secondary-foreground: #e6ebe8;
+    --muted: #1e2724;
+    --muted-foreground: #94a29b;
+    --accent: #1b322b;
+    --accent-foreground: #74d0b6;
+    --destructive: #e2807a;
+    --destructive-foreground: #2a0f0d;
+    --border: #27302c;
+    --input: #27302c;
+    --ring: #4fb99f;
+    --brand: #74d0b6;
+    --brand-solid: #14705e;
+    --brand-foreground: #f2f8f6;
+    --message-outgoing: #14705e;
+    --message-outgoing-foreground: #f2f8f6;
+    --message-incoming: #1c2522;
+    --highlight: #d9a441;
+    --online: #3fc98c;
+    --highlight-foreground: #241802;
+    --chart-1: #74d0b6;
+    --chart-2: #4fb99f;
+    --chart-3: #d9a441;
+    --chart-4: #94a29b;
+    --chart-5: #55635d;
+    --sidebar: #121917;
+    --sidebar-foreground: #e6ebe8;
+    --sidebar-primary: #74d0b6;
+    --sidebar-primary-foreground: #06211b;
+    --sidebar-accent: #1b322b;
+    --sidebar-accent-foreground: #74d0b6;
+    --sidebar-border: #232b28;
+    --sidebar-ring: #4fb99f;
 }
 
 @layer base {

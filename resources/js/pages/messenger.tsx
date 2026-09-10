@@ -3241,7 +3241,7 @@ function ConversationHeader({
                         <>
                             <span
                                 className={`size-2 rounded-full ${
-                                    online ? 'bg-emerald-500' : 'bg-muted'
+                                    online ? 'bg-online' : 'bg-muted'
                                 }`}
                             />
                             <span>{status}</span>
@@ -3662,7 +3662,7 @@ function ChatDetails({
                                 <span className="relative grid size-9 place-items-center rounded-full bg-muted text-xs font-bold text-foreground">
                                     {initials(participant.name)}
                                     {onlineUserIds.has(participant.id) && (
-                                        <span className="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-card bg-emerald-500" />
+                                        <span className="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-card bg-online" />
                                     )}
                                 </span>
                                 <div className="min-w-0 flex-1">
@@ -3681,7 +3681,7 @@ function ChatDetails({
                                     <p
                                         className={`truncate text-xs ${
                                             onlineUserIds.has(participant.id)
-                                                ? 'font-medium text-emerald-600 dark:text-emerald-400'
+                                                ? 'font-medium text-online'
                                                 : 'text-muted-foreground capitalize'
                                         }`}
                                     >
@@ -4339,8 +4339,8 @@ function MessageBubble({
                         mine
                             ? unsent
                                 ? 'rounded-br-md bg-muted text-muted-foreground'
-                                : 'rounded-br-md bg-message-outgoing text-foreground'
-                            : 'rounded-bl-md bg-card text-foreground'
+                                : 'rounded-br-md bg-message-outgoing text-message-outgoing-foreground'
+                            : 'rounded-bl-md bg-message-incoming text-foreground'
                     } mb-3`}
                 >
                     {!mine && message.sender && (
@@ -4409,7 +4409,13 @@ function MessageBubble({
                             ))}
                         </div>
                     )}
-                    <div className="mt-2 text-right text-[11px] text-muted-foreground">
+                    <div
+                        className={`mt-2 text-right text-[11px] ${
+                            mine && !unsent
+                                ? 'text-message-outgoing-foreground/70'
+                                : 'text-muted-foreground'
+                        }`}
+                    >
                         {message.edited_at && !unsent && (
                             <span className="mr-1">Edited</span>
                         )}
@@ -4515,16 +4521,28 @@ function ReplyPreview({
 }) {
     return (
         <div
-            className={`mb-2 rounded-lg border-l-4 border-brand px-3 py-2 text-left ${
-                mine ? 'bg-card/60' : 'bg-muted'
+            className={`mb-2 rounded-lg border-l-4 px-3 py-2 text-left ${
+                mine
+                    ? 'border-message-outgoing-foreground/50 bg-message-outgoing-foreground/12'
+                    : 'border-brand bg-muted'
             }`}
         >
-            <p className="truncate text-xs font-semibold text-brand">
+            <p
+                className={`truncate text-xs font-semibold ${
+                    mine ? 'text-message-outgoing-foreground' : 'text-brand'
+                }`}
+            >
                 {replyTo.sender?.id === currentUserId
                     ? 'You'
                     : (replyTo.sender?.name ?? 'Message')}
             </p>
-            <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
+            <p
+                className={`mt-0.5 line-clamp-2 text-xs leading-5 ${
+                    mine
+                        ? 'text-message-outgoing-foreground/75'
+                        : 'text-muted-foreground'
+                }`}
+            >
                 {replyMessagePreview(replyTo)}
             </p>
         </div>
@@ -4722,7 +4740,7 @@ function Avatar({
                 <UsersRound className="size-5" />
             )}
             {online && (
-                <span className="absolute right-0 bottom-0 size-3 rounded-full border-2 border-card bg-emerald-500" />
+                <span className="absolute right-0 bottom-0 size-3 rounded-full border-2 border-card bg-online" />
             )}
         </span>
     );

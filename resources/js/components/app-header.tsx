@@ -66,7 +66,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
 
     const mainNavItems: NavItem[] = [
         {
-            title: 'Messenger',
+            title: 'Messages',
             href: messengerUrl,
             icon: MessageCircle,
         },
