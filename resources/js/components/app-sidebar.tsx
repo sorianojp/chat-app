@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Inbox, Megaphone, MessageCircle } from 'lucide-react';
+import { Inbox, MessageCircle } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -14,7 +14,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { messenger, notices } from '@/routes';
+import { messenger } from '@/routes';
 import type { NavItem } from '@/types';
 
 export function AppSidebar() {
@@ -22,20 +22,12 @@ export function AppSidebar() {
     const messengerUrl = page.props.currentTeam
         ? messenger(page.props.currentTeam.slug)
         : '/';
-    const noticesUrl = page.props.currentTeam
-        ? notices(page.props.currentTeam.slug)
-        : '/';
 
     const mainNavItems: NavItem[] = [
         {
             title: 'Messenger',
             href: messengerUrl,
             icon: MessageCircle,
-        },
-        {
-            title: 'Notices',
-            href: noticesUrl,
-            icon: Megaphone,
         },
         {
             title: 'Team Invitations',

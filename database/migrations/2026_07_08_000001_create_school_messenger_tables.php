@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\ConversationType;
-use App\Enums\NoticeCategory;
 use App\Enums\SchoolRole;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -117,24 +116,6 @@ return new class extends Migration
 
             $table->unique(['message_id', 'user_id']);
         });
-
-        Schema::create('notices', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('team_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('school_class_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('author_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('category')->default(NoticeCategory::Announcement->value);
-            $table->string('title');
-            $table->text('body');
-            $table->timestamp('published_at')->nullable();
-            $table->timestamp('expires_at')->nullable();
-            $table->json('metadata')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
-
-            $table->index(['team_id', 'published_at']);
-            $table->index(['team_id', 'category']);
-        });
     }
 
     /**
@@ -142,7 +123,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('notices');
         Schema::dropIfExists('message_reads');
         Schema::dropIfExists('messages');
         Schema::dropIfExists('conversation_participants');

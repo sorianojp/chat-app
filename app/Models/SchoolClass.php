@@ -22,7 +22,6 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read User|null $adviser
  * @property-read Collection<int, Conversation> $conversations
- * @property-read Collection<int, Notice> $notices
  * @property-read Collection<int, Student> $students
  * @property-read Team $team
  */
@@ -67,15 +66,5 @@ class SchoolClass extends Model
     public function conversations(): HasMany
     {
         return $this->hasMany(Conversation::class);
-    }
-
-    /**
-     * Get notices scoped to this class.
-     *
-     * @return HasMany<Notice, $this>
-     */
-    public function notices(): HasMany
-    {
-        return $this->hasMany(Notice::class);
     }
 }

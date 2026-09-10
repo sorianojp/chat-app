@@ -47,7 +47,6 @@ use Laravel\Sanctum\HasApiTokens;
  * @property-read Collection<int, Message> $messages
  * @property-read Collection<int, Team> $ownedTeams
  * @property-read Collection<int, Student> $students
- * @property-read Collection<int, Notice> $notices
  * @property-read Collection<int, Membership> $teamMemberships
  * @property-read Collection<int, Team> $teams
  */
@@ -96,16 +95,6 @@ class User extends Authenticatable implements PasskeyUser
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class, 'sender_id');
-    }
-
-    /**
-     * Get notices authored by this user.
-     *
-     * @return HasMany<Notice, $this>
-     */
-    public function notices(): HasMany
-    {
-        return $this->hasMany(Notice::class, 'author_id');
     }
 
     /**

@@ -4,7 +4,6 @@ use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\MobileSessionController;
-use App\Http\Controllers\Api\NoticeController;
 use App\Http\Controllers\Api\PresenceController;
 use App\Http\Controllers\Api\SchoolClassController;
 use App\Http\Controllers\Api\StudentController;
@@ -60,9 +59,5 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('conversations/{conversation}/messages/{message}/attachments/{attachment}/preview', [MessageController::class, 'previewAttachment']);
         Route::patch('conversations/{conversation}/read', [MessageController::class, 'markRead']);
         Route::get('conversations/{conversation}', [ConversationController::class, 'show']);
-
-        Route::get('notices', [NoticeController::class, 'index']);
-        Route::post('notices', [NoticeController::class, 'store']);
-        Route::get('notices/{notice}', [NoticeController::class, 'show']);
     });
 });

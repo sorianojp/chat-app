@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Megaphone, Menu, MessageCircle, Search } from 'lucide-react';
+import { Menu, MessageCircle, Search } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Breadcrumbs } from '@/components/breadcrumbs';
@@ -34,7 +34,7 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
 import { cn, toUrl } from '@/lib/utils';
-import { messenger, notices } from '@/routes';
+import { messenger } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
 type Props = {
@@ -63,18 +63,12 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     const getInitials = useInitials();
     const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
     const messengerUrl = currentTeam ? messenger(currentTeam.slug) : '/';
-    const noticesUrl = currentTeam ? notices(currentTeam.slug) : '/';
 
     const mainNavItems: NavItem[] = [
         {
             title: 'Messenger',
             href: messengerUrl,
             icon: MessageCircle,
-        },
-        {
-            title: 'Notices',
-            href: noticesUrl,
-            icon: Megaphone,
         },
     ];
 

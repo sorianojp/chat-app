@@ -4,7 +4,6 @@ use App\Http\Controllers\Api\MessageController as ApiMessageController;
 use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Auth\StepSsoController;
 use App\Http\Controllers\MessengerController;
-use App\Http\Controllers\NoticeboardController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
 use App\Models\Team;
@@ -33,7 +32,6 @@ Route::prefix('{current_team}')
     ->group(function () {
         Route::get('dashboard', fn (Team $current_team) => to_route('messenger', ['current_team' => $current_team->slug]))->name('dashboard');
         Route::get('messenger', MessengerController::class)->name('messenger');
-        Route::get('notices', NoticeboardController::class)->name('notices');
     });
 
 Route::prefix('teams/{team:slug}')

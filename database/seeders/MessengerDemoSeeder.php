@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Enums\ConversationType;
-use App\Enums\NoticeCategory;
 use App\Enums\SchoolRole;
 use App\Enums\TeamRole;
 use App\Models\Conversation;
@@ -145,16 +144,6 @@ class MessengerDemoSeeder extends Seeder
 
             $group->forceFill(['last_message_at' => $message->created_at])->save();
         }
-
-        $school->notices()->firstOrCreate([
-            'title' => 'School Announcement',
-            'body' => 'Intramurals 2025 schedule',
-        ], [
-            'school_class_id' => $class->id,
-            'author_id' => $teacher->id,
-            'category' => NoticeCategory::Announcement,
-            'published_at' => now(),
-        ]);
     }
 
     private function user(string $email, string $name, SchoolRole $role): User
