@@ -87,6 +87,11 @@ test('SSO callback provisions the STEP user roles and shared team', function () 
             'email' => 'JANE@EXAMPLE.EDU',
             'email_verified' => true,
             'roles' => ['Student', 'Teacher'],
+            'department' => [
+                'id' => '3',
+                'code' => 'CCS',
+                'name' => 'COLLEGE OF COMPUTER STUDIES',
+            ],
         ]]),
     ]);
 
@@ -108,6 +113,9 @@ test('SSO callback provisions the STEP user roles and shared team', function () 
         ->and($user->school_role)->toBe(SchoolRole::Teacher)
         ->and($user->step_roles)->toBe(['Student', 'Teacher'])
         ->and($user->step_roles_synced_at)->not->toBeNull()
+        ->and($user->step_department_id)->toBe('3')
+        ->and($user->step_department_code)->toBe('CCS')
+        ->and($user->step_department_name)->toBe('COLLEGE OF COMPUTER STUDIES')
         ->and($user->email_verified_at)->not->toBeNull()
         ->and(Hash::needsRehash($user->password))->toBeFalse()
         ->and($user->current_team_id)->toBe($team->id)
@@ -161,7 +169,9 @@ test('repeated SSO synchronizes profile and role without duplicating the user', 
         ->and($user->name)->toBe('Updated Admin')
         ->and($user->email)->toBe('admin@example.edu')
         ->and($user->school_role)->toBe(SchoolRole::Admin)
-        ->and($user->step_roles)->toBe(['Admin', 'Teacher']);
+        ->and($user->step_roles)->toBe(['Admin', 'Teacher'])
+        // STEP omits the department for accounts without a college or course.
+        ->and($user->step_department_name)->toBeNull();
 
     $this->assertDatabaseHas('team_members', [
         'team_id' => Team::query()->where('slug', 'step-community')->value('id'),

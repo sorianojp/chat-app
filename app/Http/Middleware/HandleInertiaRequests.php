@@ -49,6 +49,11 @@ class HandleInertiaRequests extends Middleware
                     'email_verified_at' => $user->email_verified_at,
                     'school_role' => $user->school_role,
                     'step_roles' => $user->step_roles ?? [],
+                    'department' => $user->step_department_name === null ? null : [
+                        'id' => $user->step_department_id,
+                        'code' => $user->step_department_code,
+                        'name' => $user->step_department_name,
+                    ],
                     'created_at' => $user->created_at,
                     'updated_at' => $user->updated_at,
                 ] : null,

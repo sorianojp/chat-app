@@ -1,3 +1,9 @@
+export type Department = {
+    id: string;
+    code: string;
+    name: string;
+};
+
 export type User = {
     id: number;
     name: string;
@@ -6,6 +12,7 @@ export type User = {
     email_verified_at: string | null;
     school_role: string;
     step_roles: string[];
+    department: Department | null;
     two_factor_enabled?: boolean;
     created_at: string;
     updated_at: string;

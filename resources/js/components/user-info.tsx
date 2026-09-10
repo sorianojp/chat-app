@@ -36,6 +36,11 @@ export function UserInfo({
                         {user.email}
                     </span>
                 ) : null}
+                {user.department ? (
+                    <span className="truncate text-xs text-muted-foreground">
+                        {user.department.code || user.department.name}
+                    </span>
+                ) : null}
             </div>
         </>
     );

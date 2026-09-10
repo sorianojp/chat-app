@@ -62,6 +62,9 @@ class ProvisionStepUser
                     : null,
                 'step_roles' => $identity->roles,
                 'step_roles_synced_at' => now(),
+                'step_department_id' => $identity->department?->id,
+                'step_department_code' => $identity->department?->code,
+                'step_department_name' => $identity->department?->name,
                 'school_role' => $schoolRole,
             ])->save();
 

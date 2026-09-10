@@ -18,6 +18,7 @@ final readonly class StepIdentity
         public string $email,
         public bool $emailVerified,
         public array $roles,
+        public ?StepDepartment $department = null,
     ) {
         //
     }
@@ -84,6 +85,7 @@ final readonly class StepIdentity
             email: Str::lower(trim($email)),
             emailVerified: $emailVerified,
             roles: $roles,
+            department: StepDepartment::fromPayload($payload['department'] ?? null),
         );
     }
 }

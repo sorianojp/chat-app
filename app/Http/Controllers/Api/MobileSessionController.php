@@ -21,6 +21,11 @@ class MobileSessionController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'school_role' => $user->school_role->value,
+                'department' => $user->step_department_name === null ? null : [
+                    'id' => $user->step_department_id,
+                    'code' => $user->step_department_code,
+                    'name' => $user->step_department_name,
+                ],
                 'current_team_id' => $user->current_team_id,
             ],
             'teams' => $user->teams()->orderBy('name')->get()->map(fn (Team $team) => [

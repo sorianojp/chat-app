@@ -27,6 +27,9 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string|null $step_user_id
  * @property array<int, string>|null $step_roles
  * @property Carbon|null $step_roles_synced_at
+ * @property string|null $step_department_id
+ * @property string|null $step_department_code
+ * @property string|null $step_department_name
  * @property SchoolRole $school_role
  * @property string|null $phone
  * @property Carbon|null $email_verified_at
@@ -48,7 +51,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property-read Collection<int, Membership> $teamMemberships
  * @property-read Collection<int, Team> $teams
  */
-#[Fillable(['name', 'email', 'step_user_id', 'step_roles', 'step_roles_synced_at', 'school_role', 'phone', 'password', 'current_team_id'])]
+#[Fillable(['name', 'email', 'step_user_id', 'step_roles', 'step_roles_synced_at', 'step_department_id', 'step_department_code', 'step_department_name', 'school_role', 'phone', 'password', 'current_team_id'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {

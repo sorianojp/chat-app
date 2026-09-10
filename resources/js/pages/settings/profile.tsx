@@ -37,6 +37,19 @@ export default function Profile({
                         value={auth.user.email}
                     />
 
+                    <ReadOnlyField
+                        label="Department"
+                        value={
+                            auth.user.department
+                                ? auth.user.department.code &&
+                                  auth.user.department.code !==
+                                      auth.user.department.name
+                                    ? `${auth.user.department.name} (${auth.user.department.code})`
+                                    : auth.user.department.name
+                                : 'Not assigned in STEP'
+                        }
+                    />
+
                     <div className="grid gap-2">
                         <p className="text-sm font-medium">STEP roles</p>
                         <div className="flex flex-wrap gap-2">
