@@ -27,10 +27,10 @@ export default function Welcome() {
 
     return (
         <>
-            <Head title="STEP Messenger">
+            <Head title="Uhoo!">
                 <meta
                     name="description"
-                    content="STEP Messenger keeps school conversations and updates in one place."
+                    content="Uhoo! keeps school conversations and updates in one place."
                 />
             </Head>
 
@@ -62,8 +62,8 @@ export default function Welcome() {
                             Stay connected with your school community.
                         </h1>
                         <p className="mt-5 text-lg leading-8 text-muted-foreground">
-                            STEP Messenger helps teachers, staff, and families
-                            share messages, class updates, and files without the
+                            Uhoo! helps teachers, staff, and families share
+                            messages, class updates, and files without the
                             clutter.
                         </p>
 
@@ -103,7 +103,7 @@ export default function Welcome() {
                 <footer className="border-t border-border bg-card">
                     <div className="mx-auto flex min-h-16 w-full max-w-6xl flex-col justify-center gap-1 px-5 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
                         <span className="font-semibold text-foreground">
-                            STEP Messenger
+                            Uhoo!
                         </span>
                         <span>
                             Simple communication for school communities.
@@ -122,7 +122,7 @@ function Brand() {
                 <GraduationCap className="size-5" />
             </span>
             <span className="font-bold tracking-tight text-foreground">
-                STEP Messenger
+                Uhoo!
             </span>
         </div>
     );

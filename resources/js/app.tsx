@@ -11,7 +11,7 @@ configureEcho({
     broadcaster: 'reverb',
 });
 
-const appName = import.meta.env.VITE_APP_NAME || 'STEP Messenger';
+const appName = import.meta.env.VITE_APP_NAME || 'Uhoo!';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

@@ -31,7 +31,7 @@ export default function Login({
             <Head title="Sign in">
                 <meta
                     name="description"
-                    content="Sign in to STEP Messenger with your STEP account."
+                    content="Sign in to Uhoo! with your STEP account."
                 />
             </Head>
 
@@ -46,7 +46,7 @@ export default function Login({
                                 <GraduationCap className="size-5" />
                             </span>
                             <span className="font-bold tracking-tight">
-                                STEP Messenger
+                                Uhoo!
                             </span>
                         </Link>
 
