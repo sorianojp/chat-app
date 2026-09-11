@@ -71,12 +71,13 @@ class Conversation extends Model
     /**
      * Get conversation participants.
      *
-     * @return BelongsToMany<User, $this>
+     * @return BelongsToMany<User, $this, ConversationParticipant, 'pivot'>
      */
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'conversation_participants')
             ->withPivot(['role', 'nickname', 'last_read_at', 'pinned_at', 'muted_at', 'notification_preference', 'archived_at'])
+            ->using(ConversationParticipant::class)
             ->withTimestamps();
     }
 

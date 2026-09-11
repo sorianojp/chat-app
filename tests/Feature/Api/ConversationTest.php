@@ -362,3 +362,45 @@ test('conversation participants can update notification preference and leave gro
         'body' => "{$member->name} left the group.",
     ]);
 });
+
+test('pinning and archiving are reported back so they can be undone', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $team->members()->attach($user, ['role' => TeamRole::Member->value]);
+    $team->members()->attach($other, ['role' => TeamRole::Member->value]);
+
+    $conversation = $team->conversations()->create([
+        'type' => ConversationType::Direct->value,
+        'created_by' => $user->id,
+    ]);
+    $conversation->participants()->attach([
+        $user->id => ['role' => 'owner'],
+        $other->id => ['role' => 'member'],
+    ]);
+
+    $this->actingAs($user)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/pin", ['pinned' => true])
+        ->assertOk();
+
+    // The list has to report pinned_at, or the client cannot offer "unpin".
+    $this->actingAs($user)
+        ->getJson("/api/teams/{$team->slug}/conversations")
+        ->assertOk()
+        ->assertJsonPath('data.0.pinned_at', fn ($value) => is_string($value));
+
+    $this->actingAs($user)
+        ->getJson("/api/teams/{$team->slug}/conversations/{$conversation->id}")
+        ->assertOk()
+        ->assertJsonPath('data.pinned_at', fn ($value) => is_string($value));
+
+    $this->actingAs($user)
+        ->patchJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/archive", ['archived' => true])
+        ->assertOk();
+
+    $this->actingAs($user)
+        ->getJson("/api/teams/{$team->slug}/conversations?archived=1")
+        ->assertOk()
+        ->assertJsonPath('data.0.archived_at', fn ($value) => is_string($value));
+});
