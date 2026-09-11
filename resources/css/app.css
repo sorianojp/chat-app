@@ -9,7 +9,7 @@
 
 @theme {
     --font-sans:
-        'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif,
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
 
@@ -72,99 +72,101 @@
 }
 
 /*
- * STEP Messenger identity. Deep pine carries every action; brass marks the few
- * things that interrupt you (unread, mentions). Neutrals are biased green so
- * greys sit beside the brand instead of fighting it.
+ * STEP identity, taken from step-v2: --step-blue #05056a carries every action,
+ * its #eef2ff tint marks selection, and blue-600 is reserved for links and
+ * interactive accents. Neutrals are the Tailwind gray scale step-v2 already
+ * uses, so a page here sits beside a page there without a seam.
  *
+ * step-v2 is light-only; the dark set below is this app's own extension.
  * These values are mirrored in step_messenger/lib/src/theme.dart — change both.
  */
 :root {
-    --background: #f5f7f5;
-    --foreground: #151d1a;
+    --background: #f9fafb;
+    --foreground: #111827;
     --card: #ffffff;
-    --card-foreground: #151d1a;
+    --card-foreground: #111827;
     --popover: #ffffff;
-    --popover-foreground: #151d1a;
-    --primary: #0f5a4c;
+    --popover-foreground: #111827;
+    --primary: #05056a;
     --primary-foreground: #ffffff;
-    --secondary: #e8ece9;
-    --secondary-foreground: #1d2a26;
-    --muted: #eceeeb;
-    --muted-foreground: #5d6a65;
-    --accent: #dfeae6;
-    --accent-foreground: #0f5a4c;
-    --destructive: #b3261e;
+    --secondary: #f3f4f6;
+    --secondary-foreground: #1f2937;
+    --muted: #f3f4f6;
+    --muted-foreground: #6b7280;
+    --accent: #eef2ff;
+    --accent-foreground: #05056a;
+    --destructive: #dc2626;
     --destructive-foreground: #ffffff;
-    --border: #dbe1dd;
-    --input: #dbe1dd;
-    --ring: #0f5a4c;
-    --brand: #0f5a4c;
-    --brand-solid: #0f5a4c;
+    --border: #e5e7eb;
+    --input: #d1d5db;
+    --ring: #3b82f6;
+    --brand: #05056a;
+    --brand-solid: #05056a;
     --brand-foreground: #ffffff;
-    --message-outgoing: #0f5a4c;
-    --message-outgoing-foreground: #f2f8f6;
+    --message-outgoing: #05056a;
+    --message-outgoing-foreground: #eef2ff;
     --message-incoming: #ffffff;
-    --highlight: #a86a12;
-    --online: #22a06b;
+    --highlight: #2563eb;
     --highlight-foreground: #ffffff;
-    --chart-1: #0f5a4c;
-    --chart-2: #2f8570;
-    --chart-3: #a86a12;
-    --chart-4: #5d6a65;
-    --chart-5: #9fb3ab;
+    --online: #16a34a;
+    --chart-1: #05056a;
+    --chart-2: #2563eb;
+    --chart-3: #60a5fa;
+    --chart-4: #6b7280;
+    --chart-5: #c7cdd9;
     --radius: 0.75rem;
-    --sidebar: #eef1ee;
-    --sidebar-foreground: #151d1a;
-    --sidebar-primary: #0f5a4c;
+    --sidebar: #ffffff;
+    --sidebar-foreground: #111827;
+    --sidebar-primary: #05056a;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #dfeae6;
-    --sidebar-accent-foreground: #0f5a4c;
-    --sidebar-border: #d7ded9;
-    --sidebar-ring: #0f5a4c;
+    --sidebar-accent: #eef2ff;
+    --sidebar-accent-foreground: #05056a;
+    --sidebar-border: #e5e7eb;
+    --sidebar-ring: #3b82f6;
 }
 
 .dark {
-    --background: #0e1412;
-    --foreground: #e6ebe8;
-    --card: #151d1a;
-    --card-foreground: #e6ebe8;
-    --popover: #151d1a;
-    --popover-foreground: #e6ebe8;
-    --primary: #4fb99f;
-    --primary-foreground: #06211b;
-    --secondary: #1e2724;
-    --secondary-foreground: #e6ebe8;
-    --muted: #1e2724;
-    --muted-foreground: #94a29b;
-    --accent: #1b322b;
-    --accent-foreground: #74d0b6;
-    --destructive: #e2807a;
-    --destructive-foreground: #2a0f0d;
-    --border: #27302c;
-    --input: #27302c;
-    --ring: #4fb99f;
-    --brand: #74d0b6;
-    --brand-solid: #14705e;
-    --brand-foreground: #f2f8f6;
-    --message-outgoing: #14705e;
-    --message-outgoing-foreground: #f2f8f6;
-    --message-incoming: #1c2522;
-    --highlight: #d9a441;
-    --online: #3fc98c;
-    --highlight-foreground: #241802;
-    --chart-1: #74d0b6;
-    --chart-2: #4fb99f;
-    --chart-3: #d9a441;
-    --chart-4: #94a29b;
-    --chart-5: #55635d;
-    --sidebar: #121917;
-    --sidebar-foreground: #e6ebe8;
-    --sidebar-primary: #74d0b6;
-    --sidebar-primary-foreground: #06211b;
-    --sidebar-accent: #1b322b;
-    --sidebar-accent-foreground: #74d0b6;
-    --sidebar-border: #232b28;
-    --sidebar-ring: #4fb99f;
+    --background: #0a0c18;
+    --foreground: #e8eaf3;
+    --card: #12152a;
+    --card-foreground: #e8eaf3;
+    --popover: #12152a;
+    --popover-foreground: #e8eaf3;
+    --primary: #8f9bff;
+    --primary-foreground: #05056a;
+    --secondary: #1b1f38;
+    --secondary-foreground: #e8eaf3;
+    --muted: #1b1f38;
+    --muted-foreground: #9aa1bd;
+    --accent: #1d2350;
+    --accent-foreground: #b3bcff;
+    --destructive: #f87171;
+    --destructive-foreground: #2a0b0b;
+    --border: #252a4a;
+    --input: #252a4a;
+    --ring: #60a5fa;
+    --brand: #b3bcff;
+    --brand-solid: #2a2a8f;
+    --brand-foreground: #eef2ff;
+    --message-outgoing: #2a2a8f;
+    --message-outgoing-foreground: #eef2ff;
+    --message-incoming: #181c33;
+    --highlight: #60a5fa;
+    --highlight-foreground: #06183a;
+    --online: #4ade80;
+    --chart-1: #b3bcff;
+    --chart-2: #60a5fa;
+    --chart-3: #8f9bff;
+    --chart-4: #9aa1bd;
+    --chart-5: #545b7e;
+    --sidebar: #0e1124;
+    --sidebar-foreground: #e8eaf3;
+    --sidebar-primary: #b3bcff;
+    --sidebar-primary-foreground: #05056a;
+    --sidebar-accent: #1d2350;
+    --sidebar-accent-foreground: #b3bcff;
+    --sidebar-border: #21263f;
+    --sidebar-ring: #60a5fa;
 }
 
 @layer base {
