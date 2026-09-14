@@ -1,11 +1,11 @@
 # STEP v2 SSO runbook
 
-STEP v2 is the OAuth 2.0 identity provider. Messenger is a confidential
+STEP v2 is the OAuth 2.0 identity provider. Uhoo! is a confidential
 authorization-code client and keeps its own Laravel session after STEP signs
 the user in.
 
 Sanctum remains enabled in both applications for their existing first-party
-APIs. Passport is only used by STEP for the Messenger SSO flow.
+APIs. Passport is only used by STEP for the Uhoo! SSO flow.
 
 ## 1. Deploy STEP v2
 
@@ -22,12 +22,12 @@ secret across deployments. Do not commit them. `PASSPORT_PRIVATE_KEY` and
 `PASSPORT_PUBLIC_KEY` may be used instead when the deployment platform stores
 multiline secrets.
 
-Create one confidential client per Messenger environment. The redirect URI
-must match Messenger exactly:
+Create one confidential client per Uhoo! environment. The redirect URI must
+match Uhoo! exactly:
 
 ```bash
 php artisan passport:client \
-  --name="STEP Messenger" \
+  --name="Uhoo!" \
   --redirect_uri="https://chat.example.edu/auth/step/callback" \
   --no-interaction
 ```
@@ -35,7 +35,7 @@ php artisan passport:client \
 Copy the displayed client ID and client secret immediately. Passport stores a
 hash of the secret and will not display the plaintext again.
 
-## 2. Configure Messenger
+## 2. Configure Uhoo!
 
 Add these values to the chat-app environment:
 
@@ -61,12 +61,12 @@ php artisan config:cache
 ```
 
 Do not expose the client secret through a `VITE_` variable. The configured team
-slug is used to create or adopt the initial shared workspace; Messenger then
+slug is used to create or adopt the initial shared workspace; Uhoo! then
 tracks that workspace by its immutable `external_source` marker.
 
 ## Role synchronization
 
-Messenger stores every current STEP role in `users.step_roles` and derives one
+Uhoo! stores every current STEP role in `users.step_roles` and derives one
 primary `school_role` for existing authorization checks. Precedence is:
 
 1. Super Admin
@@ -86,7 +86,7 @@ user also has a recognized role; an account with only unknown roles is denied
 access instead of receiving an unsafe fallback role.
 
 Name, email, verification state, roles, and shared-team membership are updated
-on every successful SSO login. Existing pre-SSO Messenger users are linked by
+on every successful SSO login. Existing pre-SSO Uhoo! users are linked by
 email only when that local account is not already linked to another STEP ID.
 
 ## Expected behavior
@@ -94,10 +94,10 @@ email only when that local account is not already linked to another STEP ID.
 - `GET` and `POST /register` are unavailable.
 - Local password, password-reset, passkey, two-factor, and email-verification
   authentication routes are unavailable.
-- Profile identity fields are read-only in Messenger and link back to STEP.
-- Messenger logout ends only the Messenger session; Passport does not provide
+- Profile identity fields are read-only in Uhoo! and link back to STEP.
+- Uhoo! logout ends only the Uhoo! session; Passport does not provide
   STEP-wide single logout.
-- User creation is just-in-time. A STEP user appears in Messenger after their
+- User creation is just-in-time. A STEP user appears in Uhoo! after their
   first successful SSO login. A complete pre-populated directory would require
   a separate scheduled sync or webhook.
 

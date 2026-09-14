@@ -43,7 +43,7 @@ class StepRoleMapper
             }
         }
 
-        throw new StepSsoException('Your STEP role is not enabled for Messenger. Please contact your administrator.');
+        throw new StepSsoException('Your STEP role is not enabled for Uhoo! Please contact your administrator.');
     }
 
     public function teamRole(SchoolRole $role): TeamRole

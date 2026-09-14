@@ -2203,7 +2203,7 @@ export default function Messenger({
 
     return (
         <>
-            <Head title="Messenger" />
+            <Head title="Messages" />
             <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-card md:h-[calc(100dvh-6.5rem)]">
                 <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-5 py-4">
                     <div className="min-w-0">
@@ -2751,7 +2751,7 @@ export default function Messenger({
                         ) : (
                             <EmptyState
                                 icon={<MessageCircle className="size-6" />}
-                                title="Messenger is ready"
+                                title="Uhoo! is ready"
                                 body="Start a conversation to begin using the web app."
                             />
                         )}
@@ -5593,7 +5593,7 @@ function initials(label: string) {
 Messenger.layout = (props: { workspace?: { slug: string } }) => ({
     breadcrumbs: [
         {
-            title: 'Messenger',
+            title: 'Messages',
             href: props.workspace ? `/${props.workspace.slug}/messenger` : '/',
         },
     ],

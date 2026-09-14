@@ -1,4 +1,4 @@
-# STEP Messenger mobile integration
+# Uhoo! mobile integration
 
 The Flutter project lives in `../step_messenger`. It shares Laravel's users,
 teams, conversations, permissions, attachments, and Reverb broadcasts.
@@ -43,20 +43,20 @@ tests. Browser sessions must also be shared across instances.
 
 The custom callback is fixed in the server and both native platform
 configurations. Arbitrary redirect URLs are not accepted. Normal web SSO
-continues to redirect to the web messenger.
+continues to redirect to the Uhoo! web app.
 
 ## Added endpoints
 
-| Endpoint | Purpose |
-| --- | --- |
-| `POST /api/mobile/auth/start` | Begin a mobile login; rate limited |
-| `GET /auth/mobile/{state}` | Enter the browser SSO flow |
-| `POST /api/mobile/auth/exchange` | Redeem a verified code; rate limited |
-| `GET /api/mobile/session` | Current user, permitted workspaces, public Reverb configuration |
-| `DELETE /api/mobile/session` | Revoke only the current device token |
-| `POST /api/mobile/broadcasting/auth` | Authorize Reverb channels using Sanctum |
-| `GET /api/teams/{team:slug}/contacts` | Paginated directory with optional `search` |
-| `GET /api/teams/{team:slug}/conversations/{conversation}/messages/{message}/attachments/{attachment}/preview` | Authenticated media preview |
+| Endpoint                                                                                                      | Purpose                                                         |
+| ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `POST /api/mobile/auth/start`                                                                                 | Begin a mobile login; rate limited                              |
+| `GET /auth/mobile/{state}`                                                                                    | Enter the browser SSO flow                                      |
+| `POST /api/mobile/auth/exchange`                                                                              | Redeem a verified code; rate limited                            |
+| `GET /api/mobile/session`                                                                                     | Current user, permitted workspaces, public Reverb configuration |
+| `DELETE /api/mobile/session`                                                                                  | Revoke only the current device token                            |
+| `POST /api/mobile/broadcasting/auth`                                                                          | Authorize Reverb channels using Sanctum                         |
+| `GET /api/teams/{team:slug}/contacts`                                                                         | Paginated directory with optional `search`                      |
+| `GET /api/teams/{team:slug}/conversations/{conversation}/messages/{message}/attachments/{attachment}/preview` | Authenticated media preview                                     |
 
 All session, directory, and broadcast endpoints require Sanctum authentication.
 Contact access checks team membership. Existing conversation and attachment

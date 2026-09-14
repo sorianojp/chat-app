@@ -253,7 +253,7 @@ test('SSO rejects an email already linked to a different STEP identity', functio
         'step_sso.code_verifier' => 'verifier',
     ])->get(route('step-sso.callback', ['code' => 'code', 'state' => 'state']))
         ->assertRedirect(route('login'))
-        ->assertSessionHas('sso_error', 'This STEP email is already linked to a different Messenger account.');
+        ->assertSessionHas('sso_error', 'This STEP email is already linked to a different Uhoo! account.');
 
     $this->assertGuest();
     expect(User::count())->toBe(1);

@@ -4,11 +4,11 @@ import {
     ArrowLeft,
     ArrowRight,
     Check,
-    GraduationCap,
     LockKeyhole,
     ShieldCheck,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
+import AppLogoIcon from '@/components/app-logo-icon';
 import TeamInvitationAlert from '@/components/team-invitation-alert';
 import { home } from '@/routes';
 import type { TeamInvitationContext } from '@/types';
@@ -42,9 +42,7 @@ export default function Login({
                             className="flex items-center gap-3 rounded-lg focus-visible:ring-3 focus-visible:ring-brand/30 focus-visible:outline-none"
                             href={home()}
                         >
-                            <span className="grid size-9 place-items-center rounded-lg bg-brand-solid text-brand-foreground">
-                                <GraduationCap className="size-5" />
-                            </span>
+                            <AppLogoIcon className="size-10 rounded-lg object-cover" />
                             <span className="font-bold tracking-tight">
                                 Uhoo!
                             </span>
@@ -64,7 +62,7 @@ export default function Login({
                     <div className="w-full max-w-md">
                         <div className="mb-7 text-center">
                             <h1 className="text-3xl font-bold tracking-tight">
-                                Sign in to Messenger
+                                Sign in to Uhoo!
                             </h1>
                             <p className="mt-2 text-sm leading-6 text-muted-foreground">
                                 Use the same STEP account and role assigned to

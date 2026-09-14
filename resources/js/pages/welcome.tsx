@@ -1,11 +1,6 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import {
-    ArrowRight,
-    Check,
-    CheckCheck,
-    GraduationCap,
-    MessageCircle,
-} from 'lucide-react';
+import { ArrowRight, Check, CheckCheck, MessageCircle } from 'lucide-react';
+import AppLogoIcon from '@/components/app-logo-icon';
 import { login, messenger } from '@/routes';
 import type { User } from '@/types';
 
@@ -45,7 +40,7 @@ export default function Welcome() {
                                 href={isAuthenticated ? appHref : login()}
                             >
                                 {isAuthenticated
-                                    ? 'Open messenger'
+                                    ? 'Open Uhoo!'
                                     : 'Sign in with STEP'}
                                 <ArrowRight className="size-4" />
                             </Link>
@@ -118,9 +113,7 @@ export default function Welcome() {
 function Brand() {
     return (
         <div className="flex items-center gap-3">
-            <span className="grid size-9 place-items-center rounded-lg bg-brand-solid text-brand-foreground">
-                <GraduationCap className="size-5" />
-            </span>
+            <AppLogoIcon className="size-10 rounded-lg object-cover" />
             <span className="font-bold tracking-tight text-foreground">
                 Uhoo!
             </span>

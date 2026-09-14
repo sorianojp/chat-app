@@ -36,12 +36,12 @@ class ProvisionStepUser
                 ->first();
 
             if ($user && $emailOwner && ! $emailOwner->is($user)) {
-                throw new StepSsoException('This STEP email is already linked to a different Messenger account.');
+                throw new StepSsoException('This STEP email is already linked to a different Uhoo! account.');
             }
 
             if (! $user && $emailOwner) {
                 if ($emailOwner->step_user_id !== null && $emailOwner->step_user_id !== $identity->id) {
-                    throw new StepSsoException('This STEP email is already linked to a different Messenger account.');
+                    throw new StepSsoException('This STEP email is already linked to a different Uhoo! account.');
                 }
 
                 $user = $emailOwner;
@@ -92,7 +92,7 @@ class ProvisionStepUser
         $slug = Str::slug((string) config('services.step_sso.team_slug', 'step-messenger'));
 
         if ($name === '' || $slug === '') {
-            throw new StepSsoException('STEP Messenger workspace is not configured correctly.');
+            throw new StepSsoException('The Uhoo! workspace is not configured correctly.');
         }
 
         $team = Team::withTrashed()
@@ -103,7 +103,7 @@ class ProvisionStepUser
             $team = Team::withTrashed()->where('slug', $slug)->first();
 
             if ($team?->external_source !== null) {
-                throw new StepSsoException('STEP Messenger workspace conflicts with an existing team.');
+                throw new StepSsoException('The Uhoo! workspace conflicts with an existing team.');
             }
         }
 

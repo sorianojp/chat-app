@@ -71,7 +71,7 @@ export default function Profile({
                         <ShieldCheck className="mt-0.5 size-5 shrink-0" />
                         <p>
                             Change your name, email, password, or assigned role
-                            in STEP. Messenger will refresh them on your next
+                            in STEP. Uhoo! will refresh them on your next
                             sign-in.
                         </p>
                     </div>

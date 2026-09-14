@@ -76,7 +76,7 @@ final readonly class StepIdentity
         usort($roles, strcasecmp(...));
 
         if ($roles === []) {
-            throw new StepSsoException('Your STEP account does not have a role that can access Messenger.');
+            throw new StepSsoException('Your STEP account does not have a role that can access Uhoo!');
         }
 
         return new self(
