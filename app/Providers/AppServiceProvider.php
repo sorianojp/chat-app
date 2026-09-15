@@ -2,9 +2,12 @@
 
 namespace App\Providers;
 
+use App\Events\MessageCreated;
+use App\Listeners\QueueMessagePushNotifications;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -23,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Event::listen(MessageCreated::class, QueueMessagePushNotifications::class);
         $this->configureDefaults();
     }
 

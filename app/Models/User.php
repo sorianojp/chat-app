@@ -46,6 +46,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property-read Collection<int, Conversation> $conversations
  * @property-read Collection<int, Message> $messages
  * @property-read Collection<int, Team> $ownedTeams
+ * @property-read Collection<int, PushToken> $pushTokens
  * @property-read Collection<int, Student> $students
  * @property-read Collection<int, Membership> $teamMemberships
  * @property-read Collection<int, Team> $teams
@@ -96,6 +97,16 @@ class User extends Authenticatable implements PasskeyUser
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class, 'sender_id');
+    }
+
+    /**
+     * Get this user's registered mobile push destinations.
+     *
+     * @return HasMany<PushToken, $this>
+     */
+    public function pushTokens(): HasMany
+    {
+        return $this->hasMany(PushToken::class);
     }
 
     /**

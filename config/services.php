@@ -47,4 +47,10 @@ return [
         'account_url' => env('STEP_SSO_ACCOUNT_URL'),
     ],
 
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'credentials' => env('GOOGLE_APPLICATION_CREDENTIALS'),
+        'timeout' => (int) env('FIREBASE_TIMEOUT', 10),
+    ],
+
 ];

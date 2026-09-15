@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\MobileSessionController;
 use App\Http\Controllers\Api\PresenceController;
+use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\SchoolClassController;
 use App\Http\Controllers\Api\StudentController;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ Route::post('mobile/auth/exchange', [MobileAuthController::class, 'exchange'])->
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('mobile/session', [MobileSessionController::class, 'show']);
     Route::delete('mobile/session', [MobileAuthController::class, 'destroy']);
+    Route::put('mobile/push-token', [PushTokenController::class, 'update']);
     Route::post('mobile/broadcasting/auth', fn (Request $request) => Broadcast::auth($request));
     Route::prefix('teams/{team:slug}')->group(function () {
         Route::get('contacts', [MobileSessionController::class, 'contacts']);

@@ -5,9 +5,9 @@ teams, conversations, permissions, attachments, and Reverb broadcasts.
 
 ## Backend setup
 
-Install the existing Composer dependencies and apply the project's existing
-migrations. The mobile integration adds no database migrations; it uses the
-existing Sanctum token table and configured Laravel cache store.
+Install the Composer dependencies and apply the migrations. Push notification
+registrations are encrypted at rest in `push_tokens` and tied to the Sanctum
+session that registered them, so signing out removes that device registration.
 
 Keep the existing STEP OAuth configuration described in [step-sso.md](step-sso.md).
 The OAuth callback registered with STEP remains:
@@ -23,6 +23,61 @@ in Dart defines, the Flutter project, or the mobile app.
 Use a persistent shared Laravel cache (database or Redis) in deployments
 with multiple workers/instances. Do not use the `array` cache driver outside
 tests. Browser sessions must also be shared across instances.
+
+## Push notifications
+
+Uhoo! uses Firebase Cloud Messaging (FCM) HTTP v1 for Android and iOS. Create
+Android and iOS apps in one Firebase project using the existing application ID
+and bundle ID, `com.arzatech.uhoo`.
+
+On the Laravel server, download a service-account JSON file with permission to
+send Firebase Cloud Messaging messages. Store it outside the public directory;
+`storage/app/firebase-service-account.json` is ignored by Git. Configure:
+
+```dotenv
+FIREBASE_PROJECT_ID=your-firebase-project-id
+GOOGLE_APPLICATION_CREDENTIALS=storage/app/firebase-service-account.json
+```
+
+Run the migration and a queue worker:
+
+```sh
+php artisan migrate
+php artisan queue:work
+```
+
+The server queues one delivery per registered device, excludes the sender,
+honors each participant's `all`, `mentions`, or `muted` preference, and removes
+tokens that FCM reports as unregistered.
+
+The production Android and iOS client identifiers for Firebase project
+`uhoo-6b5c8` are configured in `lib/src/data/firebase_config.dart`, so normal
+Flutter builds include push support automatically. To build against another
+Firebase project, copy `firebase.example.json` to a platform-specific ignored
+file, fill it with that project's public client values, and pass it to Flutter:
+
+```sh
+cp firebase.example.json firebase.android.json
+flutter run --dart-define-from-file=firebase.android.json
+
+cp firebase.example.json firebase.ios.json
+flutter run --dart-define-from-file=firebase.ios.json
+```
+
+Use the same `--dart-define-from-file` argument for release builds when using
+an alternate Firebase project.
+
+In the Apple Developer portal and Xcode, enable the Push Notifications
+capability for `com.arzatech.uhoo`, keep Background Modes > Remote notifications
+enabled, and upload the APNs authentication key to Firebase. The Firebase SDKs
+set this app's minimum iOS version to 15. Push notification delivery must be
+tested on a physical iPhone; Apple simulators are not a full APNs acceptance
+test.
+
+The app requests notification permission after a successful sign-in, registers
+and rotates its FCM token, shows notifications while in the foreground, and
+opens the referenced conversation (switching workspace first when necessary)
+when a notification is tapped.
 
 ## Sign-in protocol
 
@@ -54,6 +109,7 @@ continues to redirect to the Uhoo! web app.
 | `POST /api/mobile/auth/exchange`                                                                              | Redeem a verified code; rate limited                            |
 | `GET /api/mobile/session`                                                                                     | Current user, permitted workspaces, public Reverb configuration |
 | `DELETE /api/mobile/session`                                                                                  | Revoke only the current device token                            |
+| `PUT /api/mobile/push-token`                                                                                  | Register or rotate this mobile session's FCM token              |
 | `POST /api/mobile/broadcasting/auth`                                                                          | Authorize Reverb channels using Sanctum                         |
 | `GET /api/teams/{team:slug}/contacts`                                                                         | Paginated directory with optional `search`                      |
 | `GET /api/teams/{team:slug}/conversations/{conversation}/messages/{message}/attachments/{attachment}/preview` | Authenticated media preview                                     |
@@ -84,7 +140,7 @@ The app fetches personalized API payloads after broadcast events, so reaction
 selection and permissions are evaluated for the current device user. It
 also refreshes conversations every 25 seconds and an open chat every 15
 seconds while in the foreground. New conversation discovery therefore has
-up to a 25-second fallback delay. This does not deliver background push.
+up to a 25-second fallback delay. FCM provides background message alerts.
 
 ## Validation
 
@@ -96,6 +152,9 @@ vendor/bin/phpstan analyse --memory-limit=512M
 
 `tests/Feature/Api/MobileTest.php` covers the SSO handoff, verifier mismatch,
 replay rejection, expiry, failed SSO, device revocation, and team isolation.
+`tests/Feature/Api/PushNotificationTest.php` covers encrypted token rotation,
+logout cleanup, recipient selection, preferences, FCM authorization, and stale
+token cleanup.
 A real STEP account and reachable deployment are needed for device SSO
 acceptance testing; automated tests fake the upstream STEP identity service.
 
