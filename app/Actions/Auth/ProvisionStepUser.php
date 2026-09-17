@@ -30,8 +30,14 @@ class ProvisionStepUser
                 ->first();
             $alreadyLinked = $user !== null;
 
+            // MySQL's case-insensitive collation lets this use the unique email index,
+            // so only the matching row is locked instead of the whole users table.
             $emailOwner = User::query()
-                ->whereRaw('LOWER(email) = ?', [$identity->email])
+                ->when(
+                    DB::connection()->getDriverName() === 'mysql',
+                    fn ($query) => $query->where('email', $identity->email),
+                    fn ($query) => $query->whereRaw('LOWER(email) = ?', [$identity->email]),
+                )
                 ->lockForUpdate()
                 ->first();
 
@@ -83,7 +89,7 @@ class ProvisionStepUser
             }
 
             return $user->refresh()->load('currentTeam');
-        });
+        }, 3);
     }
 
     public function stepTeam(): Team

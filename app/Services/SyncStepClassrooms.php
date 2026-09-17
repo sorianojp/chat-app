@@ -9,6 +9,7 @@ use App\Exceptions\StepSsoException;
 use App\Models\Conversation;
 use App\Models\SchoolClass;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -25,6 +26,17 @@ class SyncStepClassrooms
      * @return array{created: int, updated: int, archived: int, rooms: int}
      */
     public function handle(?string $roomId = null): array
+    {
+        // Serialize the manual command, scheduled job, and webhook jobs so they never
+        // lock the same users in different orders.
+        return Cache::lock('step-classroom-sync', 1800)
+            ->block(900, fn (): array => $this->synchronize($roomId));
+    }
+
+    /**
+     * @return array{created: int, updated: int, archived: int, rooms: int}
+     */
+    private function synchronize(?string $roomId): array
     {
         $roomId = filled($roomId) ? (string) $roomId : null;
         $team = $this->provisioner->stepTeam();
@@ -51,29 +63,32 @@ class SyncStepClassrooms
                 $stepRoomId = (string) $room['id'];
                 $activeRoomIds[] = $stepRoomId;
 
-                DB::transaction(function () use ($team, $room, $stepRoomId, $payload, &$created, &$updated): void {
-                    $teacher = $this->provisionIdentity($room['teacher'] ?? null);
-                    $students = collect(is_array($room['students'] ?? null) ? $room['students'] : [])
-                        ->map(function (mixed $identity) use ($stepRoomId): ?User {
-                            try {
-                                return $this->provisionIdentity($identity);
-                            } catch (StepSsoException $exception) {
-                                Log::warning('A STEP classroom student could not be provisioned in Uhoo.', [
-                                    'step_room_id' => $stepRoomId,
-                                    'step_user_id' => is_array($identity) ? ($identity['sub'] ?? null) : null,
-                                    'reason' => $exception->getMessage(),
-                                ]);
+                // Provision users in their own short transactions so their row locks are
+                // released before the room transaction starts.
+                $teacher = $this->provisionIdentity($room['teacher'] ?? null);
+                $students = collect(is_array($room['students'] ?? null) ? $room['students'] : [])
+                    ->map(function (mixed $identity) use ($stepRoomId): ?User {
+                        try {
+                            return $this->provisionIdentity($identity);
+                        } catch (StepSsoException $exception) {
+                            Log::warning('A STEP classroom student could not be provisioned in Uhoo.', [
+                                'step_room_id' => $stepRoomId,
+                                'step_user_id' => is_array($identity) ? ($identity['sub'] ?? null) : null,
+                                'reason' => $exception->getMessage(),
+                            ]);
 
-                                return null;
-                            }
-                        })
-                        ->filter()
-                        ->unique('id')
-                        ->values();
+                            return null;
+                        }
+                    })
+                    ->filter()
+                    ->unique('id')
+                    ->values();
 
-                    if (! $teacher) {
-                        throw new RuntimeException("STEP room {$stepRoomId} does not have a valid teacher.");
-                    }
+                if (! $teacher) {
+                    throw new RuntimeException("STEP room {$stepRoomId} does not have a valid teacher.");
+                }
+
+                DB::transaction(function () use ($team, $room, $stepRoomId, $payload, $teacher, $students, &$created, &$updated): void {
 
                     $schoolClass = SchoolClass::query()->where('step_room_id', $stepRoomId)->lockForUpdate()->first();
                     $wasRecentlyCreated = $schoolClass === null;
@@ -123,7 +138,7 @@ class SyncStepClassrooms
                     $conversation->participants()->sync($participants);
 
                     $wasRecentlyCreated ? $created++ : $updated++;
-                });
+                }, 3);
             }
         }
 
