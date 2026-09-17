@@ -9,7 +9,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('school_classes', function (Blueprint $table) {
+            // MySQL may use the composite unique index below to support the
+            // team_id foreign key. Give the foreign key its own index before
+            // removing that uniqueness constraint.
+            $table->index('team_id');
+        });
+
+        Schema::table('school_classes', function (Blueprint $table) {
             $table->dropUnique(['team_id', 'grade_level', 'section', 'school_year']);
+        });
+
+        Schema::table('school_classes', function (Blueprint $table) {
             $table->string('step_room_id')->nullable()->unique()->after('id');
             $table->string('semester')->nullable()->after('school_year');
             $table->string('sync_status')->default('active')->after('semester');
@@ -35,6 +45,10 @@ return new class extends Migration
             $table->dropUnique(['step_room_id']);
             $table->dropColumn(['step_room_id', 'semester', 'sync_status', 'last_synced_at', 'ended_at']);
             $table->unique(['team_id', 'grade_level', 'section', 'school_year']);
+        });
+
+        Schema::table('school_classes', function (Blueprint $table) {
+            $table->dropIndex(['team_id']);
         });
     }
 };
