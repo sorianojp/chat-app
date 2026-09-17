@@ -7,7 +7,6 @@ use App\Http\Controllers\Api\MobileSessionController;
 use App\Http\Controllers\Api\PresenceController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\SchoolClassController;
-use App\Http\Controllers\Api\StepClassroomWebhookController;
 use App\Http\Controllers\Api\StudentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
@@ -15,8 +14,6 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('mobile/auth/start', [MobileAuthController::class, 'start'])->middleware('throttle:10,1');
 Route::post('mobile/auth/exchange', [MobileAuthController::class, 'exchange'])->middleware('throttle:10,1');
-Route::post('integrations/step/classrooms/sync', StepClassroomWebhookController::class)
-    ->middleware('throttle:30,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('mobile/session', [MobileSessionController::class, 'show']);

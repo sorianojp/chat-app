@@ -2139,7 +2139,6 @@ export default function Messenger({
 
         if (
             !activeConversationId ||
-            activeConversation?.locked_at ||
             (!messageBody.trim() && selectedFiles.length === 0) ||
             sending
         ) {
@@ -2557,12 +2556,6 @@ export default function Messenger({
                                     className="shrink-0 border-t border-border bg-card p-4"
                                     onSubmit={sendMessage}
                                 >
-                                    {activeConversation.locked_at && (
-                                        <div className="mb-3 rounded-xl bg-muted px-4 py-3 text-center text-sm text-muted-foreground">
-                                            This previous-term classroom chat is
-                                            archived and read-only.
-                                        </div>
-                                    )}
                                     {editingMessage && (
                                         <ComposerContext
                                             body={editingMessage.body}
@@ -2682,12 +2675,7 @@ export default function Messenger({
                                                 )
                                             }
                                             ref={fileInputRef}
-                                            disabled={
-                                                isEditing ||
-                                                Boolean(
-                                                    activeConversation.locked_at,
-                                                )
-                                            }
+                                            disabled={isEditing}
                                             type="file"
                                         />
                                         <button
@@ -2696,12 +2684,7 @@ export default function Messenger({
                                             onClick={() =>
                                                 fileInputRef.current?.click()
                                             }
-                                            disabled={
-                                                isEditing ||
-                                                Boolean(
-                                                    activeConversation.locked_at,
-                                                )
-                                            }
+                                            disabled={isEditing}
                                             type="button"
                                         >
                                             <Paperclip className="size-5" />
@@ -2709,12 +2692,7 @@ export default function Messenger({
                                         <button
                                             aria-label="Create poll"
                                             className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-brand"
-                                            disabled={
-                                                isEditing ||
-                                                Boolean(
-                                                    activeConversation.locked_at,
-                                                )
-                                            }
+                                            disabled={isEditing}
                                             onClick={() =>
                                                 setPollComposerOpen(true)
                                             }
@@ -2725,12 +2703,7 @@ export default function Messenger({
                                         <button
                                             aria-label="Create event"
                                             className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-brand"
-                                            disabled={
-                                                isEditing ||
-                                                Boolean(
-                                                    activeConversation.locked_at,
-                                                )
-                                            }
+                                            disabled={isEditing}
                                             onClick={() =>
                                                 setEventComposerOpen(true)
                                             }
@@ -2756,9 +2729,6 @@ export default function Messenger({
                                                 )
                                             }
                                             placeholder="Type a message..."
-                                            disabled={Boolean(
-                                                activeConversation.locked_at,
-                                            )}
                                             ref={messageInputRef}
                                             value={messageBody}
                                         />
@@ -2769,10 +2739,7 @@ export default function Messenger({
                                                 (!messageBody.trim() &&
                                                     selectedFiles.length ===
                                                         0) ||
-                                                sending ||
-                                                Boolean(
-                                                    activeConversation.locked_at,
-                                                )
+                                                sending
                                             }
                                             type="submit"
                                         >
@@ -3291,36 +3258,35 @@ function ConversationHeader({
                 >
                     <Search className="size-4" />
                 </button>
-                {!conversation.locked_at &&
-                    (archived ? (
-                        <>
-                            <button
-                                aria-label="Restore chat"
-                                className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-brand"
-                                onClick={() => onRestore(conversation)}
-                                type="button"
-                            >
-                                <ArchiveRestore className="size-4" />
-                            </button>
-                            <button
-                                aria-label="Delete permanently"
-                                className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
-                                onClick={() => onDeleteArchived(conversation)}
-                                type="button"
-                            >
-                                <Trash2 className="size-4" />
-                            </button>
-                        </>
-                    ) : (
+                {archived ? (
+                    <>
                         <button
-                            aria-label="Archive chat"
-                            className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                            onClick={() => onArchive(conversation)}
+                            aria-label="Restore chat"
+                            className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-brand"
+                            onClick={() => onRestore(conversation)}
                             type="button"
                         >
-                            <Archive className="size-4" />
+                            <ArchiveRestore className="size-4" />
                         </button>
-                    ))}
+                        <button
+                            aria-label="Delete permanently"
+                            className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+                            onClick={() => onDeleteArchived(conversation)}
+                            type="button"
+                        >
+                            <Trash2 className="size-4" />
+                        </button>
+                    </>
+                ) : (
+                    <button
+                        aria-label="Archive chat"
+                        className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                        onClick={() => onArchive(conversation)}
+                        type="button"
+                    >
+                        <Archive className="size-4" />
+                    </button>
+                )}
                 <button
                     aria-label={
                         conversation.pinned_at ? 'Unpin chat' : 'Pin chat'
@@ -3500,18 +3466,6 @@ function ChatDetails({
                         ? 'Direct message'
                         : 'Group chat'}
                 </p>
-                {conversation.managed_by_step && (
-                    <div className="mt-4 w-full rounded-xl bg-muted px-4 py-3 text-left">
-                        <p className="text-sm font-semibold text-foreground">
-                            Managed by STEP
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            {conversation.locked_at
-                                ? 'This previous-term classroom is archived and read-only.'
-                                : `${conversation.school_class?.school_year ?? 'Current term'} · Semester ${conversation.school_class?.semester ?? '—'}. Membership is synchronized from STEP.`}
-                        </p>
-                    </div>
-                )}
                 {conversation.type === 'group' &&
                     conversation.permissions.can_customize_group && (
                         <div className="mt-3 flex items-center gap-2">
@@ -3683,16 +3637,14 @@ function ChatDetails({
                                 </button>
                             )}
 
-                        {!conversation.managed_by_step && (
-                            <button
-                                className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40"
-                                onClick={() => onLeave(conversation)}
-                                type="button"
-                            >
-                                <LogOut className="size-4" />
-                                Leave group
-                            </button>
-                        )}
+                        <button
+                            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                            onClick={() => onLeave(conversation)}
+                            type="button"
+                        >
+                            <LogOut className="size-4" />
+                            Leave group
+                        </button>
                     </div>
                 )}
 

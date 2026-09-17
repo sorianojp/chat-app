@@ -22,10 +22,6 @@ use Illuminate\Support\Carbon;
  * @property string|null $title
  * @property string|null $photo_disk
  * @property string|null $photo_path
- * @property bool $managed_by_step
- * @property string $sync_status
- * @property Carbon|null $locked_at
- * @property Carbon|null $archived_at
  * @property Carbon|null $last_message_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -37,7 +33,7 @@ use Illuminate\Support\Carbon;
  * @property-read SchoolClass|null $schoolClass
  * @property-read Team $team
  */
-#[Fillable(['team_id', 'school_class_id', 'managed_by_step', 'sync_status', 'locked_at', 'archived_at', 'created_by', 'type', 'title', 'photo_disk', 'photo_path', 'last_message_at'])]
+#[Fillable(['team_id', 'school_class_id', 'created_by', 'type', 'title', 'photo_disk', 'photo_path', 'last_message_at'])]
 class Conversation extends Model
 {
     use SoftDeletes;
@@ -114,9 +110,6 @@ class Conversation extends Model
     {
         return [
             'type' => ConversationType::class,
-            'managed_by_step' => 'boolean',
-            'locked_at' => 'datetime',
-            'archived_at' => 'datetime',
             'last_message_at' => 'datetime',
         ];
     }

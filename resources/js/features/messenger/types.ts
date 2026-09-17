@@ -44,12 +44,7 @@ export type Conversation = {
     school_class: {
         id: number;
         name: string;
-        school_year: string;
-        semester: string | null;
     } | null;
-    managed_by_step: boolean;
-    sync_status: 'active' | 'archived';
-    locked_at: string | null;
     participants: Participant[];
     latest_message: MessengerMessage | null;
     pinned_message: MessengerMessage | null;

@@ -79,38 +79,6 @@ and rotates its FCM token, shows notifications while in the foreground, and
 opens the referenced conversation (switching workspace first when necessary)
 when a notification is tapped.
 
-## STEP classroom group synchronization
-
-Current-term STEP rooms can be mirrored as managed Uhoo group chats. Configure
-the same integration token and webhook secret in both applications:
-
-```dotenv
-# Uhoo
-STEP_INTEGRATION_TOKEN=<long-random-shared-token>
-STEP_WEBHOOK_SECRET=<different-long-random-shared-secret>
-
-# STEP v2
-UHOO_URL=https://uhoo.example.edu
-UHOO_INTEGRATION_TOKEN=<long-random-shared-token>
-UHOO_WEBHOOK_SECRET=<different-long-random-shared-secret>
-```
-
-STEP exposes only rooms matching its configured `school_year` and `term`.
-Room creation, roster changes, removal, and term changes send a signed webhook
-that queues an immediate Uhoo reconciliation. Uhoo also reconciles every 15
-minutes, so a missed webhook is self-healing. Run the queue worker and scheduler
-in production.
-
-To backfill or verify the current roster manually:
-
-```sh
-php artisan step:sync-classrooms
-```
-
-Each STEP room ID maps to exactly one managed group. STEP owns its title,
-teacher, and membership. When a room leaves the current term, Uhoo archives and
-locks the group while preserving its messages and attachments.
-
 ## Sign-in protocol
 
 1. Flutter generates a cryptographically random verifier and sends its
