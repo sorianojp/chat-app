@@ -121,6 +121,7 @@ class MessageController extends Controller
     public function store(StoreMessageRequest $request, Team $team, Conversation $conversation, LinkPreviewService $linkPreviewService): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureConversationWritable($conversation);
 
         $message = DB::transaction(function () use ($request, $conversation, $linkPreviewService): Message {
             $attachments = $request->file('attachments', []);
@@ -176,6 +177,7 @@ class MessageController extends Controller
     public function storePoll(Request $request, Team $team, Conversation $conversation): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureConversationWritable($conversation);
 
         $data = $request->validate([
             'question' => ['required', 'string', 'max:300'],
@@ -216,6 +218,7 @@ class MessageController extends Controller
     public function votePoll(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureConversationWritable($conversation);
         $this->ensureMessageBelongsToConversation($conversation, $message);
         abort_unless($message->type === 'poll' && $message->unsent_at === null, 422, 'This message is not an active poll.');
 
@@ -248,6 +251,7 @@ class MessageController extends Controller
     public function storeEvent(Request $request, Team $team, Conversation $conversation): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureConversationWritable($conversation);
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:200'],
@@ -284,6 +288,7 @@ class MessageController extends Controller
     public function rsvp(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureConversationWritable($conversation);
         $this->ensureMessageBelongsToConversation($conversation, $message);
         abort_unless($message->type === 'event' && $message->unsent_at === null, 422, 'This message is not an active event.');
 
@@ -312,6 +317,7 @@ class MessageController extends Controller
     public function update(Request $request, Team $team, Conversation $conversation, Message $message, LinkPreviewService $linkPreviewService): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureConversationWritable($conversation);
         $this->ensureMessageBelongsToConversation($conversation, $message);
         abort_unless($message->sender_id === $request->user()->id, 403);
         abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot be edited.');
@@ -351,6 +357,7 @@ class MessageController extends Controller
     public function destroy(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureConversationWritable($conversation);
         $this->ensureMessageBelongsToConversation($conversation, $message);
         abort_unless($message->sender_id === $request->user()->id, 403);
 
@@ -395,6 +402,7 @@ class MessageController extends Controller
         $targetConversations = Conversation::query()
             ->where('team_id', $team->id)
             ->whereIn('id', $data['conversation_ids'])
+            ->whereNull('locked_at')
             ->whereHas('participants', fn ($query) => $query->whereKey($request->user()->id))
             ->get();
 
@@ -457,6 +465,7 @@ class MessageController extends Controller
     public function pin(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureConversationWritable($conversation);
         $this->ensureMessageBelongsToConversation($conversation, $message);
         abort_unless($this->canPinMessage($request, $conversation), 403);
         abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot be pinned.');
@@ -605,6 +614,7 @@ class MessageController extends Controller
     public function react(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureConversationWritable($conversation);
         abort_unless($message->conversation_id === $conversation->id, 404);
         abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot receive reactions.');
 
@@ -635,6 +645,7 @@ class MessageController extends Controller
     public function unreact(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureConversationWritable($conversation);
         abort_unless($message->conversation_id === $conversation->id, 404);
         abort_if($message->unsent_at !== null, 422, 'Unsent messages cannot receive reactions.');
 
@@ -702,6 +713,11 @@ class MessageController extends Controller
     private function ensureMessageBelongsToConversation(Conversation $conversation, Message $message): void
     {
         abort_unless($message->conversation_id === $conversation->id, 404);
+    }
+
+    private function ensureConversationWritable(Conversation $conversation): void
+    {
+        abort_if($conversation->locked_at !== null, 422, 'This classroom chat is archived and read-only.');
     }
 
     private function canManageConversation(Request $request, Conversation $conversation): bool

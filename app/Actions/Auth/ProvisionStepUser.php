@@ -86,7 +86,7 @@ class ProvisionStepUser
         });
     }
 
-    private function stepTeam(): Team
+    public function stepTeam(): Team
     {
         $name = trim((string) config('services.step_sso.team_name', 'STEP Messenger'));
         $slug = Str::slug((string) config('services.step_sso.team_slug', 'step-messenger'));

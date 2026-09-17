@@ -27,8 +27,12 @@ class MessengerController extends Controller
             ->where('conversations.team_id', $current_team->id)
             ->when(
                 $showArchived,
-                fn ($query) => $query->whereNotNull('conversation_participants.archived_at'),
-                fn ($query) => $query->whereNull('conversation_participants.archived_at'),
+                fn ($query) => $query->where(fn ($query) => $query
+                    ->whereNotNull('conversation_participants.archived_at')
+                    ->orWhereNotNull('conversations.archived_at')),
+                fn ($query) => $query
+                    ->whereNull('conversation_participants.archived_at')
+                    ->whereNull('conversations.archived_at'),
             )
             ->with(['latestMessage.attachments', 'latestMessage.conversation.team', 'latestMessage.deliveries.user:id,name', 'latestMessage.eventRsvps.user:id,name', 'latestMessage.mentions.user:id,name', 'latestMessage.pollVotes.user:id,name', 'latestMessage.replyTo.sender:id,name', 'latestMessage.reactions.user:id,name', 'latestMessage.readers:id,name', 'latestMessage.sender:id,name,school_role', 'participants:id,name,email,school_role,last_seen_at', 'schoolClass'])
             ->withCount('messages')
@@ -107,7 +111,12 @@ class MessengerController extends Controller
             'school_class' => $conversation->schoolClass ? [
                 'id' => $conversation->schoolClass->id,
                 'name' => $conversation->schoolClass->name,
+                'school_year' => $conversation->schoolClass->school_year,
+                'semester' => $conversation->schoolClass->semester,
             ] : null,
+            'managed_by_step' => $conversation->managed_by_step,
+            'sync_status' => $conversation->sync_status,
+            'locked_at' => $conversation->locked_at?->toISOString(),
             'participants' => $conversation->participants->map(fn ($participant) => [
                 'id' => $participant->id,
                 'name' => $participant->name,
@@ -131,7 +140,8 @@ class MessengerController extends Controller
             'last_message_at' => $conversation->last_message_at?->toISOString(),
             'pinned_at' => $this->pivotTimestamp($pivot?->getAttribute('pinned_at')),
             'muted_at' => $this->pivotTimestamp($pivot?->getAttribute('muted_at')),
-            'archived_at' => $this->pivotTimestamp($pivot?->getAttribute('archived_at')),
+            'archived_at' => $conversation->archived_at?->toISOString()
+                ?? $this->pivotTimestamp($pivot?->getAttribute('archived_at')),
             'notification_preference' => $pivot?->getAttribute('notification_preference') ?? 'all',
             'permissions' => $this->permissionsPayload($conversation, $role),
         ];
@@ -144,14 +154,16 @@ class MessengerController extends Controller
     {
         $owner = $role === 'owner';
         $group = $conversation->type->value === 'group';
+        $writable = $conversation->locked_at === null;
+        $manageable = $group && ! $conversation->managed_by_step && $writable;
 
         return [
-            'can_rename' => $group && $owner,
-            'can_add_members' => $group && $owner,
-            'can_remove_members' => $group && $owner,
-            'can_pin_messages' => ! $group || $owner,
-            'can_mention_everyone' => ! $group || $owner,
-            'can_customize_group' => $group && $owner,
+            'can_rename' => $manageable && $owner,
+            'can_add_members' => $manageable && $owner,
+            'can_remove_members' => $manageable && $owner,
+            'can_pin_messages' => $writable && (! $group || $owner),
+            'can_mention_everyone' => $writable && (! $group || $owner),
+            'can_customize_group' => $manageable && $owner,
         ];
     }
 

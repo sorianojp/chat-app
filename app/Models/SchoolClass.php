@@ -13,11 +13,16 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $team_id
+ * @property string|null $step_room_id
  * @property int|null $adviser_id
  * @property string $name
  * @property string $grade_level
  * @property string $section
  * @property string $school_year
+ * @property string|null $semester
+ * @property string $sync_status
+ * @property Carbon|null $last_synced_at
+ * @property Carbon|null $ended_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read User|null $adviser
@@ -25,9 +30,17 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, Student> $students
  * @property-read Team $team
  */
-#[Fillable(['team_id', 'adviser_id', 'name', 'grade_level', 'section', 'school_year'])]
+#[Fillable(['team_id', 'step_room_id', 'adviser_id', 'name', 'grade_level', 'section', 'school_year', 'semester', 'sync_status', 'last_synced_at', 'ended_at'])]
 class SchoolClass extends Model
 {
+    protected function casts(): array
+    {
+        return [
+            'last_synced_at' => 'datetime',
+            'ended_at' => 'datetime',
+        ];
+    }
+
     /**
      * Get the school/team that owns the class.
      *
