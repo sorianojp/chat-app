@@ -24,108 +24,130 @@ class SyncStepClassrooms
     /**
      * @return array{created: int, updated: int, archived: int, rooms: int}
      */
-    public function handle(): array
+    public function handle(?string $roomId = null): array
     {
-        $payload = $this->client->currentClassrooms();
+        $roomId = filled($roomId) ? (string) $roomId : null;
         $team = $this->provisioner->stepTeam();
 
         $activeRoomIds = [];
         $created = 0;
         $updated = 0;
+        $activeTerm = null;
 
-        foreach ($payload['rooms'] as $room) {
-            if (blank($room['id'] ?? null)) {
-                continue;
+        foreach ($this->client->classroomPages($roomId) as $payload) {
+            $payloadTerm = [$payload['school_year'], $payload['semester']];
+
+            if ($activeTerm !== null && $activeTerm !== $payloadTerm) {
+                throw new RuntimeException('STEP changed its active term during classroom synchronization.');
             }
 
-            $stepRoomId = (string) $room['id'];
-            $activeRoomIds[] = $stepRoomId;
+            $activeTerm = $payloadTerm;
 
-            DB::transaction(function () use ($team, $room, $stepRoomId, $payload, &$created, &$updated): void {
-                $teacher = $this->provisionIdentity($room['teacher'] ?? null);
-                $students = collect(is_array($room['students'] ?? null) ? $room['students'] : [])
-                    ->map(function (mixed $identity) use ($stepRoomId): ?User {
-                        try {
-                            return $this->provisionIdentity($identity);
-                        } catch (StepSsoException $exception) {
-                            Log::warning('A STEP classroom student could not be provisioned in Uhoo.', [
-                                'step_room_id' => $stepRoomId,
-                                'step_user_id' => is_array($identity) ? ($identity['sub'] ?? null) : null,
-                                'reason' => $exception->getMessage(),
-                            ]);
-
-                            return null;
-                        }
-                    })
-                    ->filter()
-                    ->unique('id')
-                    ->values();
-
-                if (! $teacher) {
-                    throw new RuntimeException("STEP room {$stepRoomId} does not have a valid teacher.");
+            foreach ($payload['rooms'] as $room) {
+                if (blank($room['id'] ?? null)) {
+                    continue;
                 }
 
-                $schoolClass = SchoolClass::query()->where('step_room_id', $stepRoomId)->lockForUpdate()->first();
-                $wasRecentlyCreated = $schoolClass === null;
-                $schoolClass ??= new SchoolClass(['team_id' => $team->id, 'step_room_id' => $stepRoomId]);
-                $schoolClass->fill([
-                    'team_id' => $team->id,
-                    'adviser_id' => $teacher->id,
-                    'name' => $this->roomTitle($room),
-                    'grade_level' => (string) ($room['year'] ?? $room['course'] ?? 'N/A'),
-                    'section' => (string) ($room['section'] ?? 'N/A'),
-                    'school_year' => (string) ($room['school_year'] ?? $payload['school_year']),
-                    'semester' => (string) ($room['semester'] ?? $payload['semester']),
-                    'sync_status' => 'active',
-                    'last_synced_at' => now(),
-                    'ended_at' => null,
-                ])->save();
+                $stepRoomId = (string) $room['id'];
+                $activeRoomIds[] = $stepRoomId;
 
-                $conversation = Conversation::query()
-                    ->where('school_class_id', $schoolClass->id)
-                    ->where('managed_by_step', true)
-                    ->lockForUpdate()
-                    ->first();
-                $conversation ??= new Conversation([
-                    'team_id' => $team->id,
-                    'school_class_id' => $schoolClass->id,
-                    'managed_by_step' => true,
-                ]);
-                $conversation->fill([
-                    'team_id' => $team->id,
-                    'school_class_id' => $schoolClass->id,
-                    'created_by' => $teacher->id,
-                    'type' => ConversationType::Group,
-                    'title' => $this->roomTitle($room),
-                    'managed_by_step' => true,
-                    'sync_status' => 'active',
-                    'locked_at' => null,
-                    'archived_at' => null,
-                ])->save();
+                DB::transaction(function () use ($team, $room, $stepRoomId, $payload, &$created, &$updated): void {
+                    $teacher = $this->provisionIdentity($room['teacher'] ?? null);
+                    $students = collect(is_array($room['students'] ?? null) ? $room['students'] : [])
+                        ->map(function (mixed $identity) use ($stepRoomId): ?User {
+                            try {
+                                return $this->provisionIdentity($identity);
+                            } catch (StepSsoException $exception) {
+                                Log::warning('A STEP classroom student could not be provisioned in Uhoo.', [
+                                    'step_room_id' => $stepRoomId,
+                                    'step_user_id' => is_array($identity) ? ($identity['sub'] ?? null) : null,
+                                    'reason' => $exception->getMessage(),
+                                ]);
 
-                $participants = $students
-                    ->mapWithKeys(fn (User $student): array => [$student->id => [
-                        'role' => 'member',
+                                return null;
+                            }
+                        })
+                        ->filter()
+                        ->unique('id')
+                        ->values();
+
+                    if (! $teacher) {
+                        throw new RuntimeException("STEP room {$stepRoomId} does not have a valid teacher.");
+                    }
+
+                    $schoolClass = SchoolClass::query()->where('step_room_id', $stepRoomId)->lockForUpdate()->first();
+                    $wasRecentlyCreated = $schoolClass === null;
+                    $schoolClass ??= new SchoolClass(['team_id' => $team->id, 'step_room_id' => $stepRoomId]);
+                    $schoolClass->fill([
+                        'team_id' => $team->id,
+                        'adviser_id' => $teacher->id,
+                        'name' => $this->roomTitle($room),
+                        'grade_level' => (string) ($room['year'] ?? $room['course'] ?? 'N/A'),
+                        'section' => (string) ($room['section'] ?? 'N/A'),
+                        'school_year' => (string) ($room['school_year'] ?? $payload['school_year']),
+                        'semester' => (string) ($room['semester'] ?? $payload['semester']),
+                        'sync_status' => 'active',
+                        'last_synced_at' => now(),
+                        'ended_at' => null,
+                    ])->save();
+
+                    $conversation = Conversation::query()
+                        ->where('school_class_id', $schoolClass->id)
+                        ->where('managed_by_step', true)
+                        ->lockForUpdate()
+                        ->first();
+                    $conversation ??= new Conversation([
+                        'team_id' => $team->id,
+                        'school_class_id' => $schoolClass->id,
+                        'managed_by_step' => true,
+                    ]);
+                    $conversation->fill([
+                        'team_id' => $team->id,
+                        'school_class_id' => $schoolClass->id,
+                        'created_by' => $teacher->id,
+                        'type' => ConversationType::Group,
+                        'title' => $this->roomTitle($room),
+                        'managed_by_step' => true,
+                        'sync_status' => 'active',
+                        'locked_at' => null,
                         'archived_at' => null,
-                    ]])
-                    ->put($teacher->id, ['role' => 'owner', 'archived_at' => null])
-                    ->all();
-                $conversation->participants()->sync($participants);
+                    ])->save();
 
-                $wasRecentlyCreated ? $created++ : $updated++;
-            });
+                    $participants = $students
+                        ->mapWithKeys(fn (User $student): array => [$student->id => [
+                            'role' => 'member',
+                            'archived_at' => null,
+                        ]])
+                        ->put($teacher->id, ['role' => 'owner', 'archived_at' => null])
+                        ->all();
+                    $conversation->participants()->sync($participants);
+
+                    $wasRecentlyCreated ? $created++ : $updated++;
+                });
+            }
         }
 
-        $staleClasses = SchoolClass::query()
-            ->where('team_id', $team->id)
-            ->whereNotNull('step_room_id')
-            ->where('sync_status', 'active')
-            ->when(
-                $activeRoomIds === [],
-                fn ($query) => $query,
-                fn ($query) => $query->whereNotIn('step_room_id', $activeRoomIds),
-            )
-            ->get();
+        if ($activeTerm === null) {
+            throw new RuntimeException('STEP did not return a classroom synchronization page.');
+        }
+
+        $staleClasses = collect();
+
+        if ($roomId === null || ! in_array($roomId, $activeRoomIds, true)) {
+            $staleClasses = SchoolClass::query()
+                ->where('team_id', $team->id)
+                ->whereNotNull('step_room_id')
+                ->where('sync_status', 'active')
+                ->when(
+                    $roomId !== null,
+                    fn ($query) => $query->where('step_room_id', $roomId),
+                    fn ($query) => $query->when(
+                        $activeRoomIds !== [],
+                        fn ($query) => $query->whereNotIn('step_room_id', $activeRoomIds),
+                    ),
+                )
+                ->get();
+        }
 
         foreach ($staleClasses as $schoolClass) {
             DB::transaction(function () use ($schoolClass): void {

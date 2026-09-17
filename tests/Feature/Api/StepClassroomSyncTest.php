@@ -33,7 +33,7 @@ function stepClassroomIdentity(string $id, string $name, string $email, string $
 
 test('current STEP rooms create one managed group and reconcile its roster', function () {
     Http::fake([
-        'https://step.test/api/v1/integrations/uhoo/classrooms' => Http::response([
+        'https://step.test/api/v1/integrations/uhoo/classrooms*' => Http::response([
             'data' => [
                 'school_year' => '2026-2027',
                 'semester' => '1',
@@ -72,7 +72,7 @@ test('current STEP rooms create one managed group and reconcile its roster', fun
 
 test('rooms outside the active STEP term are archived and locked without deleting history', function () {
     Http::fake([
-        'https://step.test/api/v1/integrations/uhoo/classrooms' => Http::sequence()
+        'https://step.test/api/v1/integrations/uhoo/classrooms*' => Http::sequence()
             ->push([
                 'data' => [
                     'school_year' => '2026-2027',
@@ -135,7 +135,7 @@ test('students who join an existing STEP room are added to its existing Uhoo gro
     ]];
 
     Http::fake([
-        'https://step.test/api/v1/integrations/uhoo/classrooms' => Http::sequence()
+        'https://step.test/api/v1/integrations/uhoo/classrooms*' => Http::sequence()
             ->push($response([]))
             ->push($response([
                 stepClassroomIdentity('20', 'Alex Student', 'alex@school.test', 'Student'),
@@ -159,6 +159,43 @@ test('students who join an existing STEP room are added to its existing Uhoo gro
         ->and($conversation->participants()->where('step_user_id', '20')->exists())->toBeFalse();
 });
 
+test('large STEP classroom feeds are synchronized page by page', function () {
+    $room = fn (string $id): array => [
+        'id' => $id,
+        'subject' => "Subject {$id}",
+        'section' => "Section {$id}",
+        'year' => '1',
+        'school_year' => '2026-2027',
+        'semester' => '1',
+        'teacher' => stepClassroomIdentity("teacher-{$id}", "Teacher {$id}", "teacher{$id}@school.test", 'Teacher'),
+        'students' => [],
+    ];
+
+    Http::fake([
+        'https://step.test/api/v1/integrations/uhoo/classrooms*' => Http::sequence()
+            ->push(['data' => [
+                'school_year' => '2026-2027',
+                'semester' => '1',
+                'rooms' => [$room('41')],
+                'pagination' => ['has_more' => true, 'next_cursor' => 'cursor-2'],
+            ]])
+            ->push(['data' => [
+                'school_year' => '2026-2027',
+                'semester' => '1',
+                'rooms' => [$room('42')],
+                'pagination' => ['has_more' => false, 'next_cursor' => null],
+            ]]),
+    ]);
+
+    $result = app(SyncStepClassrooms::class)->handle();
+
+    expect($result)->toMatchArray(['created' => 2, 'rooms' => 2])
+        ->and(Conversation::query()->where('managed_by_step', true)->count())->toBe(2);
+
+    Http::assertSentCount(2);
+    Http::assertSent(fn ($request): bool => str_contains($request->url(), 'cursor=cursor-2'));
+});
+
 test('signed STEP webhooks queue an immediate reconciliation', function () {
     Queue::fake();
     $body = json_encode(['event' => 'room.member.changed', 'room_id' => '42']);
@@ -171,7 +208,10 @@ test('signed STEP webhooks queue an immediate reconciliation', function () {
         'HTTP_X_STEP_SIGNATURE' => $signature,
     ], $body)->assertAccepted();
 
-    Queue::assertPushed(SyncStepClassroomsJob::class);
+    Queue::assertPushed(
+        SyncStepClassroomsJob::class,
+        fn (SyncStepClassroomsJob $job): bool => $job->roomId === '42',
+    );
 });
 
 test('unsigned STEP webhooks are rejected', function () {

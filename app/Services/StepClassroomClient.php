@@ -2,16 +2,15 @@
 
 namespace App\Services;
 
+use Generator;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class StepClassroomClient
 {
-    /**
-     * @return array{school_year: string, semester: string, rooms: array<int, array<string, mixed>>}
-     */
-    public function currentClassrooms(): array
+    /** @return Generator<int, array{school_year: string, semester: string, rooms: array<int, array<string, mixed>>}> */
+    public function classroomPages(?string $roomId = null): Generator
     {
         $baseUrl = rtrim((string) config('services.step_sso.base_url'), '/');
         $token = trim((string) config('services.step_sso.integration_token'));
@@ -20,33 +19,59 @@ class StepClassroomClient
             throw new RuntimeException('STEP classroom synchronization is not configured.');
         }
 
-        try {
-            $response = Http::acceptJson()
-                ->withToken($token)
-                ->timeout((int) config('services.step_sso.timeout', 10))
-                ->retry(2, 250)
-                ->get("{$baseUrl}/api/v1/integrations/uhoo/classrooms");
-        } catch (ConnectionException $exception) {
-            throw new RuntimeException('STEP classroom synchronization is unavailable.', previous: $exception);
-        }
+        $cursor = null;
 
-        if (! $response->successful()) {
-            throw new RuntimeException("STEP classroom synchronization failed with status {$response->status()}.");
-        }
+        do {
+            $query = array_filter([
+                'per_page' => 25,
+                'cursor' => $cursor,
+                'room_id' => $roomId,
+            ], fn (mixed $value): bool => $value !== null && $value !== '');
 
-        $data = $response->json('data');
+            try {
+                $response = Http::acceptJson()
+                    ->withToken($token)
+                    ->timeout((int) config('services.step_sso.timeout', 10))
+                    ->retry(2, 250, throw: false)
+                    ->get("{$baseUrl}/api/v1/integrations/uhoo/classrooms", $query);
+            } catch (ConnectionException $exception) {
+                throw new RuntimeException('STEP classroom synchronization is unavailable.', previous: $exception);
+            }
 
-        if (! is_array($data)
-            || ! is_string($data['school_year'] ?? null)
-            || ! is_string($data['semester'] ?? null)
-            || ! is_array($data['rooms'] ?? null)) {
-            throw new RuntimeException('STEP returned an invalid classroom synchronization payload.');
-        }
+            if (! $response->successful()) {
+                $message = $response->json('message');
+                $detail = is_string($message) && $message !== '' ? ' '.$message : '';
 
-        return [
-            'school_year' => $data['school_year'],
-            'semester' => $data['semester'],
-            'rooms' => array_values($data['rooms']),
-        ];
+                throw new RuntimeException("STEP classroom synchronization failed with status {$response->status()}.{$detail}");
+            }
+
+            $data = $response->json('data');
+
+            if (! is_array($data)
+                || ! is_string($data['school_year'] ?? null)
+                || ! is_string($data['semester'] ?? null)
+                || ! is_array($data['rooms'] ?? null)) {
+                throw new RuntimeException('STEP returned an invalid classroom synchronization payload.');
+            }
+
+            yield [
+                'school_year' => $data['school_year'],
+                'semester' => $data['semester'],
+                'rooms' => array_values($data['rooms']),
+            ];
+
+            $hasMore = (bool) data_get($data, 'pagination.has_more', false);
+            $nextCursor = data_get($data, 'pagination.next_cursor');
+
+            if (! $hasMore) {
+                return;
+            }
+
+            if (! is_string($nextCursor) || $nextCursor === '' || $nextCursor === $cursor) {
+                throw new RuntimeException('STEP returned an invalid classroom synchronization cursor.');
+            }
+
+            $cursor = $nextCursor;
+        } while (true);
     }
 }

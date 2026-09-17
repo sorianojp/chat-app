@@ -21,12 +21,16 @@ class StepClassroomWebhookController extends Controller
         $expected = hash_hmac('sha256', $timestamp.'.'.$request->getContent(), $secret);
         abort_unless(hash_equals($expected, $signature), 401);
 
-        $request->validate([
+        $validated = $request->validate([
             'event' => ['required', 'string', 'in:room.changed,room.member.changed,term.changed'],
             'room_id' => ['nullable', 'string', 'max:255'],
         ]);
 
-        SyncStepClassroomsJob::dispatch();
+        $roomId = $validated['event'] === 'term.changed'
+            ? null
+            : ($validated['room_id'] ?? null);
+
+        SyncStepClassroomsJob::dispatch($roomId);
 
         return response()->json(['accepted' => true], 202);
     }
