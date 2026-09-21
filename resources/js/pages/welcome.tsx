@@ -1,7 +1,7 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowRight, Check, CheckCheck, MessageCircle } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
-import { login, messenger } from '@/routes';
+import { login, messenger, privacy } from '@/routes';
 import type { User } from '@/types';
 
 type WelcomeProps = {
@@ -100,8 +100,14 @@ export default function Welcome() {
                         <span className="font-semibold text-foreground">
                             Uhoo!
                         </span>
-                        <span>
+                        <span className="flex items-center gap-4">
                             Simple communication for school communities.
+                            <Link
+                                className="transition hover:text-foreground"
+                                href={privacy()}
+                            >
+                                Privacy
+                            </Link>
                         </span>
                     </div>
                 </footer>
