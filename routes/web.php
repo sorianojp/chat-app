@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
 Route::inertia('privacy', 'privacy')->name('privacy');
+Route::inertia('support', 'support')->name('support');
 
 Route::get('auth/mobile/{state}', [MobileAuthController::class, 'authorize'])
     ->where('state', '[A-Za-z0-9]{64}')

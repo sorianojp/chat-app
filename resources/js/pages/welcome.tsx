@@ -104,6 +104,12 @@ export default function Welcome() {
                             Simple communication for school communities.
                             <Link
                                 className="transition hover:text-foreground"
+                                href="/support"
+                            >
+                                Support
+                            </Link>
+                            <Link
+                                className="transition hover:text-foreground"
                                 href={privacy()}
                             >
                                 Privacy

@@ -4,7 +4,7 @@ import AppLogoIcon from '@/components/app-logo-icon';
 import { home } from '@/routes';
 
 const LAST_UPDATED = '21 September 2026';
-const CONTACT_EMAIL = 'arzatechnologies@gmail.com';
+const CONTACT_EMAIL = 'info@udd.edu.ph';
 
 export default function Privacy() {
     return (
@@ -19,10 +19,7 @@ export default function Privacy() {
             <main className="min-h-screen bg-background text-foreground">
                 <header className="border-b border-border bg-card">
                     <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5 sm:px-8">
-                        <Link
-                            className="flex items-center gap-3"
-                            href={home()}
-                        >
+                        <Link className="flex items-center gap-3" href={home()}>
                             <AppLogoIcon className="size-10 rounded-lg object-cover" />
                             <span className="font-bold tracking-tight text-foreground">
                                 Uhoo!
@@ -200,8 +197,8 @@ export default function Privacy() {
                     <Section title="Changes to this policy">
                         <p>
                             If this policy changes, the new version will be
-                            posted on this page with an updated date. Significant
-                            changes will be announced in the app.
+                            posted on this page with an updated date.
+                            Significant changes will be announced in the app.
                         </p>
                     </Section>
 
@@ -223,6 +220,12 @@ export default function Privacy() {
                 <footer className="border-t border-border bg-card">
                     <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-5 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
                         <p>Uhoo! · Universidad de Dagupan</p>
+                        <Link
+                            className="transition hover:text-foreground"
+                            href="/support"
+                        >
+                            Support
+                        </Link>
                         <Link
                             className="transition hover:text-foreground"
                             href={home()}
