@@ -47,6 +47,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property-read Collection<int, Message> $messages
  * @property-read Collection<int, Team> $ownedTeams
  * @property-read Collection<int, PushToken> $pushTokens
+ * @property-read Collection<int, WebPushSubscription> $webPushSubscriptions
  * @property-read Collection<int, Student> $students
  * @property-read Collection<int, Membership> $teamMemberships
  * @property-read Collection<int, Team> $teams
@@ -107,6 +108,16 @@ class User extends Authenticatable implements PasskeyUser
     public function pushTokens(): HasMany
     {
         return $this->hasMany(PushToken::class);
+    }
+
+    /**
+     * Get this user's registered browser push destinations.
+     *
+     * @return HasMany<WebPushSubscription, $this>
+     */
+    public function webPushSubscriptions(): HasMany
+    {
+        return $this->hasMany(WebPushSubscription::class);
     }
 
     /**

@@ -50,6 +50,7 @@ export type Conversation = {
     pinned_message: MessengerMessage | null;
     messages_count: number;
     unread_count: number;
+    last_read_at: string | null;
     unread_mentions_count: number;
     last_message_at: string | null;
     pinned_at: string | null;
@@ -61,6 +62,7 @@ export type Conversation = {
 
 export type MessengerMessage = {
     id: number;
+    client_message_id: string | null;
     conversation_id: number;
     sender: {
         id: number;
@@ -229,6 +231,7 @@ export type MessengerPageProps = {
     initialConversationId: number | null;
     initialMessages: MessengerMessage[];
     archived: boolean;
+    webPushPublicKey: string | null;
 };
 
 export type MessageCreatedPayload = {

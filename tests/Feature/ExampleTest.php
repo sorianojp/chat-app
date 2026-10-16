@@ -1,9 +1,9 @@
 <?php
 
-test('returns a successful response', function () {
+test('redirects the root page to login', function () {
     $response = $this->get(route('home'));
 
-    $response->assertOk();
+    $response->assertRedirect(route('login'));
 });
 
 test('support page is available without signing in', function () {

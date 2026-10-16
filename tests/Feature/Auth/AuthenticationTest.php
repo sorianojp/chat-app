@@ -303,7 +303,7 @@ test('local logout invalidates the chat session', function () {
 
     $this->actingAs($user)
         ->post(route('logout'))
-        ->assertRedirect(route('home'));
+        ->assertRedirect(route('login'));
 
     $this->assertGuest();
 });

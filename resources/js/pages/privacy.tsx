@@ -1,7 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
-import { home } from '@/routes';
+import { login } from '@/routes';
 
 const LAST_UPDATED = '21 September 2026';
 const CONTACT_EMAIL = 'info@udd.edu.ph';
@@ -17,27 +17,30 @@ export default function Privacy() {
             </Head>
 
             <main className="min-h-screen bg-background text-foreground">
-                <header className="border-b border-border bg-card">
+                <header className="bg-card">
                     <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5 sm:px-8">
-                        <Link className="flex items-center gap-3" href={home()}>
-                            <AppLogoIcon className="size-10 rounded-lg object-cover" />
-                            <span className="font-bold tracking-tight text-foreground">
-                                Uhoo!
+                        <Link
+                            className="flex items-center gap-3"
+                            href={login()}
+                        >
+                            <AppLogoIcon className="size-10 rounded-full object-cover" />
+                            <span className="font-heading font-bold tracking-tight text-foreground">
+                                STEP Messages
                             </span>
                         </Link>
 
                         <Link
-                            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
-                            href={home()}
+                            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                            href={login()}
                         >
                             <ArrowLeft className="size-4" />
-                            Back to home
+                            Sign in
                         </Link>
                     </div>
                 </header>
 
                 <article className="mx-auto w-full max-w-3xl px-5 py-12 sm:px-8 sm:py-16">
-                    <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                    <h1 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
                         Privacy Policy
                     </h1>
                     <p className="mt-3 text-sm text-muted-foreground">
@@ -228,9 +231,9 @@ export default function Privacy() {
                         </Link>
                         <Link
                             className="transition hover:text-foreground"
-                            href={home()}
+                            href={login()}
                         >
-                            Home
+                            Sign in
                         </Link>
                     </div>
                 </footer>

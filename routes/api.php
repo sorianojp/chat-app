@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\PresenceController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\SchoolClassController;
 use App\Http\Controllers\Api\StudentController;
+use App\Http\Controllers\Api\WebPushSubscriptionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
@@ -16,6 +17,9 @@ Route::post('mobile/auth/start', [MobileAuthController::class, 'start'])->middle
 Route::post('mobile/auth/exchange', [MobileAuthController::class, 'exchange'])->middleware('throttle:10,1');
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('web-push/config', [WebPushSubscriptionController::class, 'config']);
+    Route::put('web-push/subscription', [WebPushSubscriptionController::class, 'update']);
+    Route::delete('web-push/subscription', [WebPushSubscriptionController::class, 'destroy']);
     Route::get('mobile/session', [MobileSessionController::class, 'show']);
     Route::delete('mobile/session', [MobileAuthController::class, 'destroy']);
     Route::put('mobile/push-token', [PushTokenController::class, 'update']);

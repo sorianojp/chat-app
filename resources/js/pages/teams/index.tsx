@@ -62,7 +62,7 @@ export default function TeamsIndex({ teams }: Props) {
                             <div
                                 key={team.id}
                                 data-test="team-row"
-                                className="flex items-center justify-between gap-4 rounded-lg border p-4"
+                                className="flex items-center justify-between gap-4 rounded-[20px] bg-card p-5 transition hover:shadow-sm"
                             >
                                 <div className="flex items-center gap-4">
                                     <div>
@@ -158,9 +158,14 @@ export default function TeamsIndex({ teams }: Props) {
                     })}
 
                     {teams.length === 0 ? (
-                        <p className="py-8 text-center text-muted-foreground">
-                            You don't belong to any teams yet.
-                        </p>
+                        <div className="rounded-[20px] bg-card px-6 py-14 text-center">
+                            <p className="font-heading font-bold">
+                                No teams yet
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Teams you create or join will appear here.
+                            </p>
+                        </div>
                     ) : null}
                 </div>
             </div>

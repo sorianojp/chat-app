@@ -4,6 +4,7 @@ import {
     Archive,
     ArchiveRestore,
     ArrowLeft,
+    ArrowDown,
     Bell,
     BellOff,
     Calendar,
@@ -52,6 +53,12 @@ import {
     LinkPreviewCard,
     PollCard,
 } from '@/features/messenger/components/interactive-message-cards';
+import { PendingMessage } from '@/features/messenger/components/pending-message';
+import type { PendingOutgoingMessage } from '@/features/messenger/components/pending-message';
+import {
+    VoiceNoteControls,
+    VoiceNoteDraftPreview,
+} from '@/features/messenger/components/voice-note-controls';
 import type {
     Contact,
     Conversation,
@@ -83,6 +90,8 @@ import type {
     TypingUser,
     WindowWithWebAudio,
 } from '@/features/messenger/types';
+import { useBrowserNotifications } from '@/features/messenger/use-browser-notifications';
+import type { VoiceRecorderStatus } from '@/features/messenger/use-voice-recorder';
 import type { User } from '@/types';
 
 const REACTION_OPTIONS = ['👍', '❤️', '😂', '😮', '🙏', '✅'];
@@ -95,6 +104,7 @@ const EMPTY_SHARED_CONTENT: SharedContent = {
     links: [],
 };
 const subscribeToHydration = () => () => {};
+type UnreadSnapshot = { count: number; lastReadAt: string | null };
 
 export default function Messenger({
     apiBaseUrl,
@@ -103,6 +113,7 @@ export default function Messenger({
     conversations: initialConversations,
     initialConversationId,
     initialMessages,
+    webPushPublicKey,
     workspace,
 }: MessengerPageProps) {
     const { auth } = usePage<{ auth: { user: User } }>().props;
@@ -122,6 +133,22 @@ export default function Messenger({
     const [activeConversationId, setActiveConversationId] = useState<
         number | null
     >(initialConversationId);
+    const [unreadSnapshots, setUnreadSnapshots] = useState<
+        Record<number, UnreadSnapshot>
+    >(() => {
+        const conversation = initialConversations.find(
+            (item) => item.id === initialConversationId,
+        );
+
+        return conversation && conversation.unread_count > 0
+            ? {
+                  [conversation.id]: {
+                      count: conversation.unread_count,
+                      lastReadAt: conversation.last_read_at,
+                  },
+              }
+            : {};
+    });
     const [messagesByConversation, setMessagesByConversation] = useState<
         Record<number, MessengerMessage[]>
     >(() =>
@@ -132,6 +159,9 @@ export default function Messenger({
             : {},
     );
     const [messageBody, setMessageBody] = useState('');
+    const [draftsByConversation, setDraftsByConversation] = useState<
+        Record<number, string>
+    >({});
     const [mentionQuery, setMentionQuery] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [messageSearch, setMessageSearch] = useState('');
@@ -159,6 +189,9 @@ export default function Messenger({
         () => false,
     );
     const [sending, setSending] = useState(false);
+    const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+    const [pendingMessagesByConversation, setPendingMessagesByConversation] =
+        useState<Record<number, PendingOutgoingMessage[]>>({});
     const [composerOpen, setComposerOpen] = useState(false);
     const [pollComposerOpen, setPollComposerOpen] = useState(false);
     const [eventComposerOpen, setEventComposerOpen] = useState(false);
@@ -173,10 +206,26 @@ export default function Messenger({
     const [replyToMessage, setReplyToMessage] =
         useState<MessengerMessage | null>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const [recordedVoiceNote, setRecordedVoiceNote] = useState<File | null>(
+        null,
+    );
+    const [voiceRecorderStatus, setVoiceRecorderStatus] =
+        useState<VoiceRecorderStatus>('idle');
+    const browserNotifications = useBrowserNotifications(
+        auth.user.id,
+        workspace.id,
+        workspace.slug,
+        webPushPublicKey,
+    );
+    const notifyBrowserMessage = browserNotifications.notify;
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const messageInputRef = useRef<HTMLInputElement | null>(null);
     const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
-    const messagesEndRef = useRef<HTMLDivElement | null>(null);
+    const messagesViewportRef = useRef<HTMLDivElement | null>(null);
+    const unreadMarkerRef = useRef<HTMLDivElement | null>(null);
+    const initialScrollConversationRef = useRef(initialConversationId);
+    const nearBottomRef = useRef(true);
+    const forceScrollToLatestRef = useRef(false);
     const activeConversationIdRef = useRef(activeConversationId);
     const conversationsRef = useRef(conversations);
     const currentUserIdRef = useRef(auth.user.id);
@@ -197,6 +246,42 @@ export default function Messenger({
     const notificationAudioContextRef = useRef<AudioContext | null>(null);
     const deliveredMessageIdsRef = useRef(new Set<number>());
     const typingTimeoutsRef = useRef<Record<string, number>>({});
+    const inFlightMessageIdsRef = useRef(new Set<string>());
+    const sendingRef = useRef(false);
+    const draftsRef = useRef<Record<number, string>>({});
+    const draftStorageKey = `uhoo:drafts:v1:${auth.user.id}:${workspace.id}`;
+
+    const updateDraft = useCallback(
+        (conversationId: number, body: string) => {
+            const nextDrafts = { ...draftsRef.current };
+
+            if (body.trim()) {
+                nextDrafts[conversationId] = body;
+            } else {
+                delete nextDrafts[conversationId];
+            }
+
+            draftsRef.current = nextDrafts;
+            setDraftsByConversation(nextDrafts);
+            saveConversationDrafts(draftStorageKey, nextDrafts);
+        },
+        [draftStorageKey],
+    );
+
+    const handleRecordedVoiceNote = useCallback((file: File) => {
+        setSelectedFiles([file]);
+        setRecordedVoiceNote(file);
+    }, []);
+
+    useEffect(() => {
+        const savedDrafts = loadConversationDrafts(draftStorageKey);
+        draftsRef.current = savedDrafts;
+        setDraftsByConversation(savedDrafts);
+
+        if (initialConversationId) {
+            setMessageBody(savedDrafts[initialConversationId] ?? '');
+        }
+    }, [draftStorageKey, initialConversationId]);
 
     const activeConversation = useMemo(
         () =>
@@ -212,6 +297,22 @@ export default function Messenger({
                 : [],
         [activeConversationId, messagesByConversation],
     );
+    const activePendingMessages = activeConversationId
+        ? (pendingMessagesByConversation[activeConversationId] ?? [])
+        : [];
+    const activeUnreadSnapshot = activeConversationId
+        ? unreadSnapshots[activeConversationId]
+        : undefined;
+    const firstUnreadMessageId = activeUnreadSnapshot
+        ? (activeMessages.find(
+              (message) =>
+                  message.sender?.id !== auth.user.id &&
+                  message.created_at !== null &&
+                  (activeUnreadSnapshot.lastReadAt === null ||
+                      new Date(message.created_at).getTime() >
+                          new Date(activeUnreadSnapshot.lastReadAt).getTime()),
+          )?.id ?? null)
+        : null;
     const activePinnedMessages = activeConversationId
         ? (pinnedMessagesByConversation[activeConversationId] ??
           pinnedMessagesList([
@@ -426,6 +527,11 @@ export default function Messenger({
 
     const handleMessageBodyChange = (value: string) => {
         setMessageBody(value);
+
+        if (activeConversationId && !editingMessage) {
+            updateDraft(activeConversationId, value);
+        }
+
         setMentionQuery(
             mentionQueryAtCursor(
                 value,
@@ -486,6 +592,11 @@ export default function Messenger({
         const nextCursor = beforeMention.length + option.token.length + 1;
 
         setMessageBody(nextBody);
+
+        if (activeConversationId && !editingMessage) {
+            updateDraft(activeConversationId, nextBody);
+        }
+
         setMentionQuery(null);
 
         window.setTimeout(() => {
@@ -551,6 +662,18 @@ export default function Messenger({
 
     const appendMessage = useCallback(
         (message: MessengerMessage) => {
+            if (message.client_message_id) {
+                setPendingMessagesByConversation((pendingByConversation) => ({
+                    ...pendingByConversation,
+                    [message.conversation_id]: (
+                        pendingByConversation[message.conversation_id] ?? []
+                    ).filter(
+                        (pending) =>
+                            pending.clientId !== message.client_message_id,
+                    ),
+                }));
+            }
+
             const isActive =
                 message.conversation_id === activeConversationIdRef.current;
             const isMine = message.sender?.id === currentUserIdRef.current;
@@ -572,7 +695,27 @@ export default function Messenger({
                     currentUserNameRef.current,
                 )
             ) {
-                playNotificationSound();
+                const preview = messagePreview(message);
+                const title =
+                    conversation?.display_name ??
+                    message.sender?.name ??
+                    'New message';
+                const body =
+                    conversation?.type === 'group' ||
+                    conversation?.type === 'announcement'
+                        ? `${message.sender?.name ?? 'Someone'}: ${preview}`
+                        : preview;
+
+                void notifyBrowserMessage({
+                    messageId: message.id,
+                    conversationId: message.conversation_id,
+                    title,
+                    body,
+                }).then((shown) => {
+                    if (!shown) {
+                        playNotificationSound();
+                    }
+                });
             }
 
             setMessagesByConversation((messages) => {
@@ -625,7 +768,7 @@ export default function Messenger({
                 ),
             );
         },
-        [playNotificationSound],
+        [notifyBrowserMessage, playNotificationSound],
     );
 
     const updateMessageReactions = useCallback(
@@ -872,6 +1015,33 @@ export default function Messenger({
 
     const selectConversation = (conversationId: number | null) => {
         stopOwnTyping(activeConversationIdRef.current);
+        const selectedConversation = conversations.find(
+            (conversation) => conversation.id === conversationId,
+        );
+
+        if (conversationId) {
+            setUnreadSnapshots((snapshots) => {
+                const nextSnapshots = { ...snapshots };
+
+                if (
+                    selectedConversation &&
+                    selectedConversation.unread_count > 0
+                ) {
+                    nextSnapshots[conversationId] = {
+                        count: selectedConversation.unread_count,
+                        lastReadAt: selectedConversation.last_read_at,
+                    };
+                } else {
+                    delete nextSnapshots[conversationId];
+                }
+
+                return nextSnapshots;
+            });
+        }
+
+        initialScrollConversationRef.current = conversationId;
+        nearBottomRef.current = true;
+        setShowJumpToLatest(false);
         setActiveConversationId(conversationId);
         setConversations((items) =>
             items.map((conversation) =>
@@ -890,8 +1060,11 @@ export default function Messenger({
         setEditingMessage(null);
         setReplyToMessage(null);
         setMentionQuery(null);
-        setMessageBody('');
+        setMessageBody(
+            conversationId ? (draftsRef.current[conversationId] ?? '') : '',
+        );
         setSelectedFiles([]);
+        setRecordedVoiceNote(null);
         setLoadingSharedConversationId(conversationId);
         setLoadingPinnedConversationId(conversationId);
         const url = new URL(window.location.href);
@@ -1321,10 +1494,23 @@ export default function Messenger({
             });
             loadedConversationIdsRef.current.add(conversationId);
 
-            setMessagesByConversation((messages) => ({
-                ...messages,
-                [conversationId]: [...payload.data].reverse(),
-            }));
+            setMessagesByConversation((messages) => {
+                const fetchedMessages = [...payload.data].reverse();
+                const fetchedIds = new Set(
+                    fetchedMessages.map((message) => message.id),
+                );
+                const existingMessages = (
+                    messages[conversationId] ?? []
+                ).filter((message) => !fetchedIds.has(message.id));
+
+                return {
+                    ...messages,
+                    [conversationId]: sortMessagesByCreatedAt([
+                        ...fetchedMessages,
+                        ...existingMessages,
+                    ]),
+                };
+            });
         },
         [apiBaseUrl],
     );
@@ -1466,9 +1652,81 @@ export default function Messenger({
         [apiBaseUrl],
     );
 
+    const scrollToLatest = useCallback(
+        (behavior: ScrollBehavior = 'smooth') => {
+            const viewport = messagesViewportRef.current;
+
+            if (!viewport) {
+                return;
+            }
+
+            viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+            nearBottomRef.current = true;
+            forceScrollToLatestRef.current = false;
+            setShowJumpToLatest(false);
+        },
+        [],
+    );
+
+    const handleTimelineScroll = () => {
+        const viewport = messagesViewportRef.current;
+
+        if (!viewport) {
+            return;
+        }
+
+        const nearBottom =
+            viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <
+            96;
+        nearBottomRef.current = nearBottom;
+        setShowJumpToLatest(!nearBottom);
+    };
+
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [activeConversationId, activeMessages.length]);
+        const viewport = messagesViewportRef.current;
+
+        if (!viewport || !activeConversationId || messageSearchTerm) {
+            return;
+        }
+
+        if (initialScrollConversationRef.current === activeConversationId) {
+            if (
+                !loadedConversationIdsRef.current.has(activeConversationId) &&
+                activeMessages.length === 0
+            ) {
+                return;
+            }
+
+            const marker = unreadMarkerRef.current;
+
+            if (marker) {
+                viewport.scrollTop +=
+                    marker.getBoundingClientRect().top -
+                    viewport.getBoundingClientRect().top -
+                    12;
+                handleTimelineScroll();
+            } else {
+                scrollToLatest('auto');
+            }
+
+            initialScrollConversationRef.current = null;
+
+            return;
+        }
+
+        if (forceScrollToLatestRef.current || nearBottomRef.current) {
+            scrollToLatest('auto');
+        } else {
+            setShowJumpToLatest(true);
+        }
+    }, [
+        activeConversationId,
+        activeMessages.length,
+        activePendingMessages.length,
+        firstUnreadMessageId,
+        messageSearchTerm,
+        scrollToLatest,
+    ]);
 
     useEffect(() => {
         if (!activeConversationId) {
@@ -1593,6 +1851,11 @@ export default function Messenger({
         }
 
         setReplyToMessage(message);
+
+        if (editingMessage) {
+            setMessageBody(draftsRef.current[message.conversation_id] ?? '');
+        }
+
         setEditingMessage(null);
     };
 
@@ -1604,6 +1867,7 @@ export default function Messenger({
         setEditingMessage(message);
         setReplyToMessage(null);
         setSelectedFiles([]);
+        setRecordedVoiceNote(null);
         setMessageBody(message.body);
         setMentionQuery(null);
 
@@ -1615,7 +1879,11 @@ export default function Messenger({
     const cancelComposerContext = () => {
         setEditingMessage(null);
         setReplyToMessage(null);
-        setMessageBody('');
+        setMessageBody(
+            activeConversationId
+                ? (draftsRef.current[activeConversationId] ?? '')
+                : '',
+        );
         setMentionQuery(null);
     };
 
@@ -1651,7 +1919,11 @@ export default function Messenger({
 
             replaceMessage(payload.data);
             setEditingMessage(null);
-            setMessageBody('');
+            setMessageBody(
+                activeConversationId
+                    ? (draftsRef.current[activeConversationId] ?? '')
+                    : '',
+            );
             setMentionQuery(null);
         } finally {
             setSending(false);
@@ -1691,7 +1963,11 @@ export default function Messenger({
 
         if (editingMessage?.id === message.id) {
             setEditingMessage(null);
-            setMessageBody('');
+            setMessageBody(
+                activeConversationId
+                    ? (draftsRef.current[activeConversationId] ?? '')
+                    : '',
+            );
             setMentionQuery(null);
         }
 
@@ -2128,45 +2404,55 @@ export default function Messenger({
         }
     };
 
-    const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-
-        if (editingMessage) {
-            await updateMessage();
-
-            return;
-        }
-
+    const sendPendingMessage = async (
+        pendingMessage: PendingOutgoingMessage,
+    ) => {
         if (
-            !activeConversationId ||
-            (!messageBody.trim() && selectedFiles.length === 0) ||
-            sending
+            sendingRef.current ||
+            inFlightMessageIdsRef.current.has(pendingMessage.clientId)
         ) {
             return;
         }
 
+        sendingRef.current = true;
+        inFlightMessageIdsRef.current.add(pendingMessage.clientId);
         setSending(true);
+        setPendingMessagesByConversation((pendingByConversation) => ({
+            ...pendingByConversation,
+            [pendingMessage.conversationId]: (
+                pendingByConversation[pendingMessage.conversationId] ?? []
+            ).map((message) =>
+                message.clientId === pendingMessage.clientId
+                    ? { ...message, status: 'sending', error: null }
+                    : message,
+            ),
+        }));
 
         try {
             const formData = new FormData();
+            formData.append('client_message_id', pendingMessage.clientId);
 
-            if (messageBody.trim()) {
-                formData.append('body', messageBody.trim());
+            if (pendingMessage.type) {
+                formData.append('type', pendingMessage.type);
             }
 
-            selectedFiles.forEach((file) => {
+            if (pendingMessage.body) {
+                formData.append('body', pendingMessage.body);
+            }
+
+            pendingMessage.files.forEach((file) => {
                 formData.append('attachments[]', file);
             });
 
-            if (replyToMessage) {
+            if (pendingMessage.replyToMessageId) {
                 formData.append(
                     'reply_to_message_id',
-                    String(replyToMessage.id),
+                    String(pendingMessage.replyToMessageId),
                 );
             }
 
             const response = await fetch(
-                `${apiBaseUrl}/conversations/${activeConversationId}/messages`,
+                `${apiBaseUrl}/conversations/${pendingMessage.conversationId}/messages`,
                 {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -2179,7 +2465,11 @@ export default function Messenger({
             );
 
             if (!response.ok) {
-                return;
+                const failure = (await response.json().catch(() => null)) as {
+                    message?: string;
+                } | null;
+
+                throw new Error(failure?.message ?? 'Could not send message.');
             }
 
             const payload = (await response.json()) as {
@@ -2187,30 +2477,118 @@ export default function Messenger({
             };
 
             appendMessage(payload.data);
-            setMessageBody('');
-            setMentionQuery(null);
-            setReplyToMessage(null);
-            setSelectedFiles([]);
-            stopOwnTyping(activeConversationId);
-
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
+            setPendingMessagesByConversation((pendingByConversation) => ({
+                ...pendingByConversation,
+                [pendingMessage.conversationId]: (
+                    pendingByConversation[pendingMessage.conversationId] ?? []
+                ).filter(
+                    (message) => message.clientId !== pendingMessage.clientId,
+                ),
+            }));
+        } catch (error) {
+            setPendingMessagesByConversation((pendingByConversation) => ({
+                ...pendingByConversation,
+                [pendingMessage.conversationId]: (
+                    pendingByConversation[pendingMessage.conversationId] ?? []
+                ).map((message) =>
+                    message.clientId === pendingMessage.clientId
+                        ? {
+                              ...message,
+                              status: 'failed',
+                              error:
+                                  error instanceof Error
+                                      ? error.message
+                                      : 'Could not send message.',
+                          }
+                        : message,
+                ),
+            }));
         } finally {
+            inFlightMessageIdsRef.current.delete(pendingMessage.clientId);
+            sendingRef.current = false;
             setSending(false);
         }
+    };
+
+    const discardPendingMessage = (clientId: string) => {
+        if (!activeConversationId) {
+            return;
+        }
+
+        setPendingMessagesByConversation((pendingByConversation) => ({
+            ...pendingByConversation,
+            [activeConversationId]: (
+                pendingByConversation[activeConversationId] ?? []
+            ).filter((message) => message.clientId !== clientId),
+        }));
+    };
+
+    const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (editingMessage) {
+            await updateMessage();
+
+            return;
+        }
+
+        if (
+            !activeConversationId ||
+            (!messageBody.trim() && selectedFiles.length === 0) ||
+            sending ||
+            voiceRecorderStatus !== 'idle' ||
+            sendingRef.current
+        ) {
+            return;
+        }
+
+        const pendingMessage: PendingOutgoingMessage = {
+            clientId: crypto.randomUUID(),
+            conversationId: activeConversationId,
+            body: messageBody.trim(),
+            type: recordedVoiceNote ? 'voice' : null,
+            files: selectedFiles,
+            replyToMessageId: replyToMessage?.id ?? null,
+            replyPreview: replyToMessage
+                ? messagePreview(replyToMessage)
+                : null,
+            status: 'sending',
+            error: null,
+        };
+
+        forceScrollToLatestRef.current = true;
+        setPendingMessagesByConversation((pendingByConversation) => ({
+            ...pendingByConversation,
+            [activeConversationId]: [
+                ...(pendingByConversation[activeConversationId] ?? []),
+                pendingMessage,
+            ],
+        }));
+        setMessageBody('');
+        updateDraft(activeConversationId, '');
+        setMentionQuery(null);
+        setReplyToMessage(null);
+        setSelectedFiles([]);
+        setRecordedVoiceNote(null);
+        stopOwnTyping(activeConversationId);
+
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+
+        await sendPendingMessage(pendingMessage);
     };
 
     return (
         <>
             <Head title="Messages" />
-            <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-card md:h-[calc(100dvh-6.5rem)]">
-                <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-5 py-4">
+            <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-background">
+                <div className="flex shrink-0 items-center justify-between px-4 py-4 sm:px-6">
                     <div className="min-w-0">
                         <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                             {workspace.name}
                         </p>
-                        <h1 className="truncate text-2xl font-bold text-foreground">
+                        <h1 className="truncate font-heading text-2xl font-bold text-foreground">
                             {archived ? 'Archived' : 'Chat'}
                         </h1>
                     </div>
@@ -2218,7 +2596,7 @@ export default function Messenger({
                         {activeConversation && (
                             <button
                                 aria-label="Back to chats"
-                                className="grid size-10 place-items-center rounded-full bg-muted text-foreground transition hover:bg-accent lg:hidden"
+                                className="grid size-10 place-items-center rounded-xl bg-secondary text-foreground transition hover:bg-accent lg:hidden"
                                 onClick={() => selectConversation(null)}
                                 type="button"
                             >
@@ -2227,7 +2605,7 @@ export default function Messenger({
                         )}
                         <a
                             aria-label={archived ? 'Back to inbox' : 'Archive'}
-                            className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground shadow-sm transition hover:bg-muted hover:text-foreground"
+                            className="grid size-10 place-items-center rounded-xl bg-secondary text-muted-foreground transition hover:bg-accent hover:text-foreground"
                             href={
                                 archived
                                     ? `/${workspace.slug}/messenger`
@@ -2243,7 +2621,7 @@ export default function Messenger({
                         {!archived && (
                             <button
                                 aria-label="New message"
-                                className="grid size-10 place-items-center rounded-full bg-brand-solid text-brand-foreground shadow-sm transition hover:bg-brand-solid/90"
+                                className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:bg-[#121e41]"
                                 onClick={() => setComposerOpen(true)}
                                 type="button"
                             >
@@ -2253,7 +2631,7 @@ export default function Messenger({
                     </div>
                 </div>
 
-                <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_320px]">
+                <div className="mx-4 mb-4 grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[20px] bg-card shadow-sm sm:mx-6 sm:mb-6 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)_320px]">
                     <aside
                         className={`min-h-0 flex-col border-r border-border bg-card lg:flex ${activeConversation ? 'hidden' : 'flex'}`}
                     >
@@ -2263,7 +2641,7 @@ export default function Messenger({
                                     {archived ? 'Archives' : 'Chats'}
                                 </h2>
                             </div>
-                            <label className="flex h-10 items-center gap-2 rounded-lg bg-muted px-3 text-muted-foreground">
+                            <label className="flex h-11 items-center gap-2 rounded-xl bg-secondary/70 px-3 text-muted-foreground transition focus-within:bg-card focus-within:ring-4 focus-within:ring-ring/20">
                                 <Search className="size-4" />
                                 <input
                                     className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
@@ -2275,8 +2653,66 @@ export default function Messenger({
                                     value={search}
                                 />
                             </label>
+                            {hasHydrated && (
+                                <div className="mt-3 flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-2.5">
+                                    <Bell className="size-4 shrink-0 text-muted-foreground" />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-semibold text-foreground">
+                                            Browser alerts
+                                        </p>
+                                        <p className="text-[11px] leading-4 text-muted-foreground">
+                                            {browserNotifications.permission ===
+                                            'unsupported'
+                                                ? 'Unavailable in this browser or connection.'
+                                                : browserNotifications.permission ===
+                                                    'denied'
+                                                  ? 'Blocked in browser settings.'
+                                                  : browserNotifications.enabled
+                                                    ? browserNotifications.backgroundEnabled
+                                                        ? 'On—even when the app is closed.'
+                                                        : 'On while Messenger is open.'
+                                                    : webPushPublicKey
+                                                      ? 'Get alerts even when the app is closed.'
+                                                      : 'Get alerts when this tab is not in focus.'}
+                                        </p>
+                                        {browserNotifications.error && (
+                                            <p
+                                                className="mt-1 text-[11px] text-destructive"
+                                                role="alert"
+                                            >
+                                                {browserNotifications.error}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <button
+                                        aria-label={`${browserNotifications.enabled ? 'Disable' : 'Enable'} browser alerts`}
+                                        aria-pressed={
+                                            browserNotifications.enabled &&
+                                            browserNotifications.permission ===
+                                                'granted'
+                                        }
+                                        className="shrink-0 rounded-lg bg-card px-2.5 py-1.5 text-xs font-semibold text-foreground ring-1 ring-border transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                                        disabled={
+                                            browserNotifications.permission ===
+                                                'unsupported' ||
+                                            browserNotifications.permission ===
+                                                'denied'
+                                        }
+                                        onClick={() =>
+                                            void browserNotifications.toggle()
+                                        }
+                                        type="button"
+                                    >
+                                        {browserNotifications.enabled &&
+                                        browserNotifications.permission ===
+                                            'granted'
+                                            ? 'On'
+                                            : 'Enable'}
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                        <div className="min-h-0 flex-1 overflow-y-auto">
+                        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
                             {filteredConversations.length > 0 ? (
                                 filteredConversations.map((conversation) => {
                                     const typingUsers = Object.values(
@@ -2287,11 +2723,11 @@ export default function Messenger({
 
                                     return (
                                         <button
-                                            className={`flex w-full gap-3 border-b border-border px-4 py-4 text-left transition ${
+                                            className={`flex w-full gap-3 rounded-xl px-3 py-3 text-left transition ${
                                                 conversation.id ===
                                                 activeConversationId
-                                                    ? 'bg-brand/10'
-                                                    : 'bg-card hover:bg-muted/40'
+                                                    ? 'bg-gold/20 ring-1 ring-gold/35'
+                                                    : 'bg-card hover:bg-muted'
                                             }`}
                                             key={conversation.id}
                                             onClick={() =>
@@ -2332,7 +2768,7 @@ export default function Messenger({
                                                     </span>
                                                     {conversation.unread_count >
                                                         0 && (
-                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-solid text-[10px] font-bold text-brand-foreground">
+                                                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-gold text-[10px] font-bold text-gold-foreground">
                                                             {
                                                                 conversation.unread_count
                                                             }
@@ -2356,9 +2792,13 @@ export default function Messenger({
                                                         ? typingLabel(
                                                               typingUsers,
                                                           )
-                                                        : conversationPreview(
-                                                              conversation.latest_message,
-                                                          )}
+                                                        : draftsByConversation[
+                                                                conversation.id
+                                                            ]
+                                                          ? `Draft: ${draftsByConversation[conversation.id].trim()}`
+                                                          : conversationPreview(
+                                                                conversation.latest_message,
+                                                            )}
                                                 </p>
                                                 <p className="mt-2 text-[11px] font-medium text-muted-foreground">
                                                     {conversationStatusLabel(
@@ -2431,7 +2871,7 @@ export default function Messenger({
                                 />
                                 {messageSearchOpen && (
                                     <div className="border-b border-border bg-card px-4 py-3 md:px-6">
-                                        <label className="flex h-10 items-center gap-2 rounded-lg bg-muted px-3 text-muted-foreground">
+                                        <label className="flex h-11 items-center gap-2 rounded-xl bg-secondary/70 px-3 text-muted-foreground transition focus-within:bg-card focus-within:ring-4 focus-within:ring-ring/20">
                                             <Search className="size-4" />
                                             <input
                                                 autoFocus
@@ -2470,87 +2910,154 @@ export default function Messenger({
                                         onUnpin={toggleMessagePin}
                                     />
                                 )}
-                                <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-5 md:px-6">
-                                    {visibleMessages.length > 0 ? (
-                                        visibleMessages.map((message) => (
-                                            <div
-                                                className={`rounded-2xl transition ${
-                                                    highlightedMessageId ===
-                                                    message.id
-                                                        ? 'bg-brand/15 ring-2 ring-brand/30'
-                                                        : ''
-                                                }`}
-                                                key={message.id}
-                                                ref={(element) => {
-                                                    messageRefs.current[
+                                <div className="relative min-h-0 flex-1">
+                                    <div
+                                        className="h-full space-y-4 overflow-x-hidden overflow-y-auto bg-background px-4 py-5 md:px-6"
+                                        onScroll={handleTimelineScroll}
+                                        ref={messagesViewportRef}
+                                    >
+                                        {visibleMessages.length > 0 ||
+                                        (!messageSearchTerm &&
+                                            activePendingMessages.length >
+                                                0) ? (
+                                            visibleMessages.map((message) => (
+                                                <div
+                                                    className={`rounded-2xl transition ${
+                                                        highlightedMessageId ===
                                                         message.id
-                                                    ] = element;
-                                                }}
-                                            >
-                                                <MessageBubble
-                                                    canPin={
-                                                        activeConversation
-                                                            .permissions
-                                                            .can_pin_messages
-                                                    }
-                                                    currentUserId={auth.user.id}
-                                                    conversation={
-                                                        activeConversation
-                                                    }
-                                                    deliveryStatus={messageDeliveryStatus(
-                                                        message,
-                                                        auth.user.id,
-                                                        hasHydrated,
-                                                        message.id ===
-                                                            seenMessageId,
-                                                        message.id ===
-                                                            deliveredMessageId,
-                                                        message.id ===
-                                                            latestOwnMessageId,
-                                                    )}
-                                                    message={message}
-                                                    onEdit={startEdit}
-                                                    onForward={
-                                                        setForwardingMessage
-                                                    }
-                                                    onPin={toggleMessagePin}
-                                                    onReact={toggleReaction}
-                                                    onReply={startReply}
-                                                    onRsvp={respondToEvent}
-                                                    onUnsend={unsendMessage}
-                                                    onVote={votePoll}
-                                                />
-                                            </div>
-                                        ))
-                                    ) : searchingMessages ? (
-                                        <EmptyState
-                                            icon={<Search className="size-6" />}
-                                            title="Searching messages"
-                                            body="Looking through this conversation."
-                                        />
-                                    ) : messageSearchOpen &&
-                                      messageSearchTerm ? (
-                                        <EmptyState
-                                            icon={<Search className="size-6" />}
-                                            title="No messages found"
-                                            body="Try another word or file name."
-                                        />
-                                    ) : (
-                                        <EmptyState
-                                            icon={
-                                                <MessageCircle className="size-6" />
-                                            }
-                                            title="No messages yet"
-                                            body="Send the first message in this conversation."
-                                        />
-                                    )}
-                                    {activeTypingUsers.length > 0 &&
-                                        !messageSearchTerm && (
-                                            <TypingIndicator
-                                                users={activeTypingUsers}
+                                                            ? 'bg-brand/15 ring-2 ring-brand/30'
+                                                            : ''
+                                                    }`}
+                                                    key={message.id}
+                                                    ref={(element) => {
+                                                        messageRefs.current[
+                                                            message.id
+                                                        ] = element;
+                                                    }}
+                                                >
+                                                    {message.id ===
+                                                        firstUnreadMessageId &&
+                                                        !messageSearchTerm && (
+                                                            <div
+                                                                className="mb-4 flex items-center gap-3 text-xs font-semibold text-brand"
+                                                                ref={
+                                                                    unreadMarkerRef
+                                                                }
+                                                            >
+                                                                <span className="h-px flex-1 bg-brand/30" />
+                                                                <span>
+                                                                    {
+                                                                        activeUnreadSnapshot?.count
+                                                                    }{' '}
+                                                                    unread{' '}
+                                                                    {activeUnreadSnapshot?.count ===
+                                                                    1
+                                                                        ? 'message'
+                                                                        : 'messages'}
+                                                                </span>
+                                                                <span className="h-px flex-1 bg-brand/30" />
+                                                            </div>
+                                                        )}
+                                                    <MessageBubble
+                                                        canPin={
+                                                            activeConversation
+                                                                .permissions
+                                                                .can_pin_messages
+                                                        }
+                                                        currentUserId={
+                                                            auth.user.id
+                                                        }
+                                                        conversation={
+                                                            activeConversation
+                                                        }
+                                                        deliveryStatus={messageDeliveryStatus(
+                                                            message,
+                                                            auth.user.id,
+                                                            hasHydrated,
+                                                            message.id ===
+                                                                seenMessageId,
+                                                            message.id ===
+                                                                deliveredMessageId,
+                                                            message.id ===
+                                                                latestOwnMessageId,
+                                                        )}
+                                                        message={message}
+                                                        onEdit={startEdit}
+                                                        onForward={
+                                                            setForwardingMessage
+                                                        }
+                                                        onPin={toggleMessagePin}
+                                                        onReact={toggleReaction}
+                                                        onReply={startReply}
+                                                        onRsvp={respondToEvent}
+                                                        onUnsend={unsendMessage}
+                                                        onVote={votePoll}
+                                                    />
+                                                </div>
+                                            ))
+                                        ) : searchingMessages ? (
+                                            <EmptyState
+                                                icon={
+                                                    <Search className="size-6" />
+                                                }
+                                                title="Searching messages"
+                                                body="Looking through this conversation."
+                                            />
+                                        ) : messageSearchOpen &&
+                                          messageSearchTerm ? (
+                                            <EmptyState
+                                                icon={
+                                                    <Search className="size-6" />
+                                                }
+                                                title="No messages found"
+                                                body="Try another word or file name."
+                                            />
+                                        ) : (
+                                            <EmptyState
+                                                icon={
+                                                    <MessageCircle className="size-6" />
+                                                }
+                                                title="No messages yet"
+                                                body="Send the first message in this conversation."
                                             />
                                         )}
-                                    <div ref={messagesEndRef} />
+                                        {!messageSearchTerm &&
+                                            activePendingMessages.map(
+                                                (message) => (
+                                                    <PendingMessage
+                                                        key={message.clientId}
+                                                        message={message}
+                                                        onDiscard={
+                                                            discardPendingMessage
+                                                        }
+                                                        onRetry={(
+                                                            pendingMessage,
+                                                        ) =>
+                                                            void sendPendingMessage(
+                                                                pendingMessage,
+                                                            )
+                                                        }
+                                                    />
+                                                ),
+                                            )}
+                                        {activeTypingUsers.length > 0 &&
+                                            !messageSearchTerm && (
+                                                <TypingIndicator
+                                                    users={activeTypingUsers}
+                                                />
+                                            )}
+                                    </div>
+                                    {showJumpToLatest && !messageSearchTerm && (
+                                        <button
+                                            aria-label="Jump to latest message"
+                                            className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground shadow-lg transition hover:bg-muted"
+                                            onClick={() => scrollToLatest()}
+                                            type="button"
+                                        >
+                                            <ArrowDown className="size-4" />
+                                            Jump to latest
+                                        </button>
+                                    )}
                                 </div>
                                 <form
                                     className="shrink-0 border-t border-border bg-card p-4"
@@ -2579,12 +3086,15 @@ export default function Messenger({
                                             {selectedFiles.map(
                                                 (file, index) => (
                                                     <span
-                                                        className="inline-flex max-w-full items-center gap-2 rounded-full bg-muted px-3 py-2 text-xs font-medium text-foreground"
+                                                        className="inline-flex max-w-full items-center gap-2 rounded-full bg-secondary px-3 py-2 text-xs font-medium text-foreground"
                                                         key={`${file.name}-${file.lastModified}-${index}`}
                                                     >
                                                         <FileText className="size-3.5 shrink-0" />
                                                         <span className="max-w-48 truncate">
-                                                            {file.name}
+                                                            {file ===
+                                                            recordedVoiceNote
+                                                                ? 'Voice note'
+                                                                : file.name}
                                                         </span>
                                                         <span className="text-muted-foreground">
                                                             {formatFileSize(
@@ -2594,7 +3104,7 @@ export default function Messenger({
                                                         <button
                                                             aria-label={`Remove ${file.name}`}
                                                             className="grid size-5 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                                                            onClick={() =>
+                                                            onClick={() => {
                                                                 setSelectedFiles(
                                                                     (files) =>
                                                                         files.filter(
@@ -2605,8 +3115,17 @@ export default function Messenger({
                                                                                 fileIndex !==
                                                                                 index,
                                                                         ),
-                                                                )
-                                                            }
+                                                                );
+
+                                                                if (
+                                                                    file ===
+                                                                    recordedVoiceNote
+                                                                ) {
+                                                                    setRecordedVoiceNote(
+                                                                        null,
+                                                                    );
+                                                                }
+                                                            }}
                                                             type="button"
                                                         >
                                                             <X className="size-3" />
@@ -2615,6 +3134,11 @@ export default function Messenger({
                                                 ),
                                             )}
                                         </div>
+                                    )}
+                                    {recordedVoiceNote && (
+                                        <VoiceNoteDraftPreview
+                                            file={recordedVoiceNote}
+                                        />
                                     )}
                                     {mentionQuery !== null &&
                                         filteredMentionOptions.length > 0 && (
@@ -2675,7 +3199,11 @@ export default function Messenger({
                                                 )
                                             }
                                             ref={fileInputRef}
-                                            disabled={isEditing}
+                                            disabled={
+                                                isEditing ||
+                                                recordedVoiceNote !== null ||
+                                                voiceRecorderStatus !== 'idle'
+                                            }
                                             type="file"
                                         />
                                         <button
@@ -2684,15 +3212,34 @@ export default function Messenger({
                                             onClick={() =>
                                                 fileInputRef.current?.click()
                                             }
-                                            disabled={isEditing}
+                                            disabled={
+                                                isEditing ||
+                                                recordedVoiceNote !== null ||
+                                                voiceRecorderStatus !== 'idle'
+                                            }
                                             type="button"
                                         >
                                             <Paperclip className="size-5" />
                                         </button>
+                                        <VoiceNoteControls
+                                            disabled={
+                                                isEditing ||
+                                                selectedFiles.length > 0 ||
+                                                sending
+                                            }
+                                            key={activeConversationId}
+                                            onRecorded={handleRecordedVoiceNote}
+                                            onStatusChange={
+                                                setVoiceRecorderStatus
+                                            }
+                                        />
                                         <button
                                             aria-label="Create poll"
                                             className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-brand"
-                                            disabled={isEditing}
+                                            disabled={
+                                                isEditing ||
+                                                voiceRecorderStatus !== 'idle'
+                                            }
                                             onClick={() =>
                                                 setPollComposerOpen(true)
                                             }
@@ -2703,7 +3250,10 @@ export default function Messenger({
                                         <button
                                             aria-label="Create event"
                                             className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-brand"
-                                            disabled={isEditing}
+                                            disabled={
+                                                isEditing ||
+                                                voiceRecorderStatus !== 'idle'
+                                            }
                                             onClick={() =>
                                                 setEventComposerOpen(true)
                                             }
@@ -2712,7 +3262,7 @@ export default function Messenger({
                                             <Calendar className="size-5" />
                                         </button>
                                         <input
-                                            className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-muted/40 px-4 text-sm transition outline-none focus:border-brand focus:bg-card"
+                                            className="h-11 min-w-0 flex-1 rounded-xl border border-transparent bg-secondary/70 px-4 text-sm transition outline-none placeholder:text-muted-foreground focus:bg-card focus:ring-4 focus:ring-ring/20"
                                             onClick={(event) =>
                                                 syncMentionQueryFromInput(
                                                     event.currentTarget,
@@ -2723,6 +3273,7 @@ export default function Messenger({
                                                     event.target.value,
                                                 )
                                             }
+                                            maxLength={5000}
                                             onKeyUp={(event) =>
                                                 syncMentionQueryFromInput(
                                                     event.currentTarget,
@@ -2734,12 +3285,13 @@ export default function Messenger({
                                         />
                                         <button
                                             aria-label="Send message"
-                                            className="grid size-11 place-items-center rounded-full bg-brand-solid text-brand-foreground shadow-sm transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                                            className="grid size-11 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:bg-[#121e41] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                                             disabled={
                                                 (!messageBody.trim() &&
                                                     selectedFiles.length ===
                                                         0) ||
-                                                sending
+                                                sending ||
+                                                voiceRecorderStatus !== 'idle'
                                             }
                                             type="submit"
                                         >
@@ -4405,6 +4957,7 @@ function MessageBubble({
                                     attachment={attachment}
                                     key={attachment.id}
                                     mine={mine}
+                                    voiceNote={message.type === 'voice'}
                                 />
                             ))}
                         </div>
@@ -4552,15 +5105,20 @@ function ReplyPreview({
 function MessageAttachmentPreview({
     attachment,
     mine,
+    voiceNote,
 }: {
     attachment: MessageAttachment;
     mine: boolean;
+    voiceNote: boolean;
 }) {
     const mimeType = attachment.mime_type ?? '';
     const canPreview = attachment.preview_url !== null;
     const isImage = canPreview && mimeType.startsWith('image/');
-    const isVideo = canPreview && mimeType.startsWith('video/');
-    const isAudio = canPreview && mimeType.startsWith('audio/');
+    const isAudio =
+        canPreview &&
+        (mimeType.startsWith('audio/') ||
+            (voiceNote && mimeType.startsWith('video/')));
+    const isVideo = canPreview && mimeType.startsWith('video/') && !isAudio;
     const shellClass = mine
         ? 'border-brand/30 bg-card/60'
         : 'border-border bg-muted/40';
@@ -4613,7 +5171,9 @@ function MessageAttachmentPreview({
             >
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
                     <Mic className="size-3.5 text-brand" />
-                    <span className="min-w-0 truncate">{attachment.name}</span>
+                    <span className="min-w-0 truncate">
+                        {voiceNote ? 'Voice message' : attachment.name}
+                    </span>
                 </div>
                 <audio
                     className="w-full"
@@ -4724,7 +5284,7 @@ function Avatar({
         <span
             className={`relative grid size-11 shrink-0 place-items-center rounded-full text-sm font-bold ${
                 type === 'direct'
-                    ? 'bg-foreground text-background'
+                    ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-foreground ring-1 ring-border'
             }`}
         >
@@ -4950,6 +5510,10 @@ function messagePreview(message: MessengerMessage) {
 
     if (message.event) {
         return `Event: ${message.event.title}`;
+    }
+
+    if (message.type === 'voice') {
+        return 'Voice message';
     }
 
     if (message.body) {
@@ -5571,6 +6135,45 @@ function mapMessages(
             ],
         ),
     );
+}
+
+function loadConversationDrafts(storageKey: string): Record<number, string> {
+    try {
+        const saved: unknown = JSON.parse(
+            localStorage.getItem(storageKey) ?? '{}',
+        );
+
+        if (!saved || typeof saved !== 'object' || Array.isArray(saved)) {
+            return {};
+        }
+
+        return Object.fromEntries(
+            Object.entries(saved).filter(
+                ([conversationId, body]) =>
+                    Number(conversationId) > 0 &&
+                    typeof body === 'string' &&
+                    body.trim().length > 0 &&
+                    body.length <= 5000,
+            ),
+        ) as Record<number, string>;
+    } catch {
+        return {};
+    }
+}
+
+function saveConversationDrafts(
+    storageKey: string,
+    drafts: Record<number, string>,
+) {
+    try {
+        if (Object.keys(drafts).length === 0) {
+            localStorage.removeItem(storageKey);
+        } else {
+            localStorage.setItem(storageKey, JSON.stringify(drafts));
+        }
+    } catch {
+        // Private browsing or a full storage quota should not block typing.
+    }
 }
 
 function getCookie(name: string) {

@@ -31,10 +31,10 @@ export default function InvitationsIndex({ invitations }: Props) {
         <>
             <Head title="Team Invitations" />
 
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
+            <div className="mx-auto flex h-full w-full max-w-screen-2xl flex-1 flex-col gap-6 overflow-x-auto p-4 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-2xl font-semibold tracking-tight">
+                        <h1 className="font-heading text-2xl font-bold tracking-tight">
                             Team Invitations
                         </h1>
                         <p className="text-sm text-muted-foreground">
@@ -64,7 +64,7 @@ export default function InvitationsIndex({ invitations }: Props) {
                         ))}
                     </div>
                 ) : (
-                    <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border border-dashed bg-background px-6 text-center">
+                    <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[20px] bg-card px-6 text-center">
                         <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
                             <Inbox className="size-6" />
                         </span>
@@ -97,7 +97,7 @@ function InvitationRow({
 
     return (
         <div
-            className="flex flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground shadow-xs md:flex-row md:items-center md:justify-between"
+            className="flex flex-col gap-4 rounded-[20px] bg-card p-5 text-card-foreground transition hover:shadow-sm md:flex-row md:items-center md:justify-between"
             data-test="invitation-row"
         >
             <div className="min-w-0">

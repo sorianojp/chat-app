@@ -5,6 +5,9 @@ use App\Enums\TeamRole;
 use App\Models\Conversation;
 use App\Models\Team;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 function conversationForMessageInteractions(User $sender, User $recipient, Team $team): Conversation
 {
@@ -21,6 +24,62 @@ function conversationForMessageInteractions(User $sender, User $recipient, Team 
 
     return $conversation;
 }
+
+test('retrying a message with the same client ID returns the original without duplicate attachments', function () {
+    Storage::fake('local');
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+    $clientMessageId = (string) Str::uuid();
+    $url = "/api/teams/{$team->slug}/conversations/{$conversation->id}/messages";
+
+    $first = $this->actingAs($sender)->post($url, [
+        'client_message_id' => $clientMessageId,
+        'body' => 'Science notes',
+        'attachments' => [UploadedFile::fake()->create('notes.pdf', 5, 'application/pdf')],
+    ], ['Accept' => 'application/json']);
+
+    $first->assertCreated()->assertJsonPath('data.client_message_id', $clientMessageId);
+
+    $retry = $this->actingAs($sender)->post($url, [
+        'client_message_id' => $clientMessageId,
+        'body' => 'Science notes',
+        'attachments' => [UploadedFile::fake()->create('notes.pdf', 5, 'application/pdf')],
+    ], ['Accept' => 'application/json']);
+
+    $retry->assertOk()->assertJsonPath('data.id', $first->json('data.id'));
+    expect($conversation->messages()->count())->toBe(1);
+    expect($conversation->messages()->first()->attachments()->count())->toBe(1);
+});
+
+test('client message IDs are scoped to the sender and do not bypass conversation access', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $outsider = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForMessageInteractions($sender, $recipient, $team);
+    $clientMessageId = (string) Str::uuid();
+    $url = "/api/teams/{$team->slug}/conversations/{$conversation->id}/messages";
+
+    $first = $this->actingAs($sender)->postJson($url, [
+        'client_message_id' => $clientMessageId,
+        'body' => 'From the sender',
+    ])->assertCreated();
+
+    $this->actingAs($outsider)->postJson($url, [
+        'client_message_id' => $clientMessageId,
+        'body' => 'Not allowed',
+    ])->assertForbidden();
+
+    $second = $this->actingAs($recipient)->postJson($url, [
+        'client_message_id' => $clientMessageId,
+        'body' => 'From the recipient',
+    ])->assertCreated();
+
+    expect($second->json('data.id'))->not->toBe($first->json('data.id'));
+    expect($conversation->messages()->count())->toBe(2);
+});
 
 test('conversation participants can search messages by body and attachment name', function () {
     $sender = User::factory()->create();

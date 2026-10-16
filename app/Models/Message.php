@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $conversation_id
  * @property int|null $sender_id
+ * @property string|null $client_message_id
  * @property int|null $pinned_by
  * @property int|null $reply_to_message_id
  * @property string $type
@@ -38,7 +39,7 @@ use Illuminate\Support\Carbon;
  * @property-read Message|null $replyTo
  * @property-read User|null $sender
  */
-#[Fillable(['conversation_id', 'sender_id', 'reply_to_message_id', 'type', 'body', 'metadata'])]
+#[Fillable(['conversation_id', 'sender_id', 'client_message_id', 'reply_to_message_id', 'type', 'body', 'metadata'])]
 class Message extends Model
 {
     use SoftDeletes;

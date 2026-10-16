@@ -23,6 +23,7 @@ class StoreMessageRequest extends FormRequest
     {
         return [
             'body' => ['nullable', 'required_without:attachments', 'string', 'max:5000'],
+            'client_message_id' => ['nullable', 'uuid'],
             'type' => ['nullable', 'string', 'max:40'],
             'metadata' => ['nullable', 'array'],
             'reply_to_message_id' => ['nullable', 'integer'],

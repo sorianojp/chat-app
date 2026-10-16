@@ -35,6 +35,7 @@ class MessagePayload
 
         return [
             'id' => $message->id,
+            'client_message_id' => $message->client_message_id,
             'conversation_id' => $message->conversation_id,
             'sender' => $message->sender ? [
                 'id' => $message->sender->id,

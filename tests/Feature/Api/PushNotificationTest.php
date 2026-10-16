@@ -2,12 +2,163 @@
 
 use App\Events\MessageCreated;
 use App\Jobs\SendMessagePushNotification;
+use App\Jobs\SendMessageWebPushNotification;
 use App\Models\PushToken;
 use App\Models\Team;
 use App\Models\User;
+use App\Models\WebPushSubscription;
 use App\Services\FirebasePushService;
+use App\Services\WebPushService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+
+test('a user can register refresh and remove an encrypted browser push subscription', function () {
+    config([
+        'services.web_push.public_key' => 'test-public-key',
+        'services.web_push.private_key' => 'test-private-key',
+    ]);
+    $user = User::factory()->create();
+    $endpoint = 'https://push.example.test/send/subscription-123';
+    $payload = [
+        'endpoint' => $endpoint,
+        'keys' => [
+            'p256dh' => str_repeat('public-key-', 8),
+            'auth' => str_repeat('auth-key-', 3),
+        ],
+        'content_encoding' => 'aes128gcm',
+    ];
+
+    $this->putJson('/api/web-push/subscription', $payload)->assertUnauthorized();
+
+    $this->actingAs($user)
+        ->putJson('/api/web-push/subscription', $payload)
+        ->assertCreated()
+        ->assertJsonPath('data.registered', true);
+
+    $subscription = WebPushSubscription::query()->sole();
+    expect($subscription->endpoint)->toBe($endpoint)
+        ->and($subscription->public_key)->toBe($payload['keys']['p256dh'])
+        ->and($subscription->auth_token)->toBe($payload['keys']['auth'])
+        ->and($subscription->getRawOriginal('endpoint'))->not->toBe($endpoint)
+        ->and($subscription->endpoint_hash)->toBe(hash('sha256', $endpoint));
+
+    $this->actingAs($user)
+        ->putJson('/api/web-push/subscription', [
+            ...$payload,
+            'keys' => [
+                ...$payload['keys'],
+                'auth' => str_repeat('refreshed-', 3),
+            ],
+        ])
+        ->assertOk();
+
+    $this->assertDatabaseCount('web_push_subscriptions', 1);
+
+    $this->actingAs($user)
+        ->deleteJson('/api/web-push/subscription', ['endpoint' => $endpoint])
+        ->assertOk()
+        ->assertJsonPath('data.registered', false);
+
+    $this->assertDatabaseCount('web_push_subscriptions', 0);
+});
+
+test('message events queue web push delivery for recipient browsers but not the sender', function () {
+    config([
+        'services.web_push.public_key' => 'test-public-key',
+        'services.web_push.private_key' => 'test-private-key',
+    ]);
+    Queue::fake();
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = $team->conversations()->create([
+        'type' => 'direct',
+        'created_by' => $sender->id,
+    ]);
+    $conversation->participants()->attach([
+        $sender->id => ['role' => 'owner'],
+        $recipient->id => ['role' => 'member'],
+    ]);
+    $senderPush = WebPushSubscription::query()->create([
+        'user_id' => $sender->id,
+        'endpoint_hash' => hash('sha256', 'sender-web-push'),
+        'endpoint' => 'https://push.example.test/sender',
+        'public_key' => 'sender-public-key',
+        'auth_token' => 'sender-auth-token',
+        'content_encoding' => 'aes128gcm',
+        'last_seen_at' => now(),
+    ]);
+    $recipientPush = WebPushSubscription::query()->create([
+        'user_id' => $recipient->id,
+        'endpoint_hash' => hash('sha256', 'recipient-web-push'),
+        'endpoint' => 'https://push.example.test/recipient',
+        'public_key' => 'recipient-public-key',
+        'auth_token' => 'recipient-auth-token',
+        'content_encoding' => 'aes128gcm',
+        'last_seen_at' => now(),
+    ]);
+    $message = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => 'Class starts in ten minutes.',
+    ]);
+
+    event(new MessageCreated($message));
+
+    Queue::assertPushed(
+        SendMessageWebPushNotification::class,
+        fn (SendMessageWebPushNotification $job): bool => $job->messageId === $message->id
+            && $job->subscriptionId === $recipientPush->id,
+    );
+    Queue::assertNotPushed(
+        SendMessageWebPushNotification::class,
+        fn (SendMessageWebPushNotification $job): bool => $job->subscriptionId === $senderPush->id,
+    );
+});
+
+test('queued web push delivery honors conversation notification preferences', function () {
+    $sender = User::factory()->create(['name' => 'Maria Teacher']);
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create(['slug' => 'science-school']);
+    $conversation = $team->conversations()->create([
+        'type' => 'group',
+        'title' => 'Science 8',
+        'created_by' => $sender->id,
+    ]);
+    $conversation->participants()->attach([
+        $sender->id => ['role' => 'owner'],
+        $recipient->id => ['role' => 'member', 'notification_preference' => 'muted'],
+    ]);
+    $subscription = WebPushSubscription::query()->create([
+        'user_id' => $recipient->id,
+        'endpoint_hash' => hash('sha256', 'recipient-web-push'),
+        'endpoint' => 'https://push.example.test/recipient',
+        'public_key' => 'recipient-public-key',
+        'auth_token' => 'recipient-auth-token',
+        'content_encoding' => 'aes128gcm',
+        'last_seen_at' => now(),
+    ]);
+    $message = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'body' => 'Please bring your lab notes.',
+    ]);
+    $webPush = Mockery::mock(WebPushService::class);
+    $webPush->shouldReceive('configured')->twice()->andReturnTrue();
+    $webPush->shouldReceive('send')
+        ->once()
+        ->withArgs(fn (WebPushSubscription $destination, array $payload): bool => $destination->is($subscription)
+            && $payload['title'] === 'Science 8'
+            && $payload['body'] === 'Maria Teacher: Please bring your lab notes.'
+            && $payload['url'] === "/science-school/messenger?conversation={$conversation->id}");
+    $job = new SendMessageWebPushNotification($message->id, $subscription->id);
+
+    $job->handle($webPush);
+    $conversation->participants()->updateExistingPivot($recipient->id, [
+        'notification_preference' => 'all',
+    ]);
+    $job->handle($webPush);
+});
 
 test('a mobile session registers one encrypted push token and logout removes it', function () {
     $user = User::factory()->create();

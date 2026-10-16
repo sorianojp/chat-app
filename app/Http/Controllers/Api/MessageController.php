@@ -17,6 +17,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\LinkPreviewService;
 use App\Support\MessagePayload;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -46,7 +47,7 @@ class MessageController extends Controller
                         ->orWhereHas('attachments', fn ($query) => $query->where('original_name', 'like', "%{$search}%"));
                 });
             })
-            ->latest()
+            ->latest('id')
             ->paginate(40)
             ->through(fn (Message $message) => MessagePayload::from($message, $request->user()->id));
 
@@ -122,46 +123,79 @@ class MessageController extends Controller
     {
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
 
-        $message = DB::transaction(function () use ($request, $conversation, $linkPreviewService): Message {
-            $attachments = $request->file('attachments', []);
-            $hasAttachments = count($attachments) > 0;
-            $attachmentDisk = (string) config('filesystems.default', 'local');
+        $clientMessageId = $request->validated('client_message_id');
+        $existingMessage = $clientMessageId
+            ? $conversation->messages()
+                ->where('sender_id', $request->user()->id)
+                ->where('client_message_id', $clientMessageId)
+                ->first()
+            : null;
 
-            $metadata = $request->validated('metadata') ?? [];
-            $linkPreviews = $linkPreviewService->previewsFor((string) $request->validated('body'));
-
-            if ($linkPreviews !== []) {
-                $metadata['link_previews'] = $linkPreviews;
-            }
-
-            $message = $conversation->messages()->create([
-                'sender_id' => $request->user()->id,
-                'reply_to_message_id' => $this->replyToMessageId($request, $conversation),
-                'type' => $request->validated('type', $hasAttachments ? 'attachment' : 'text'),
-                'body' => $request->validated('body') ?? '',
-                'metadata' => $metadata ?: null,
+        if ($existingMessage) {
+            return response()->json([
+                'data' => MessagePayload::from($existingMessage, $request->user()->id),
             ]);
+        }
 
-            foreach ($attachments as $attachment) {
-                $mimeType = $attachment->getMimeType();
-                $path = $attachment->store(
-                    $this->attachmentDirectory($mimeType),
-                    $attachmentDisk,
-                );
+        try {
+            $message = DB::transaction(function () use ($request, $conversation, $linkPreviewService, $clientMessageId): Message {
+                $attachments = $request->file('attachments', []);
+                $hasAttachments = count($attachments) > 0;
+                $attachmentDisk = (string) config('filesystems.default', 'local');
 
-                $message->attachments()->create([
-                    'disk' => $attachmentDisk,
-                    'path' => $path,
-                    'original_name' => $attachment->getClientOriginalName(),
-                    'mime_type' => $mimeType,
-                    'size' => $attachment->getSize(),
+                $metadata = $request->validated('metadata') ?? [];
+                $linkPreviews = $linkPreviewService->previewsFor((string) $request->validated('body'));
+
+                if ($linkPreviews !== []) {
+                    $metadata['link_previews'] = $linkPreviews;
+                }
+
+                $message = $conversation->messages()->create([
+                    'sender_id' => $request->user()->id,
+                    'client_message_id' => $clientMessageId,
+                    'reply_to_message_id' => $this->replyToMessageId($request, $conversation),
+                    'type' => $request->validated('type', $hasAttachments ? 'attachment' : 'text'),
+                    'body' => $request->validated('body') ?? '',
+                    'metadata' => $metadata ?: null,
                 ]);
+
+                foreach ($attachments as $attachment) {
+                    $mimeType = $attachment->getMimeType();
+                    $path = $attachment->store(
+                        $this->attachmentDirectory($mimeType),
+                        $attachmentDisk,
+                    );
+
+                    $message->attachments()->create([
+                        'disk' => $attachmentDisk,
+                        'path' => $path,
+                        'original_name' => $attachment->getClientOriginalName(),
+                        'mime_type' => $mimeType,
+                        'size' => $attachment->getSize(),
+                    ]);
+                }
+
+                $this->syncMessageMentions($message, $conversation, $request);
+
+                return $message;
+            });
+        } catch (QueryException $exception) {
+            // A concurrent retry may have won the unique client ID race.
+            $existingMessage = $clientMessageId
+                ? $conversation->messages()
+                    ->where('sender_id', $request->user()->id)
+                    ->where('client_message_id', $clientMessageId)
+                    ->first()
+                : null;
+
+            if (! $existingMessage) {
+                throw $exception;
             }
 
-            $this->syncMessageMentions($message, $conversation, $request);
-
-            return $message;
-        });
+            return response()->json([
+                'data' => MessagePayload::from($existingMessage, $request->user()->id),
+            ]);
+        }
 
         $conversation->forceFill(['last_message_at' => $message->created_at])->save();
         $conversation->participants()->updateExistingPivot($request->user()->id, ['last_read_at' => now()]);
@@ -504,10 +538,16 @@ class MessageController extends Controller
         $this->ensureAttachmentBelongsToMessage($conversation, $message, $attachment);
         abort_unless($attachment->isPreviewableMedia(), 404);
 
+        $contentType = $attachment->mime_type ?? 'application/octet-stream';
+
+        if ($message->type === 'voice' && in_array($contentType, ['video/webm', 'video/mp4'], true)) {
+            $contentType = str_replace('video/', 'audio/', $contentType);
+        }
+
         return Storage::disk($attachment->disk)->response(
             $attachment->path,
             $attachment->original_name,
-            ['Content-Type' => $attachment->mime_type ?? 'application/octet-stream'],
+            ['Content-Type' => $contentType],
         );
     }
 

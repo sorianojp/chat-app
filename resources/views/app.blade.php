@@ -22,18 +22,20 @@
         {{-- Inline style to set the HTML background color based on our theme in app.css --}}
         <style>
             html {
-                background-color: oklch(1 0 0);
+                background-color: #f5f7fb;
             }
 
             html.dark {
-                background-color: oklch(0.145 0 0);
+                background-color: #0f172a;
             }
         </style>
 
         <link rel="icon" href="/assets/logo.png" type="image/png">
         <link rel="apple-touch-icon" href="/assets/logo.png">
 
-        @fonts
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap">
 
         @viteReactRefresh
         @vite(['resources/css/app.css', 'resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])

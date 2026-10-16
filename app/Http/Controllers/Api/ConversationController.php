@@ -601,6 +601,7 @@ class ConversationController extends Controller
                 ->when($lastReadAt, fn ($query) => $query->where('created_at', '>', $lastReadAt))
                 ->where('sender_id', '!=', $userId)
                 ->count(),
+            'last_read_at' => $this->pivotTimestamp($lastReadAt),
             'unread_mentions_count' => $conversation->messages()
                 ->when($lastReadAt, fn ($query) => $query->where('created_at', '>', $lastReadAt))
                 ->whereHas('mentions', fn ($query) => $query->where('user_id', $userId))

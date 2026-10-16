@@ -9,9 +9,10 @@
 
 @theme {
     --font-sans:
-        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
-        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-        'Noto Color Emoji';
+        'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-heading:
+        'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
@@ -54,6 +55,9 @@
     --color-highlight: var(--highlight);
     --color-highlight-foreground: var(--highlight-foreground);
     --color-online: var(--online);
+    --color-gold: var(--gold);
+    --color-gold-foreground: var(--gold-foreground);
+    --color-canvas: var(--background);
 
     --color-chart-1: var(--chart-1);
     --color-chart-2: var(--chart-2);
@@ -71,102 +75,93 @@
     --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/*
- * STEP identity, taken from step-v2: --step-blue #05056a carries every action,
- * its #eef2ff tint marks selection, and blue-600 is reserved for links and
- * interactive accents. Neutrals are the Tailwind gray scale step-v2 already
- * uses, so a page here sits beside a page there without a seam.
- *
- * step-v2 is light-only; the dark set below is this app's own extension.
- * These values are mirrored in step_messenger/lib/src/theme.dart — change both.
- */
+/* STEP-S design tokens mirrored from step-v2. */
 :root {
-    --background: #f9fafb;
-    --foreground: #111827;
+    --background: #f5f7fb;
+    --foreground: #0f172a;
     --card: #ffffff;
-    --card-foreground: #111827;
+    --card-foreground: #0f172a;
     --popover: #ffffff;
-    --popover-foreground: #111827;
-    --primary: #05056a;
+    --popover-foreground: #0f172a;
+    --primary: #1a2d61;
     --primary-foreground: #ffffff;
-    --secondary: #f3f4f6;
-    --secondary-foreground: #1f2937;
-    --muted: #f3f4f6;
-    --muted-foreground: #6b7280;
-    --accent: #eef2ff;
-    --accent-foreground: #05056a;
+    --secondary: #e2e8f0;
+    --secondary-foreground: #0f172a;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    --accent: #e2e8f0;
+    --accent-foreground: #1a2d61;
     --destructive: #dc2626;
     --destructive-foreground: #ffffff;
-    --border: #e5e7eb;
-    --input: #d1d5db;
-    --ring: #3b82f6;
-    --brand: #05056a;
-    --brand-solid: #05056a;
+    --border: #e2e8f0;
+    --input: #e2e8f0;
+    --ring: #3c53a9;
+    --brand: #1a2d61;
+    --brand-solid: #1a2d61;
     --brand-foreground: #ffffff;
-    --message-outgoing: #05056a;
-    --message-outgoing-foreground: #eef2ff;
+    --message-outgoing: #1a2d61;
+    --message-outgoing-foreground: #ffffff;
     --message-incoming: #ffffff;
-    --highlight: #2563eb;
-    --highlight-foreground: #ffffff;
+    --highlight: #f5c400;
+    --highlight-foreground: #0c132c;
     --online: #16a34a;
-    --chart-1: #05056a;
-    --chart-2: #2563eb;
-    --chart-3: #60a5fa;
-    --chart-4: #6b7280;
-    --chart-5: #c7cdd9;
+    --gold: #f5c400;
+    --gold-foreground: #0c132c;
+    --chart-1: #1a2d61;
+    --chart-2: #3c53a9;
+    --chart-3: #748bd4;
+    --chart-4: #f5c400;
+    --chart-5: #64748b;
     --radius: 0.75rem;
-    --sidebar: #ffffff;
-    --sidebar-foreground: #111827;
-    --sidebar-primary: #05056a;
-    --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #eef2ff;
-    --sidebar-accent-foreground: #05056a;
-    --sidebar-border: #e5e7eb;
-    --sidebar-ring: #3b82f6;
+    --sidebar: #1a2d61;
+    --sidebar-foreground: #f1f4fc;
+    --sidebar-primary: #f5c400;
+    --sidebar-primary-foreground: #0c132c;
+    --sidebar-accent: #28356e;
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: #324388;
+    --sidebar-ring: #ffdc5f;
 }
 
 .dark {
-    --background: #0a0c18;
-    --foreground: #e8eaf3;
-    --card: #12152a;
-    --card-foreground: #e8eaf3;
-    --popover: #12152a;
-    --popover-foreground: #e8eaf3;
-    --primary: #8f9bff;
-    --primary-foreground: #05056a;
-    --secondary: #1b1f38;
-    --secondary-foreground: #e8eaf3;
-    --muted: #1b1f38;
-    --muted-foreground: #9aa1bd;
-    --accent: #1d2350;
-    --accent-foreground: #b3bcff;
+    --background: #0f172a;
+    --foreground: #f1f5f9;
+    --card: #1e293b;
+    --card-foreground: #f1f5f9;
+    --popover: #1e293b;
+    --popover-foreground: #f1f5f9;
+    --primary: #324388;
+    --primary-foreground: #ffffff;
+    --secondary: #334155;
+    --secondary-foreground: #f8fafc;
+    --muted: #273449;
+    --muted-foreground: #94a3b8;
+    --accent: #334155;
+    --accent-foreground: #f8fafc;
     --destructive: #f87171;
     --destructive-foreground: #2a0b0b;
-    --border: #252a4a;
-    --input: #252a4a;
-    --ring: #60a5fa;
-    --brand: #b3bcff;
-    --brand-solid: #2a2a8f;
-    --brand-foreground: #eef2ff;
-    --message-outgoing: #2a2a8f;
-    --message-outgoing-foreground: #eef2ff;
-    --message-incoming: #181c33;
-    --highlight: #60a5fa;
-    --highlight-foreground: #06183a;
+    --border: #334155;
+    --input: #334155;
+    --ring: #748bd4;
+    --brand: #9eafe4;
+    --brand-solid: #324388;
+    --brand-foreground: #ffffff;
+    --message-outgoing: #324388;
+    --message-outgoing-foreground: #ffffff;
+    --message-incoming: #1e293b;
+    --highlight: #f5c400;
+    --highlight-foreground: #0c132c;
     --online: #4ade80;
-    --chart-1: #b3bcff;
-    --chart-2: #60a5fa;
-    --chart-3: #8f9bff;
-    --chart-4: #9aa1bd;
-    --chart-5: #545b7e;
-    --sidebar: #0e1124;
-    --sidebar-foreground: #e8eaf3;
-    --sidebar-primary: #b3bcff;
-    --sidebar-primary-foreground: #05056a;
-    --sidebar-accent: #1d2350;
-    --sidebar-accent-foreground: #b3bcff;
-    --sidebar-border: #21263f;
-    --sidebar-ring: #60a5fa;
+    --gold: #f5c400;
+    --gold-foreground: #0c132c;
+    --sidebar: #0c132c;
+    --sidebar-foreground: #f1f4fc;
+    --sidebar-primary: #f5c400;
+    --sidebar-primary-foreground: #0c132c;
+    --sidebar-accent: #121e41;
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: #28356e;
+    --sidebar-ring: #ffdc5f;
 }
 
 @layer base {
@@ -175,10 +170,28 @@
     }
 
     body {
-        @apply bg-background text-foreground antialiased;
+        @apply bg-background font-medium tracking-[-0.01em] text-foreground antialiased;
+        text-rendering: optimizeLegibility;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        @apply font-heading tracking-[-0.025em];
     }
 
     ::selection {
-        @apply bg-foreground text-background;
+        @apply bg-gold text-gold-foreground;
+    }
+
+    button,
+    a,
+    input,
+    textarea,
+    select {
+        @apply focus-visible:outline-none;
     }
 }

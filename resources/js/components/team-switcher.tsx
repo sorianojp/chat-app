@@ -62,7 +62,7 @@ export function TeamSwitcher({ inHeader = false }: TeamSwitcherProps) {
                     className={
                         inHeader
                             ? 'h-8 gap-1 px-2'
-                            : 'w-full justify-start px-2 has-[>svg]:px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
+                            : 'w-full justify-start bg-sidebar-accent/60 px-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground has-[>svg]:px-3 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
                     }
                 >
                     <Users

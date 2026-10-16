@@ -32,16 +32,16 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentOrParentUrl } = useCurrentUrl();
 
     return (
-        <div className="px-4 py-6">
+        <div className="mx-auto w-full max-w-screen-2xl px-4 py-6 sm:px-6">
             <Heading
                 title="Settings"
                 description="View your STEP profile and manage Uhoo! preferences"
             />
 
-            <div className="flex flex-col lg:flex-row lg:space-x-12">
-                <aside className="w-full max-w-xl lg:w-48">
+            <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
+                <aside className="w-full lg:w-56">
                     <nav
-                        className="flex flex-col space-y-1 space-x-0"
+                        className="flex flex-col space-y-1 rounded-[20px] bg-card p-2"
                         aria-label="Settings"
                     >
                         {sidebarNavItems.map((item, index) => (
@@ -51,7 +51,8 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                                 variant="ghost"
                                 asChild
                                 className={cn('w-full justify-start', {
-                                    'bg-muted': isCurrentOrParentUrl(item.href),
+                                    'bg-gold text-gold-foreground hover:bg-gold/90':
+                                        isCurrentOrParentUrl(item.href),
                                 })}
                             >
                                 <Link href={item.href}>
@@ -67,10 +68,8 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
 
                 <Separator className="my-6 lg:hidden" />
 
-                <div className="flex-1 md:max-w-2xl">
-                    <section className="max-w-xl space-y-12">
-                        {children}
-                    </section>
+                <div className="min-w-0 flex-1 md:max-w-3xl">
+                    <section className="space-y-12">{children}</section>
                 </div>
             </div>
         </div>

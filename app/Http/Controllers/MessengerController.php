@@ -6,9 +6,11 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\WebPushService;
 use App\Support\MessagePayload;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,7 +20,7 @@ class MessengerController extends Controller
     /**
      * Display the messenger web app.
      */
-    public function __invoke(Request $request, Team $current_team): Response
+    public function __invoke(Request $request, Team $current_team, WebPushService $webPush): Response
     {
         $user = $request->user();
         $showArchived = $request->boolean('archived');
@@ -47,9 +49,11 @@ class MessengerController extends Controller
             ? Message::query()
                 ->where('conversation_id', $activeConversationId)
                 ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'eventRsvps.user:id,name', 'mentions.user:id,name', 'pollVotes.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
-                ->oldest()
+                ->latest('id')
                 ->limit(80)
                 ->get()
+                ->reverse()
+                ->values()
                 ->map(fn (Message $message) => MessagePayload::from($message, $user->id))
             : collect();
 
@@ -75,6 +79,7 @@ class MessengerController extends Controller
             'initialConversationId' => $activeConversationId,
             'initialMessages' => $messages,
             'archived' => $showArchived,
+            'webPushPublicKey' => $webPush->publicKey(),
         ]);
     }
 
@@ -124,6 +129,7 @@ class MessengerController extends Controller
                 ->when($lastReadAt, fn ($query) => $query->where('created_at', '>', $lastReadAt))
                 ->where('sender_id', '!=', $userId)
                 ->count(),
+            'last_read_at' => $lastReadAt ? Carbon::parse($lastReadAt)->toISOString() : null,
             'unread_mentions_count' => $conversation->messages()
                 ->when($lastReadAt, fn ($query) => $query->where('created_at', '>', $lastReadAt))
                 ->whereHas('mentions', fn ($query) => $query->where('user_id', $userId))

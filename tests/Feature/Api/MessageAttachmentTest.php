@@ -95,6 +95,41 @@ test('attachments are grouped into storage folders by file type', function () {
         ->and($paths['notes.txt'])->toStartWith('message-attachments/documents/');
 });
 
+test('a recorded voice note is returned as playable audio when its container is detected as video', function (string $mimeType, string $extension, string $audioMimeType) {
+    Storage::fake('local');
+
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = conversationForUsers($sender, $recipient, $team);
+
+    $response = $this->actingAs($sender)
+        ->post("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'type' => 'voice',
+            'attachments' => [UploadedFile::fake()->create("voice-note.{$extension}", 16, $mimeType)],
+        ]);
+
+    $response->assertCreated()
+        ->assertJsonPath('data.type', 'voice')
+        ->assertJsonPath('data.attachments.0.mime_type', $mimeType);
+
+    $message = Message::firstOrFail();
+    $attachment = $message->attachments()->firstOrFail();
+
+    $this->actingAs($recipient)
+        ->get(route('messenger.attachments.preview', [
+            'team' => $team,
+            'conversation' => $conversation,
+            'message' => $message,
+            'attachment' => $attachment,
+        ]))
+        ->assertOk()
+        ->assertHeader('Content-Type', $audioMimeType);
+})->with([
+    'WebM' => ['video/webm', 'webm', 'audio/webm'],
+    'MP4' => ['video/mp4', 'm4a', 'audio/mp4'],
+]);
+
 test('attachments use the configured default filesystem disk', function () {
     config(['filesystems.default' => 's3']);
     Storage::fake('s3');
