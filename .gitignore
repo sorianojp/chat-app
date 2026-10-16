@@ -2,6 +2,7 @@
 /bootstrap/ssr
 /node_modules
 /public/build
+/public/build-e2e
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
@@ -11,6 +12,8 @@
 /resources/js/routes
 /resources/js/wayfinder
 /vendor
+/test-results
+/playwright-report
 .DS_Store
 .env
 .env.backup

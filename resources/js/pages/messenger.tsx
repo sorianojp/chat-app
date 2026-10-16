@@ -2618,6 +2618,7 @@ export default function Messenger({
                                     <div
                                         className="h-full space-y-4 overflow-x-hidden overflow-y-auto bg-background px-4 py-5 md:px-6"
                                         onScroll={handleTimelineScroll}
+                                        data-testid="message-thread"
                                         ref={messagesViewportRef}
                                     >
                                         {visibleMessages.length > 0 ||

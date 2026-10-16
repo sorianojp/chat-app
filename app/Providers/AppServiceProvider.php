@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -28,6 +29,13 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureRateLimiting();
+
+        if ($this->app->environment('e2e')) {
+            // End-to-end tests use their own asset build and ignore a running `npm run dev`.
+            Vite::useBuildDirectory('build-e2e');
+            Vite::useHotFile(storage_path('framework/e2e.hot'));
+            config(['filesystems.disks.local.root' => storage_path('app/e2e')]);
+        }
     }
 
     /**

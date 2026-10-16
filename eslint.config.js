@@ -30,6 +30,13 @@ export default [
     reactHooks.configs.flat['recommended-latest'],
     ...typescript.configs.recommended,
     {
+        // Playwright fixtures call `use()`, which is not React's hook.
+        files: ['tests/e2e/**/*.ts'],
+        rules: {
+            'react-hooks/rules-of-hooks': 'off',
+        },
+    },
+    {
         ...react.configs.flat.recommended,
         ...react.configs.flat['jsx-runtime'],
         languageOptions: {
