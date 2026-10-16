@@ -11,6 +11,13 @@ use Throwable;
 
 class LinkPreviewService
 {
+    private const URL_PATTERN = '/https?:\/\/[^\s<>"\']+/i';
+
+    public function containsLinks(string $text): bool
+    {
+        return preg_match(self::URL_PATTERN, $text) === 1;
+    }
+
     /**
      * @return array<int, array<string, string|null>>
      */
@@ -24,7 +31,7 @@ class LinkPreviewService
             return [];
         }
 
-        preg_match_all('/https?:\/\/[^\s<>"\']+/i', $text, $matches);
+        preg_match_all(self::URL_PATTERN, $text, $matches);
 
         return collect($matches[0])
             ->map(fn (string $url): string => rtrim($url, '.,);]'))

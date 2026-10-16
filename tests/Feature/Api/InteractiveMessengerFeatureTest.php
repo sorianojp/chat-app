@@ -2,12 +2,18 @@
 
 use App\Enums\ConversationType;
 use App\Enums\TeamRole;
+use App\Events\MessageUpdated;
+use App\Jobs\FetchMessageLinkPreviews;
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\LinkPreviewService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 function interactiveConversation(User $owner, User $member, Team $team, ConversationType $type = ConversationType::Group): Conversation
@@ -133,8 +139,9 @@ test('group owners can update the photo and participant nicknames', function () 
         ->assertForbidden();
 });
 
-test('messages store rich previews for public links', function () {
+test('messages fetch rich previews for public links in the background', function () {
     config(['messenger.fetch_link_previews_in_tests' => true]);
+    Event::fake([MessageUpdated::class]);
     Http::fake([
         'http://93.184.216.34/page' => Http::response(<<<'HTML'
             <html><head>
@@ -149,11 +156,89 @@ test('messages store rich previews for public links', function () {
     $team = Team::factory()->create();
     $conversation = interactiveConversation($owner, $member, $team, ConversationType::Direct);
 
-    $this->actingAs($owner)
+    $messageId = $this->actingAs($owner)
         ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
             'body' => 'Open http://93.184.216.34/page',
         ])
         ->assertCreated()
-        ->assertJsonPath('data.metadata.link_previews.0.title', 'Permission Form')
-        ->assertJsonPath('data.metadata.link_previews.0.description', 'Submit the school permission form online.');
+        ->assertJsonPath('data.metadata', null)
+        ->json('data.id');
+
+    $message = Message::query()->findOrFail($messageId);
+
+    expect($message->metadata['link_previews'][0]['title'])->toBe('Permission Form')
+        ->and($message->metadata['link_previews'][0]['description'])->toBe('Submit the school permission form online.');
+
+    Event::assertDispatched(MessageUpdated::class, fn (MessageUpdated $event): bool => $event->message->id === $messageId);
+});
+
+test('sending a message without links does not queue a preview job', function () {
+    Queue::fake();
+    $owner = User::factory()->create();
+    $member = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = interactiveConversation($owner, $member, $team, ConversationType::Direct);
+
+    $this->actingAs($owner)
+        ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", ['body' => 'No links here'])
+        ->assertCreated();
+
+    $this->actingAs($owner)
+        ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", ['body' => 'See https://example.com'])
+        ->assertCreated();
+
+    Queue::assertPushed(FetchMessageLinkPreviews::class, 1);
+});
+
+test('clients cannot supply their own link previews', function () {
+    Queue::fake();
+    $owner = User::factory()->create();
+    $member = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = interactiveConversation($owner, $member, $team, ConversationType::Direct);
+
+    $this->actingAs($owner)
+        ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", [
+            'body' => 'Hello',
+            'metadata' => ['link_previews' => [['url' => 'https://evil.test', 'title' => 'Fake']]],
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.metadata', null);
+});
+
+test('stale link preview jobs are discarded after the message is edited', function () {
+    config(['messenger.fetch_link_previews_in_tests' => true]);
+    Event::fake([MessageUpdated::class]);
+    Http::fake(['*' => Http::response('<html><head><title>Old page</title></head></html>', 200, ['Content-Type' => 'text/html'])]);
+    $owner = User::factory()->create();
+    $member = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = interactiveConversation($owner, $member, $team, ConversationType::Direct);
+    $message = $conversation->messages()->create([
+        'sender_id' => $owner->id,
+        'type' => 'text',
+        'body' => 'Edited text without links',
+    ]);
+
+    (new FetchMessageLinkPreviews($message->id, 'Old http://93.184.216.34/page'))->handle(app(LinkPreviewService::class));
+
+    expect($message->fresh()->metadata)->toBeNull();
+    Event::assertNotDispatched(MessageUpdated::class);
+});
+
+test('message sending is rate limited per user', function () {
+    $owner = User::factory()->create();
+    $member = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = interactiveConversation($owner, $member, $team, ConversationType::Direct);
+
+    foreach (range(1, 40) as $index) {
+        $this->actingAs($owner)
+            ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", ['body' => "Message {$index}"])
+            ->assertCreated();
+    }
+
+    $this->actingAs($owner)
+        ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", ['body' => 'One too many'])
+        ->assertTooManyRequests();
 });

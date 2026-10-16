@@ -10,6 +10,7 @@ use App\Events\MessageReactionUpdated;
 use App\Events\MessageUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreMessageRequest;
+use App\Jobs\FetchMessageLinkPreviews;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageAttachment;
@@ -138,17 +139,13 @@ class MessageController extends Controller
         }
 
         try {
-            $message = DB::transaction(function () use ($request, $conversation, $linkPreviewService, $clientMessageId): Message {
+            $message = DB::transaction(function () use ($request, $conversation, $clientMessageId): Message {
                 $attachments = $request->file('attachments', []);
                 $hasAttachments = count($attachments) > 0;
                 $attachmentDisk = (string) config('filesystems.default', 'local');
 
                 $metadata = $request->validated('metadata') ?? [];
-                $linkPreviews = $linkPreviewService->previewsFor((string) $request->validated('body'));
-
-                if ($linkPreviews !== []) {
-                    $metadata['link_previews'] = $linkPreviews;
-                }
+                unset($metadata['link_previews']);
 
                 $message = $conversation->messages()->create([
                     'sender_id' => $request->user()->id,
@@ -201,6 +198,8 @@ class MessageController extends Controller
         $conversation->participants()->updateExistingPivot($request->user()->id, ['last_read_at' => now()]);
 
         broadcast(new MessageCreated($message->load(['attachments', 'conversation.team', 'deliveries.user:id,name', 'mentions.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])))->toOthers();
+
+        $this->queueLinkPreviews($message, $linkPreviewService);
 
         return response()->json([
             'data' => MessagePayload::from($message, $request->user()->id),
@@ -356,12 +355,7 @@ class MessageController extends Controller
         ]);
 
         $metadata = $message->metadata ?? [];
-        $linkPreviews = $linkPreviewService->previewsFor($data['body']);
         unset($metadata['link_previews']);
-
-        if ($linkPreviews !== []) {
-            $metadata['link_previews'] = $linkPreviews;
-        }
 
         $message->forceFill([
             'body' => $data['body'],
@@ -374,9 +368,21 @@ class MessageController extends Controller
 
         broadcast(new MessageUpdated($message))->toOthers();
 
+        $this->queueLinkPreviews($message, $linkPreviewService);
+
         return response()->json([
             'data' => MessagePayload::from($message, $request->user()->id),
         ]);
+    }
+
+    /**
+     * Fetch link previews in the background; the job broadcasts the enriched message.
+     */
+    private function queueLinkPreviews(Message $message, LinkPreviewService $linkPreviewService): void
+    {
+        if ($linkPreviewService->containsLinks($message->body)) {
+            FetchMessageLinkPreviews::dispatch($message->id, $message->body);
+        }
     }
 
     /**

@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('mobile/auth/start', [MobileAuthController::class, 'start'])->middleware('throttle:10,1');
 Route::post('mobile/auth/exchange', [MobileAuthController::class, 'exchange'])->middleware('throttle:10,1');
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::get('web-push/config', [WebPushSubscriptionController::class, 'config']);
     Route::put('web-push/subscription', [WebPushSubscriptionController::class, 'update']);
     Route::delete('web-push/subscription', [WebPushSubscriptionController::class, 'destroy']);
@@ -49,14 +49,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('conversations/{conversation}/messages', [MessageController::class, 'index']);
         Route::get('conversations/{conversation}/shared', [MessageController::class, 'shared']);
         Route::get('conversations/{conversation}/messages/pinned', [MessageController::class, 'pinned']);
-        Route::post('conversations/{conversation}/messages', [MessageController::class, 'store']);
-        Route::post('conversations/{conversation}/polls', [MessageController::class, 'storePoll']);
+        Route::post('conversations/{conversation}/messages', [MessageController::class, 'store'])->middleware('throttle:messages');
+        Route::post('conversations/{conversation}/polls', [MessageController::class, 'storePoll'])->middleware('throttle:messages');
         Route::patch('conversations/{conversation}/messages/{message}/poll-vote', [MessageController::class, 'votePoll']);
-        Route::post('conversations/{conversation}/events', [MessageController::class, 'storeEvent']);
+        Route::post('conversations/{conversation}/events', [MessageController::class, 'storeEvent'])->middleware('throttle:messages');
         Route::patch('conversations/{conversation}/messages/{message}/rsvp', [MessageController::class, 'rsvp']);
         Route::patch('conversations/{conversation}/messages/{message}', [MessageController::class, 'update']);
         Route::delete('conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
-        Route::post('conversations/{conversation}/messages/{message}/forward', [MessageController::class, 'forward']);
+        Route::post('conversations/{conversation}/messages/{message}/forward', [MessageController::class, 'forward'])->middleware('throttle:messages');
         Route::patch('conversations/{conversation}/messages/{message}/pin', [MessageController::class, 'pin']);
         Route::patch('conversations/{conversation}/messages/{message}/delivered', [MessageController::class, 'markDelivered']);
         Route::patch('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'react']);
