@@ -53,7 +53,7 @@ import {
     VoiceNoteControls,
     VoiceNoteDraftPreview,
 } from '@/features/messenger/components/voice-note-controls';
-import { apiErrorMessage, getCookie } from '@/features/messenger/lib/api';
+import { getCookie } from '@/features/messenger/lib/api';
 import { EMPTY_SHARED_CONTENT } from '@/features/messenger/lib/constants';
 import {
     applyConversationSystemMessage,
@@ -107,13 +107,11 @@ import type {
     MessengerMessage,
     MessengerPageProps,
     NewConversationPayload,
-    NewEventPayload,
-    NewPollPayload,
-    RsvpStatus,
     SharedContent,
 } from '@/features/messenger/types';
 import { useBrowserNotifications } from '@/features/messenger/use-browser-notifications';
 import { useConversationActions } from '@/features/messenger/use-conversation-actions';
+import { useMessageActions } from '@/features/messenger/use-message-actions';
 import { useNotificationSound } from '@/features/messenger/use-notification-sound';
 import { usePresence } from '@/features/messenger/use-presence';
 import { useTypingIndicators } from '@/features/messenger/use-typing-indicators';
@@ -215,7 +213,6 @@ export default function Messenger({
         useState<MessengerMessage | null>(null);
     const [forwardingMessage, setForwardingMessage] =
         useState<MessengerMessage | null>(null);
-    const [forwarding, setForwarding] = useState(false);
     const [replyToMessage, setReplyToMessage] =
         useState<MessengerMessage | null>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -979,134 +976,6 @@ export default function Messenger({
         return true;
     };
 
-    const createPoll = async (payload: NewPollPayload) => {
-        if (!activeConversationId) {
-            return false;
-        }
-
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${activeConversationId}/polls`,
-            {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify(payload),
-            },
-        );
-
-        if (!response.ok) {
-            window.alert(await apiErrorMessage(response));
-
-            return false;
-        }
-
-        const result = (await response.json()) as { data: MessengerMessage };
-        appendMessage(result.data);
-
-        return true;
-    };
-
-    const createEvent = async (payload: NewEventPayload) => {
-        if (!activeConversationId) {
-            return false;
-        }
-
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${activeConversationId}/events`,
-            {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify(payload),
-            },
-        );
-
-        if (!response.ok) {
-            window.alert(await apiErrorMessage(response));
-
-            return false;
-        }
-
-        const result = (await response.json()) as { data: MessengerMessage };
-        appendMessage(result.data);
-
-        return true;
-    };
-
-    const votePoll = async (message: MessengerMessage, optionId: string) => {
-        if (!message.poll) {
-            return;
-        }
-
-        const selectedIds = message.poll.options
-            .filter((option) => option.voted_by_me)
-            .map((option) => option.id);
-        const optionIds = message.poll.allow_multiple
-            ? selectedIds.includes(optionId)
-                ? selectedIds.filter((id) => id !== optionId)
-                : [...selectedIds, optionId]
-            : selectedIds.includes(optionId)
-              ? []
-              : [optionId];
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/poll-vote`,
-            {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify({ option_ids: optionIds }),
-            },
-        );
-
-        if (response.ok) {
-            const result = (await response.json()) as {
-                data: MessengerMessage;
-            };
-            replaceMessage(result.data);
-        }
-    };
-
-    const respondToEvent = async (
-        message: MessengerMessage,
-        status: RsvpStatus,
-    ) => {
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/rsvp`,
-            {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify({
-                    status:
-                        message.event?.my_response === status ? null : status,
-                }),
-            },
-        );
-
-        if (response.ok) {
-            const result = (await response.json()) as {
-                data: MessengerMessage;
-            };
-            replaceMessage(result.data);
-        }
-    };
-
     useEffect(() => {
         activeConversationIdRef.current = activeConversationId;
     }, [activeConversationId]);
@@ -1510,44 +1379,6 @@ export default function Messenger({
         searchMessages,
     ]);
 
-    const toggleReaction = async (message: MessengerMessage, emoji: string) => {
-        if (message.unsent_at) {
-            return;
-        }
-
-        const existingReaction = message.reactions.find(
-            (reaction) => reaction.reacted_by_me,
-        );
-        const removingSameReaction = existingReaction?.emoji === emoji;
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/reaction`,
-            {
-                method: removingSameReaction ? 'DELETE' : 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: removingSameReaction
-                    ? undefined
-                    : JSON.stringify({ emoji }),
-            },
-        );
-
-        if (!response.ok) {
-            return;
-        }
-
-        const payload = (await response.json()) as {
-            data: {
-                reactions: MessageReactionSummary[];
-            };
-        };
-
-        updateMessageReactions(message.id, payload.data.reactions);
-    };
-
     const startReply = (message: MessengerMessage) => {
         if (message.unsent_at) {
             return;
@@ -1633,82 +1464,6 @@ export default function Messenger({
         }
     };
 
-    const unsendMessage = async (message: MessengerMessage) => {
-        if (
-            message.unsent_at ||
-            message.sender?.id !== auth.user.id ||
-            !window.confirm('Unsend this message for everyone?')
-        ) {
-            return;
-        }
-
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}`,
-            {
-                method: 'DELETE',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-            },
-        );
-
-        if (!response.ok) {
-            return;
-        }
-
-        const payload = (await response.json()) as {
-            data: MessengerMessage;
-        };
-
-        replaceMessage(payload.data);
-
-        if (editingMessage?.id === message.id) {
-            setEditingMessage(null);
-            setMessageBody(
-                activeConversationId
-                    ? (draftsRef.current[activeConversationId] ?? '')
-                    : '',
-            );
-            setMentionQuery(null);
-        }
-
-        if (replyToMessage?.id === message.id) {
-            setReplyToMessage(null);
-        }
-    };
-
-    const toggleMessagePin = async (message: MessengerMessage) => {
-        if (message.unsent_at || message.type === 'system') {
-            return;
-        }
-
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/pin`,
-            {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify({ pinned: message.pinned_at === null }),
-            },
-        );
-
-        if (!response.ok) {
-            return;
-        }
-
-        const payload = (await response.json()) as {
-            data: MessengerMessage;
-        };
-
-        replaceMessage(payload.data);
-    };
-
     const {
         toggleConversationPin,
         moveConversationToArchiveState,
@@ -1730,51 +1485,40 @@ export default function Messenger({
         removeConversationFromCurrentView,
     });
 
-    const forwardMessage = async (
-        message: MessengerMessage,
-        conversationIds: number[],
-    ) => {
-        if (conversationIds.length === 0 || forwarding) {
-            return false;
-        }
-
-        setForwarding(true);
-
-        try {
-            const response = await fetch(
-                `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/forward`,
-                {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                    },
-                    body: JSON.stringify({
-                        conversation_ids: conversationIds,
-                    }),
-                },
-            );
-
-            if (!response.ok) {
-                return false;
+    const {
+        forwarding,
+        createPoll,
+        createEvent,
+        votePoll,
+        respondToEvent,
+        toggleReaction,
+        unsendMessage,
+        toggleMessagePin,
+        forwardMessage,
+    } = useMessageActions({
+        apiBaseUrl,
+        activeConversationId,
+        currentUserId: auth.user.id,
+        appendMessage,
+        replaceMessage,
+        updateMessageReactions,
+        onUnsent: (message) => {
+            if (editingMessage?.id === message.id) {
+                setEditingMessage(null);
+                setMessageBody(
+                    activeConversationId
+                        ? (draftsRef.current[activeConversationId] ?? '')
+                        : '',
+                );
+                setMentionQuery(null);
             }
 
-            const payload = (await response.json()) as {
-                data: MessengerMessage[];
-            };
-
-            payload.data.forEach((forwardedMessage) => {
-                appendMessage(forwardedMessage);
-            });
-            setForwardingMessage(null);
-
-            return true;
-        } finally {
-            setForwarding(false);
-        }
-    };
+            if (replyToMessage?.id === message.id) {
+                setReplyToMessage(null);
+            }
+        },
+        onForwarded: () => setForwardingMessage(null),
+    });
 
     const sendPendingMessage = async (
         pendingMessage: PendingOutgoingMessage,

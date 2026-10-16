@@ -49,13 +49,15 @@ export function messageBubble(page: Page, body: string) {
 
 export const test = base.extend<{
     scenarioType: 'direct' | 'group';
+    secondChat: boolean;
     scenario: Scenario;
     alice: Page;
 }>({
     scenarioType: ['direct', { option: true }],
-    scenario: async ({ request, scenarioType }, use) => {
+    secondChat: [false, { option: true }],
+    scenario: async ({ request, scenarioType, secondChat }, use) => {
         const response = await request.post('/_e2e/scenario', {
-            data: { type: scenarioType },
+            data: { type: scenarioType, second_chat: secondChat },
         });
         expect(response.ok()).toBeTruthy();
         await use((await response.json()) as Scenario);

@@ -48,6 +48,17 @@ Route::prefix('_e2e')->group(function () {
             $conversation->participants()->attach($member, ['role' => $member->is($alice) ? 'owner' : 'member']);
         }
 
+        if ($request->boolean('second_chat')) {
+            $dana = User::factory()->create(['name' => 'Dana Parent']);
+            $team->members()->attach($dana, ['role' => TeamRole::Member->value]);
+            $secondChat = $team->conversations()->create([
+                'created_by' => $alice->id,
+                'type' => ConversationType::Direct,
+            ]);
+            $secondChat->participants()->attach($alice, ['role' => 'owner']);
+            $secondChat->participants()->attach($dana, ['role' => 'member']);
+        }
+
         return response()->json([
             'alice' => ['id' => $alice->id, 'name' => $alice->name],
             'bob' => ['id' => $bob->id, 'name' => $bob->name],
