@@ -47,9 +47,16 @@ export function messageBubble(page: Page, body: string) {
     return thread(page).locator('div.group').filter({ hasText: body }).last();
 }
 
-export const test = base.extend<{ scenario: Scenario; alice: Page }>({
-    scenario: async ({ request }, use) => {
-        const response = await request.post('/_e2e/scenario');
+export const test = base.extend<{
+    scenarioType: 'direct' | 'group';
+    scenario: Scenario;
+    alice: Page;
+}>({
+    scenarioType: ['direct', { option: true }],
+    scenario: async ({ request, scenarioType }, use) => {
+        const response = await request.post('/_e2e/scenario', {
+            data: { type: scenarioType },
+        });
         expect(response.ok()).toBeTruthy();
         await use((await response.json()) as Scenario);
     },

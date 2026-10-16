@@ -96,7 +96,6 @@ import {
 } from '@/features/messenger/lib/text';
 import type {
     Conversation,
-    ConversationMutationPayload,
     ConversationReadPayload,
     MentionOption,
     MessageCreatedPayload,
@@ -110,11 +109,11 @@ import type {
     NewConversationPayload,
     NewEventPayload,
     NewPollPayload,
-    NotificationPreference,
     RsvpStatus,
     SharedContent,
 } from '@/features/messenger/types';
 import { useBrowserNotifications } from '@/features/messenger/use-browser-notifications';
+import { useConversationActions } from '@/features/messenger/use-conversation-actions';
 import { useNotificationSound } from '@/features/messenger/use-notification-sound';
 import { usePresence } from '@/features/messenger/use-presence';
 import { useTypingIndicators } from '@/features/messenger/use-typing-indicators';
@@ -1710,357 +1709,26 @@ export default function Messenger({
         replaceMessage(payload.data);
     };
 
-    const toggleConversationPin = async (conversation: Conversation) => {
-        const nextPinned = conversation.pinned_at === null;
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}/pin`,
-            {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify({ pinned: nextPinned }),
-            },
-        );
-
-        if (!response.ok) {
-            return;
-        }
-
-        const payload = (await response.json()) as {
-            data: { pinned_at: string | null };
-        };
-
-        setConversations((items) =>
-            sortConversations(
-                items.map((item) =>
-                    item.id === conversation.id
-                        ? {
-                              ...item,
-                              pinned_at: payload.data.pinned_at,
-                          }
-                        : item,
-                ),
-            ),
-        );
-    };
-
-    const moveConversationToArchiveState = async (
-        conversation: Conversation,
-        shouldArchive: boolean,
-    ) => {
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}/archive`,
-            {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify({ archived: shouldArchive }),
-            },
-        );
-
-        if (!response.ok) {
-            return;
-        }
-
-        removeConversationFromCurrentView(conversation.id);
-    };
-
-    const deleteArchivedConversation = async (conversation: Conversation) => {
-        if (!window.confirm('Permanently delete this archived chat?')) {
-            return;
-        }
-
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}`,
-            {
-                method: 'DELETE',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-            },
-        );
-
-        if (!response.ok) {
-            return;
-        }
-
-        removeConversationFromCurrentView(conversation.id);
-    };
-
-    const toggleConversationMute = async (conversation: Conversation) => {
-        await updateNotificationPreference(
-            conversation,
-            conversation.notification_preference === 'muted' ? 'all' : 'muted',
-        );
-    };
-
-    const updateNotificationPreference = async (
-        conversation: Conversation,
-        preference: NotificationPreference,
-    ) => {
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}/notifications`,
-            {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify({ preference }),
-            },
-        );
-
-        if (!response.ok) {
-            return false;
-        }
-
-        const payload = (await response.json()) as {
-            data: {
-                muted_at: string | null;
-                notification_preference: NotificationPreference;
-            };
-        };
-
-        setConversations((items) =>
-            items.map((item) =>
-                item.id === conversation.id
-                    ? {
-                          ...item,
-                          muted_at: payload.data.muted_at,
-                          notification_preference:
-                              payload.data.notification_preference,
-                      }
-                    : item,
-            ),
-        );
-
-        return true;
-    };
-
-    const renameConversation = async (
-        conversation: Conversation,
-        title: string,
-    ) => {
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}`,
-            {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify({ title }),
-            },
-        );
-
-        if (!response.ok) {
-            return false;
-        }
-
-        const payload = (await response.json()) as ConversationMutationPayload;
-        replaceConversation(payload.data);
-
-        if (payload.system_message) {
-            appendMessage(payload.system_message);
-        }
-
-        return true;
-    };
-
-    const updateConversationPhoto = async (
-        conversation: Conversation,
-        photo: File,
-    ) => {
-        const formData = new FormData();
-        formData.append('photo', photo);
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}/photo`,
-            {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: formData,
-            },
-        );
-
-        if (!response.ok) {
-            return false;
-        }
-
-        const payload = (await response.json()) as ConversationMutationPayload;
-        replaceConversation(payload.data);
-
-        if (payload.system_message) {
-            appendMessage(payload.system_message);
-        }
-
-        return true;
-    };
-
-    const removeConversationPhoto = async (conversation: Conversation) => {
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}/photo`,
-            {
-                method: 'DELETE',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-            },
-        );
-
-        if (!response.ok) {
-            return false;
-        }
-
-        const payload = (await response.json()) as ConversationMutationPayload;
-        replaceConversation(payload.data);
-
-        if (payload.system_message) {
-            appendMessage(payload.system_message);
-        }
-
-        return true;
-    };
-
-    const updateParticipantNickname = async (
-        conversation: Conversation,
-        userId: number,
-        nickname: string | null,
-    ) => {
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}/members/${userId}/nickname`,
-            {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify({ nickname }),
-            },
-        );
-
-        if (!response.ok) {
-            return false;
-        }
-
-        const payload = (await response.json()) as ConversationMutationPayload;
-        replaceConversation(payload.data);
-
-        if (payload.system_message) {
-            appendMessage(payload.system_message);
-        }
-
-        return true;
-    };
-
-    const addConversationMembers = async (
-        conversation: Conversation,
-        userIds: number[],
-    ) => {
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}/members`,
-            {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify({ user_ids: userIds }),
-            },
-        );
-
-        if (!response.ok) {
-            return false;
-        }
-
-        const payload = (await response.json()) as ConversationMutationPayload;
-        replaceConversation(payload.data);
-
-        if (payload.system_message) {
-            appendMessage(payload.system_message);
-        }
-
-        return true;
-    };
-
-    const removeConversationMember = async (
-        conversation: Conversation,
-        userId: number,
-    ) => {
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}/members/${userId}`,
-            {
-                method: 'DELETE',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-            },
-        );
-
-        if (!response.ok) {
-            return false;
-        }
-
-        const payload = (await response.json()) as ConversationMutationPayload;
-        replaceConversation(payload.data);
-
-        if (payload.system_message) {
-            appendMessage(payload.system_message);
-        }
-
-        return true;
-    };
-
-    const leaveConversation = async (conversation: Conversation) => {
-        if (!window.confirm('Leave this group chat?')) {
-            return false;
-        }
-
-        const response = await fetch(
-            `${apiBaseUrl}/conversations/${conversation.id}/members/me`,
-            {
-                method: 'DELETE',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-            },
-        );
-
-        if (!response.ok) {
-            return false;
-        }
-
-        removeConversationFromCurrentView(conversation.id);
-
-        return true;
-    };
+    const {
+        toggleConversationPin,
+        moveConversationToArchiveState,
+        deleteArchivedConversation,
+        toggleConversationMute,
+        updateNotificationPreference,
+        renameConversation,
+        updateConversationPhoto,
+        removeConversationPhoto,
+        updateParticipantNickname,
+        addConversationMembers,
+        removeConversationMember,
+        leaveConversation,
+    } = useConversationActions({
+        apiBaseUrl,
+        setConversations,
+        replaceConversation,
+        appendMessage,
+        removeConversationFromCurrentView,
+    });
 
     const forwardMessage = async (
         message: MessengerMessage,
