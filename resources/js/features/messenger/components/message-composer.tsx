@@ -78,7 +78,7 @@ export function MessageComposer({
 
     return (
         <form
-            className="shrink-0 border-t border-border bg-card p-4"
+            className="@container shrink-0 border-t border-border bg-card p-4"
             onSubmit={onSubmit}
         >
             {editingMessage && (
@@ -166,7 +166,8 @@ export function MessageComposer({
                     ))}
                 </div>
             )}
-            <div className="flex items-center gap-3">
+            {/* Narrow columns: text field and Send on their own row above the action icons. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 @xl:flex-nowrap">
                 <input
                     className="sr-only"
                     multiple
@@ -224,7 +225,7 @@ export function MessageComposer({
                     <Calendar className="size-5" />
                 </button>
                 <input
-                    className="h-11 min-w-0 flex-1 rounded-xl border border-transparent bg-secondary/70 px-4 text-sm transition outline-none placeholder:text-muted-foreground focus:bg-card focus:ring-4 focus:ring-ring/20"
+                    className="order-first h-11 min-w-0 flex-1 basis-[calc(100%-3.5rem)] rounded-xl border border-transparent bg-secondary/70 px-4 text-sm transition outline-none placeholder:text-muted-foreground focus:bg-card focus:ring-4 focus:ring-ring/20 @xl:order-none @xl:basis-auto"
                     onClick={(event) => onSyncMentionQuery(event.currentTarget)}
                     onChange={(event) => onBodyChange(event.target.value)}
                     maxLength={5000}
@@ -235,7 +236,7 @@ export function MessageComposer({
                 />
                 <button
                     aria-label="Send message"
-                    className="grid size-11 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:bg-[#121e41] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                    className="order-first grid size-11 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:bg-[#121e41] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground @xl:order-none"
                     disabled={
                         (!body.trim() && selectedFiles.length === 0) ||
                         sending ||

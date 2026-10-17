@@ -70,6 +70,8 @@ export function MessageBubble({
     const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
     const system = message.type === 'system';
     const mine = message.sender?.id === currentUserId;
+    // Polls and events render on a light card so their controls stay readable.
+    const interactive = Boolean(message.poll || message.event);
     const unsent = message.unsent_at !== null;
     const handleReaction = (emoji: string) => {
         onReact(message, emoji);
@@ -93,7 +95,7 @@ export function MessageBubble({
             <div className="relative max-w-[min(82%,34rem)]">
                 {!unsent && (
                     <div
-                        className={`mb-1 flex gap-1 opacity-100 md:opacity-0 md:transition md:group-focus-within:opacity-100 md:group-hover:opacity-100 ${
+                        className={`mb-1 flex gap-1 opacity-100 md:absolute md:-top-3.5 md:right-3 md:z-10 md:mb-0 md:opacity-0 md:transition md:group-focus-within:opacity-100 md:group-hover:opacity-100 ${
                             mine ? 'justify-end' : 'justify-start'
                         }`}
                     >
@@ -166,7 +168,9 @@ export function MessageBubble({
                         mine
                             ? unsent
                                 ? 'rounded-br-md bg-muted text-muted-foreground'
-                                : 'rounded-br-md bg-message-outgoing text-message-outgoing-foreground'
+                                : interactive
+                                  ? 'rounded-br-md bg-message-incoming text-foreground ring-1 ring-brand/25'
+                                  : 'rounded-br-md bg-message-outgoing text-message-outgoing-foreground'
                             : 'rounded-bl-md bg-message-incoming text-foreground'
                     } mb-3`}
                 >
@@ -239,7 +243,7 @@ export function MessageBubble({
                     )}
                     <div
                         className={`mt-2 text-right text-[11px] ${
-                            mine && !unsent
+                            mine && !unsent && !interactive
                                 ? 'text-message-outgoing-foreground/70'
                                 : 'text-muted-foreground'
                         }`}

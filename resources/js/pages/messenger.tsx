@@ -1510,6 +1510,12 @@ export default function Messenger({
                 { method: 'POST', body: formData },
             );
 
+            if (response.status === 429) {
+                throw new Error(
+                    'You are sending messages too quickly. Wait a moment, then retry.',
+                );
+            }
+
             if (!response.ok) {
                 const failure = (await response.json().catch(() => null)) as {
                     message?: string;
@@ -1541,10 +1547,13 @@ export default function Messenger({
                         ? {
                               ...message,
                               status: 'failed',
+                              // fetch() rejects with a TypeError when the network is down.
                               error:
-                                  error instanceof Error
-                                      ? error.message
-                                      : 'Could not send message.',
+                                  error instanceof TypeError
+                                      ? 'No connection. Check your internet, then retry.'
+                                      : error instanceof Error
+                                        ? error.message
+                                        : 'Could not send message.',
                           }
                         : message,
                 ),

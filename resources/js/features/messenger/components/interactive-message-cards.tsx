@@ -40,7 +40,7 @@ export function PollCard({
             : false;
 
     return (
-        <div className="min-w-64">
+        <div className="w-72 max-w-full">
             <div className="mb-3 flex items-start gap-2">
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand/15 text-brand">
                     <ListChecks className="size-4" />
@@ -123,7 +123,7 @@ export function EventCard({
     ];
 
     return (
-        <div className="min-w-64">
+        <div className="w-72 max-w-full">
             <div className="flex items-start gap-3">
                 <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand/15 text-brand">
                     <Calendar className="size-5" />
