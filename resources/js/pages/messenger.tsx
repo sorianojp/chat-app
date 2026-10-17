@@ -85,6 +85,7 @@ import { useBrowserNotifications } from '@/features/messenger/use-browser-notifi
 import { useConversationActions } from '@/features/messenger/use-conversation-actions';
 import { useMessageActions } from '@/features/messenger/use-message-actions';
 import { useNotificationSound } from '@/features/messenger/use-notification-sound';
+import { useOlderMessages } from '@/features/messenger/use-older-messages';
 import { usePresence } from '@/features/messenger/use-presence';
 import { useSharedContent } from '@/features/messenger/use-shared-content';
 import { useTypingIndicators } from '@/features/messenger/use-typing-indicators';
@@ -101,6 +102,7 @@ export default function Messenger({
     contacts,
     conversations: initialConversations,
     initialConversationId,
+    initialHasOlderMessages,
     initialMessages,
     webPushPublicKey,
     workspace,
@@ -1007,6 +1009,50 @@ export default function Messenger({
         updateMessageReactions,
     ]);
 
+    /** Merges fetched messages (newest first, as the API returns them) into a conversation. */
+    const mergeLoadedMessages = useCallback(
+        (conversationId: number, loaded: MessengerMessage[]) => {
+            loaded.forEach((message) => {
+                seenMessageIdsRef.current.add(message.id);
+            });
+
+            setMessagesByConversation((messages) => {
+                const fetchedMessages = [...loaded].reverse();
+                const fetchedIds = new Set(
+                    fetchedMessages.map((message) => message.id),
+                );
+                const existingMessages = (
+                    messages[conversationId] ?? []
+                ).filter((message) => !fetchedIds.has(message.id));
+
+                return {
+                    ...messages,
+                    [conversationId]: sortMessagesByCreatedAt([
+                        ...fetchedMessages,
+                        ...existingMessages,
+                    ]),
+                };
+            });
+        },
+        [],
+    );
+
+    const {
+        hasOlder: hasOlderMessages,
+        loadingOlder: loadingOlderMessages,
+        loadOlder: loadOlderMessages,
+        setHasOlder: setHasOlderMessages,
+    } = useOlderMessages({
+        apiBaseUrl,
+        conversationId: activeConversationId,
+        messages: activeMessages,
+        viewportRef: messagesViewportRef,
+        messageRefs,
+        initialConversationId,
+        initialHasOlder: initialHasOlderMessages,
+        onLoaded: mergeLoadedMessages,
+    });
+
     const fetchMessages = useCallback(
         async (conversationId: number) => {
             const response = await fetch(
@@ -1025,31 +1071,13 @@ export default function Messenger({
 
             const payload = (await response.json()) as {
                 data: MessengerMessage[];
+                next_page_url: string | null;
             };
-            payload.data.forEach((message) => {
-                seenMessageIdsRef.current.add(message.id);
-            });
             loadedConversationIdsRef.current.add(conversationId);
-
-            setMessagesByConversation((messages) => {
-                const fetchedMessages = [...payload.data].reverse();
-                const fetchedIds = new Set(
-                    fetchedMessages.map((message) => message.id),
-                );
-                const existingMessages = (
-                    messages[conversationId] ?? []
-                ).filter((message) => !fetchedIds.has(message.id));
-
-                return {
-                    ...messages,
-                    [conversationId]: sortMessagesByCreatedAt([
-                        ...fetchedMessages,
-                        ...existingMessages,
-                    ]),
-                };
-            });
+            mergeLoadedMessages(conversationId, payload.data);
+            setHasOlderMessages(conversationId, payload.next_page_url !== null);
         },
-        [apiBaseUrl],
+        [apiBaseUrl, mergeLoadedMessages, setHasOlderMessages],
     );
 
     const markConversationRead = useCallback(
@@ -1156,11 +1184,11 @@ export default function Messenger({
         [],
     );
 
-    const handleTimelineScroll = () => {
+    const updateTimelineScrollState = () => {
         const viewport = messagesViewportRef.current;
 
         if (!viewport) {
-            return;
+            return null;
         }
 
         const nearBottom =
@@ -1168,6 +1196,17 @@ export default function Messenger({
             96;
         nearBottomRef.current = nearBottom;
         setShowJumpToLatest(!nearBottom);
+
+        return viewport;
+    };
+
+    const handleTimelineScroll = () => {
+        const viewport = updateTimelineScrollState();
+
+        // Near the top: fetch the previous page of history.
+        if (viewport && viewport.scrollTop < 150 && !messageSearchTerm) {
+            void loadOlderMessages();
+        }
     };
 
     useEffect(() => {
@@ -1192,7 +1231,7 @@ export default function Messenger({
                     marker.getBoundingClientRect().top -
                     viewport.getBoundingClientRect().top -
                     12;
-                handleTimelineScroll();
+                updateTimelineScrollState();
             } else {
                 scrollToLatest('auto');
             }
@@ -1716,8 +1755,13 @@ export default function Messenger({
                                     currentUserId={auth.user.id}
                                     deliveredMessageId={deliveredMessageId}
                                     firstUnreadMessageId={firstUnreadMessageId}
+                                    hasOlderMessages={hasOlderMessages}
                                     highlightedMessageId={highlightedMessageId}
                                     latestOwnMessageId={latestOwnMessageId}
+                                    loadingOlderMessages={loadingOlderMessages}
+                                    onLoadOlderMessages={() =>
+                                        void loadOlderMessages()
+                                    }
                                     messageActions={{
                                         onEdit: startEdit,
                                         onForward: setForwardingMessage,

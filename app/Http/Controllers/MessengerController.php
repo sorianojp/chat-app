@@ -50,12 +50,16 @@ class MessengerController extends Controller
                 ->where('conversation_id', $activeConversationId)
                 ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'eventRsvps.user:id,name', 'mentions.user:id,name', 'pollVotes.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
                 ->latest('id')
-                ->limit(80)
+                ->limit(81)
                 ->get()
-                ->reverse()
-                ->values()
-                ->map(fn (Message $message) => MessagePayload::from($message, $user->id))
             : collect();
+        // One extra row tells the page whether older messages exist.
+        $hasOlderMessages = $messages->count() > 80;
+        $messages = $messages
+            ->take(80)
+            ->reverse()
+            ->values()
+            ->map(fn (Message $message) => MessagePayload::from($message, $user->id));
 
         return Inertia::render('messenger', [
             'apiBaseUrl' => "/api/teams/{$current_team->slug}",
@@ -78,6 +82,7 @@ class MessengerController extends Controller
             'conversations' => $conversations,
             'initialConversationId' => $activeConversationId,
             'initialMessages' => $messages,
+            'initialHasOlderMessages' => $hasOlderMessages,
             'archived' => $showArchived,
             'webPushPublicKey' => $webPush->publicKey(),
         ]);

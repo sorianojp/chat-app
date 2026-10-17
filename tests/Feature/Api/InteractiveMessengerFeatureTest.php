@@ -242,3 +242,46 @@ test('message sending is rate limited per user', function () {
         ->postJson("/api/teams/{$team->slug}/conversations/{$conversation->id}/messages", ['body' => 'One too many'])
         ->assertTooManyRequests();
 });
+
+test('older messages can be loaded before a given message', function () {
+    $owner = User::factory()->create();
+    $member = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = interactiveConversation($owner, $member, $team, ConversationType::Direct);
+    $ids = collect(range(1, 50))->map(fn (int $number) => $conversation->messages()->create([
+        'sender_id' => $member->id,
+        'type' => 'text',
+        'body' => "Message {$number}",
+    ])->id);
+
+    $url = "/api/teams/{$team->slug}/conversations/{$conversation->id}/messages";
+
+    $this->actingAs($owner)
+        ->getJson("{$url}?before_id={$ids[45]}")
+        ->assertOk()
+        ->assertJsonCount(40, 'data')
+        ->assertJsonPath('data.0.id', $ids[44])
+        ->assertJsonPath('data.39.id', $ids[5])
+        ->assertJsonPath('next_page_url', fn (?string $next) => $next !== null);
+
+    $this->actingAs($owner)
+        ->getJson("{$url}?before_id={$ids[5]}")
+        ->assertOk()
+        ->assertJsonCount(5, 'data')
+        ->assertJsonPath('data.4.id', $ids[0])
+        ->assertJsonPath('next_page_url', null);
+});
+
+test('the messenger page reports when a conversation has no older messages', function () {
+    $owner = User::factory()->create();
+    $member = User::factory()->create();
+    $team = Team::factory()->create();
+    $conversation = interactiveConversation($owner, $member, $team, ConversationType::Direct);
+    $conversation->messages()->create(['sender_id' => $member->id, 'type' => 'text', 'body' => 'Only one']);
+
+    $this->actingAs($owner)
+        ->get(route('messenger', ['current_team' => $team->slug, 'conversation' => $conversation->id]))
+        ->assertInertia(fn ($page) => $page
+            ->has('initialMessages', 1)
+            ->where('initialHasOlderMessages', false));
+});

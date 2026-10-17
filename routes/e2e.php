@@ -48,6 +48,15 @@ Route::prefix('_e2e')->group(function () {
             $conversation->participants()->attach($member, ['role' => $member->is($alice) ? 'owner' : 'member']);
         }
 
+        // Note: range(1, 0) would count down, so loop explicitly.
+        for ($number = 1; $number <= min($request->integer('messages'), 500); $number++) {
+            $conversation->messages()->create([
+                'sender_id' => $bob->id,
+                'type' => 'text',
+                'body' => "History message {$number}",
+            ]);
+        }
+
         if ($request->boolean('second_chat')) {
             $dana = User::factory()->create(['name' => 'Dana Parent']);
             $team->members()->attach($dana, ['role' => TeamRole::Member->value]);

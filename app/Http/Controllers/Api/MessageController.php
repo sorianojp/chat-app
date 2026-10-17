@@ -48,6 +48,8 @@ class MessageController extends Controller
                         ->orWhereHas('attachments', fn ($query) => $query->where('original_name', 'like', "%{$search}%"));
                 });
             })
+            // Cursor for "load older messages": stable while new messages keep arriving.
+            ->when($request->integer('before_id') > 0, fn ($query) => $query->where('id', '<', $request->integer('before_id')))
             ->latest('id')
             ->paginate(40)
             ->through(fn (Message $message) => MessagePayload::from($message, $request->user()->id));

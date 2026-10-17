@@ -140,3 +140,39 @@ test('replying to a message', async ({ alice }) => {
         ),
     ).toBeVisible();
 });
+
+test.describe('long conversations', () => {
+    test.use({ seedMessages: 90 });
+
+    test('scrolling up loads older messages without losing your place', async ({
+        alice,
+    }) => {
+        const timeline = thread(alice);
+        // The page opens with the newest 80 of 90 messages.
+        await expect(
+            timeline.getByText('History message 90', { exact: true }),
+        ).toBeVisible();
+        await expect(
+            timeline.getByText('History message 11', { exact: true }),
+        ).toBeAttached();
+        await expect(
+            timeline.getByText('History message 10', { exact: true }),
+        ).toHaveCount(0);
+
+        await timeline.evaluate((element) => {
+            element.scrollTop = 0;
+        });
+
+        await expect(
+            timeline.getByText('History message 1', { exact: true }),
+        ).toBeAttached();
+        await expect(
+            timeline.getByRole('button', { name: 'Load older messages' }),
+        ).toHaveCount(0);
+
+        // The message that was at the top before loading is still in view.
+        await expect(
+            timeline.getByText('History message 11', { exact: true }),
+        ).toBeInViewport();
+    });
+});

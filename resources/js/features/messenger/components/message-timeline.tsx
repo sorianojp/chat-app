@@ -36,6 +36,9 @@ export function MessageTimeline({
     searchOpen,
     searchTerm,
     searching,
+    hasOlderMessages,
+    loadingOlderMessages,
+    onLoadOlderMessages,
     highlightedMessageId,
     firstUnreadMessageId,
     unreadCount,
@@ -61,6 +64,9 @@ export function MessageTimeline({
     searchOpen: boolean;
     searchTerm: string;
     searching: boolean;
+    hasOlderMessages: boolean;
+    loadingOlderMessages: boolean;
+    onLoadOlderMessages: () => void;
     highlightedMessageId: number | null;
     firstUnreadMessageId: number | null;
     unreadCount: number | undefined;
@@ -86,6 +92,20 @@ export function MessageTimeline({
                 data-testid="message-thread"
                 ref={viewportRef}
             >
+                {hasOlderMessages && !searchTerm && (
+                    <div className="flex justify-center">
+                        <button
+                            className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+                            disabled={loadingOlderMessages}
+                            onClick={onLoadOlderMessages}
+                            type="button"
+                        >
+                            {loadingOlderMessages
+                                ? 'Loading older messages…'
+                                : 'Load older messages'}
+                        </button>
+                    </div>
+                )}
                 {messages.length > 0 ||
                 (!searchTerm && pendingMessages.length > 0) ? (
                     messages.map((message) => (

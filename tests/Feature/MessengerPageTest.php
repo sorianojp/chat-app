@@ -36,6 +36,7 @@ test('a direct chat link loads the newest messages in chronological order', func
             ->component('messenger')
             ->where('initialConversationId', $conversation->id)
             ->has('initialMessages', 80)
+            ->where('initialHasOlderMessages', true)
             ->where('initialMessages.0.id', $messageIds[2])
             ->where('initialMessages.79.id', $messageIds[81])
             ->where('conversations.0.unread_count', 82)

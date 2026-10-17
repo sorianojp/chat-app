@@ -229,6 +229,7 @@ export type MessengerPageProps = {
     contacts: Contact[];
     conversations: Conversation[];
     initialConversationId: number | null;
+    initialHasOlderMessages: boolean;
     initialMessages: MessengerMessage[];
     archived: boolean;
     webPushPublicKey: string | null;
