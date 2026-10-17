@@ -2,19 +2,11 @@ import { Head, usePage } from '@inertiajs/react';
 import { echo } from '@laravel/echo-react';
 import {
     Archive,
-    ArrowDown,
     ArrowLeft,
-    Calendar,
-    FileText,
     Inbox,
     Info,
-    ListChecks,
     MessageCircle,
-    Paperclip,
     PencilLine,
-    Search,
-    Send,
-    X,
 } from 'lucide-react';
 import {
     useCallback,
@@ -27,10 +19,7 @@ import {
 import type { FormEvent } from 'react';
 import { ChatDetails } from '@/features/messenger/components/chat-details';
 import { EmptyState } from '@/features/messenger/components/common';
-import {
-    ComposerContext,
-    ConversationComposer,
-} from '@/features/messenger/components/conversation-composer';
+import { ConversationComposer } from '@/features/messenger/components/conversation-composer';
 import {
     ConversationHeader,
     PinnedMessageBanner,
@@ -41,23 +30,18 @@ import {
     EventComposer,
     PollComposer,
 } from '@/features/messenger/components/interactive-composers';
-import {
-    MessageBubble,
-    TypingIndicator,
-} from '@/features/messenger/components/message-bubble';
-import { PendingMessage } from '@/features/messenger/components/pending-message';
+import {} from '@/features/messenger/components/message-bubble';
+import { MessageComposer } from '@/features/messenger/components/message-composer';
+import { MessageSearchBar } from '@/features/messenger/components/message-search-bar';
+import { MessageTimeline } from '@/features/messenger/components/message-timeline';
 import type { PendingOutgoingMessage } from '@/features/messenger/components/pending-message';
-import {
-    VoiceNoteControls,
-    VoiceNoteDraftPreview,
-} from '@/features/messenger/components/voice-note-controls';
+import {} from '@/features/messenger/components/voice-note-controls';
 import { apiFetch } from '@/features/messenger/lib/api';
 import {
     applyConversationSystemMessage,
     sortConversations,
     updateConversationMessageSnapshot,
 } from '@/features/messenger/lib/conversations';
-import { formatFileSize, initials } from '@/features/messenger/lib/format';
 import {
     addDeliveryReceipt,
     latestDeliveredMessageId,
@@ -65,7 +49,6 @@ import {
     latestPinnedMessage,
     latestSeenMessageId,
     mapMessages,
-    messageDeliveryStatus,
     messageMentionsUser,
     messagePreview,
     personalizeMessage,
@@ -382,7 +365,6 @@ export default function Messenger({
                   .includes(mentionQuery.toLowerCase()),
           )
         : mentionOptions;
-    const isEditing = editingMessage !== null;
     const filteredConversations = conversations.filter((conversation) =>
         conversation.display_name.toLowerCase().includes(search.toLowerCase()),
     );
@@ -1709,35 +1691,15 @@ export default function Messenger({
                                     typingUsers={activeTypingUsers}
                                 />
                                 {messageSearchOpen && (
-                                    <div className="border-b border-border bg-card px-4 py-3 md:px-6">
-                                        <label className="flex h-11 items-center gap-2 rounded-xl bg-secondary/70 px-3 text-muted-foreground transition focus-within:bg-card focus-within:ring-4 focus-within:ring-ring/20">
-                                            <Search className="size-4" />
-                                            <input
-                                                autoFocus
-                                                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                                                onChange={(event) =>
-                                                    setMessageSearch(
-                                                        event.target.value,
-                                                    )
-                                                }
-                                                placeholder="Search messages"
-                                                type="search"
-                                                value={messageSearch}
-                                            />
-                                            <button
-                                                aria-label="Close search"
-                                                className="grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                                                onClick={() => {
-                                                    setMessageSearch('');
-                                                    setMessageSearchOpen(false);
-                                                    setMessageSearchResults([]);
-                                                }}
-                                                type="button"
-                                            >
-                                                <X className="size-4" />
-                                            </button>
-                                        </label>
-                                    </div>
+                                    <MessageSearchBar
+                                        onChange={setMessageSearch}
+                                        onClose={() => {
+                                            setMessageSearch('');
+                                            setMessageSearchOpen(false);
+                                            setMessageSearchResults([]);
+                                        }}
+                                        value={messageSearch}
+                                    />
                                 )}
                                 {activePinnedMessage && (
                                     <PinnedMessageBanner
@@ -1749,396 +1711,80 @@ export default function Messenger({
                                         onUnpin={toggleMessagePin}
                                     />
                                 )}
-                                <div className="relative min-h-0 flex-1">
-                                    <div
-                                        className="h-full space-y-4 overflow-x-hidden overflow-y-auto bg-background px-4 py-5 md:px-6"
-                                        onScroll={handleTimelineScroll}
-                                        data-testid="message-thread"
-                                        ref={messagesViewportRef}
-                                    >
-                                        {visibleMessages.length > 0 ||
-                                        (!messageSearchTerm &&
-                                            activePendingMessages.length >
-                                                0) ? (
-                                            visibleMessages.map((message) => (
-                                                <div
-                                                    className={`rounded-2xl transition ${
-                                                        highlightedMessageId ===
-                                                        message.id
-                                                            ? 'bg-brand/15 ring-2 ring-brand/30'
-                                                            : ''
-                                                    }`}
-                                                    key={message.id}
-                                                    ref={(element) => {
-                                                        messageRefs.current[
-                                                            message.id
-                                                        ] = element;
-                                                    }}
-                                                >
-                                                    {message.id ===
-                                                        firstUnreadMessageId &&
-                                                        !messageSearchTerm && (
-                                                            <div
-                                                                className="mb-4 flex items-center gap-3 text-xs font-semibold text-brand"
-                                                                ref={
-                                                                    unreadMarkerRef
-                                                                }
-                                                            >
-                                                                <span className="h-px flex-1 bg-brand/30" />
-                                                                <span>
-                                                                    {
-                                                                        activeUnreadSnapshot?.count
-                                                                    }{' '}
-                                                                    unread{' '}
-                                                                    {activeUnreadSnapshot?.count ===
-                                                                    1
-                                                                        ? 'message'
-                                                                        : 'messages'}
-                                                                </span>
-                                                                <span className="h-px flex-1 bg-brand/30" />
-                                                            </div>
-                                                        )}
-                                                    <MessageBubble
-                                                        canPin={
-                                                            activeConversation
-                                                                .permissions
-                                                                .can_pin_messages
-                                                        }
-                                                        currentUserId={
-                                                            auth.user.id
-                                                        }
-                                                        conversation={
-                                                            activeConversation
-                                                        }
-                                                        deliveryStatus={messageDeliveryStatus(
-                                                            message,
-                                                            auth.user.id,
-                                                            hasHydrated,
-                                                            message.id ===
-                                                                seenMessageId,
-                                                            message.id ===
-                                                                deliveredMessageId,
-                                                            message.id ===
-                                                                latestOwnMessageId,
-                                                        )}
-                                                        message={message}
-                                                        onEdit={startEdit}
-                                                        onForward={
-                                                            setForwardingMessage
-                                                        }
-                                                        onPin={toggleMessagePin}
-                                                        onReact={toggleReaction}
-                                                        onReply={startReply}
-                                                        onRsvp={respondToEvent}
-                                                        onUnsend={unsendMessage}
-                                                        onVote={votePoll}
-                                                    />
-                                                </div>
-                                            ))
-                                        ) : searchingMessages ? (
-                                            <EmptyState
-                                                icon={
-                                                    <Search className="size-6" />
-                                                }
-                                                title="Searching messages"
-                                                body="Looking through this conversation."
-                                            />
-                                        ) : messageSearchOpen &&
-                                          messageSearchTerm ? (
-                                            <EmptyState
-                                                icon={
-                                                    <Search className="size-6" />
-                                                }
-                                                title="No messages found"
-                                                body="Try another word or file name."
-                                            />
-                                        ) : (
-                                            <EmptyState
-                                                icon={
-                                                    <MessageCircle className="size-6" />
-                                                }
-                                                title="No messages yet"
-                                                body="Send the first message in this conversation."
-                                            />
-                                        )}
-                                        {!messageSearchTerm &&
-                                            activePendingMessages.map(
-                                                (message) => (
-                                                    <PendingMessage
-                                                        key={message.clientId}
-                                                        message={message}
-                                                        onDiscard={
-                                                            discardPendingMessage
-                                                        }
-                                                        onRetry={(
-                                                            pendingMessage,
-                                                        ) =>
-                                                            void sendPendingMessage(
-                                                                pendingMessage,
-                                                            )
-                                                        }
-                                                    />
-                                                ),
-                                            )}
-                                        {activeTypingUsers.length > 0 &&
-                                            !messageSearchTerm && (
-                                                <TypingIndicator
-                                                    users={activeTypingUsers}
-                                                />
-                                            )}
-                                    </div>
-                                    {showJumpToLatest && !messageSearchTerm && (
-                                        <button
-                                            aria-label="Jump to latest message"
-                                            className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground shadow-lg transition hover:bg-muted"
-                                            onClick={() => scrollToLatest()}
-                                            type="button"
-                                        >
-                                            <ArrowDown className="size-4" />
-                                            Jump to latest
-                                        </button>
-                                    )}
-                                </div>
-                                <form
-                                    className="shrink-0 border-t border-border bg-card p-4"
+                                <MessageTimeline
+                                    conversation={activeConversation}
+                                    currentUserId={auth.user.id}
+                                    deliveredMessageId={deliveredMessageId}
+                                    firstUnreadMessageId={firstUnreadMessageId}
+                                    highlightedMessageId={highlightedMessageId}
+                                    latestOwnMessageId={latestOwnMessageId}
+                                    messageActions={{
+                                        onEdit: startEdit,
+                                        onForward: setForwardingMessage,
+                                        onPin: toggleMessagePin,
+                                        onReact: toggleReaction,
+                                        onReply: startReply,
+                                        onRsvp: respondToEvent,
+                                        onUnsend: unsendMessage,
+                                        onVote: votePoll,
+                                    }}
+                                    messageRefs={messageRefs}
+                                    messages={visibleMessages}
+                                    onDiscardPending={discardPendingMessage}
+                                    onJumpToLatest={() => scrollToLatest()}
+                                    onRetryPending={(pendingMessage) =>
+                                        void sendPendingMessage(pendingMessage)
+                                    }
+                                    onScroll={handleTimelineScroll}
+                                    pendingMessages={activePendingMessages}
+                                    searchOpen={messageSearchOpen}
+                                    searchTerm={messageSearchTerm}
+                                    searching={searchingMessages}
+                                    seenMessageId={seenMessageId}
+                                    showDeliveryStatus={hasHydrated}
+                                    showJumpToLatest={showJumpToLatest}
+                                    typingUsers={activeTypingUsers}
+                                    unreadCount={activeUnreadSnapshot?.count}
+                                    unreadMarkerRef={unreadMarkerRef}
+                                    viewportRef={messagesViewportRef}
+                                />
+                                <MessageComposer
+                                    body={messageBody}
+                                    conversationId={activeConversationId}
+                                    currentUserId={auth.user.id}
+                                    editingMessage={editingMessage}
+                                    fileInputRef={fileInputRef}
+                                    mentionOptions={filteredMentionOptions}
+                                    mentionQuery={mentionQuery}
+                                    messageInputRef={messageInputRef}
+                                    onBodyChange={handleMessageBodyChange}
+                                    onCancelEdit={cancelComposerContext}
+                                    onCancelReply={() =>
+                                        setReplyToMessage(null)
+                                    }
+                                    onInsertMention={insertMention}
+                                    onOpenEvent={() =>
+                                        setEventComposerOpen(true)
+                                    }
+                                    onOpenPoll={() => setPollComposerOpen(true)}
                                     onSubmit={sendMessage}
-                                >
-                                    {editingMessage && (
-                                        <ComposerContext
-                                            body={editingMessage.body}
-                                            label="Editing message"
-                                            onCancel={cancelComposerContext}
-                                        />
-                                    )}
-                                    {replyToMessage && !editingMessage && (
-                                        <ComposerContext
-                                            body={messagePreview(
-                                                replyToMessage,
-                                            )}
-                                            label={`Replying to ${replyToMessage.sender?.id === auth.user.id ? 'yourself' : (replyToMessage.sender?.name ?? 'message')}`}
-                                            onCancel={() =>
-                                                setReplyToMessage(null)
-                                            }
-                                        />
-                                    )}
-                                    {selectedFiles.length > 0 && (
-                                        <div className="mb-3 flex flex-wrap gap-2">
-                                            {selectedFiles.map(
-                                                (file, index) => (
-                                                    <span
-                                                        className="inline-flex max-w-full items-center gap-2 rounded-full bg-secondary px-3 py-2 text-xs font-medium text-foreground"
-                                                        key={`${file.name}-${file.lastModified}-${index}`}
-                                                    >
-                                                        <FileText className="size-3.5 shrink-0" />
-                                                        <span className="max-w-48 truncate">
-                                                            {file ===
-                                                            recordedVoiceNote
-                                                                ? 'Voice note'
-                                                                : file.name}
-                                                        </span>
-                                                        <span className="text-muted-foreground">
-                                                            {formatFileSize(
-                                                                file.size,
-                                                            )}
-                                                        </span>
-                                                        <button
-                                                            aria-label={`Remove ${file.name}`}
-                                                            className="grid size-5 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                                                            onClick={() => {
-                                                                setSelectedFiles(
-                                                                    (files) =>
-                                                                        files.filter(
-                                                                            (
-                                                                                _file,
-                                                                                fileIndex,
-                                                                            ) =>
-                                                                                fileIndex !==
-                                                                                index,
-                                                                        ),
-                                                                );
-
-                                                                if (
-                                                                    file ===
-                                                                    recordedVoiceNote
-                                                                ) {
-                                                                    setRecordedVoiceNote(
-                                                                        null,
-                                                                    );
-                                                                }
-                                                            }}
-                                                            type="button"
-                                                        >
-                                                            <X className="size-3" />
-                                                        </button>
-                                                    </span>
-                                                ),
-                                            )}
-                                        </div>
-                                    )}
-                                    {recordedVoiceNote && (
-                                        <VoiceNoteDraftPreview
-                                            file={recordedVoiceNote}
-                                        />
-                                    )}
-                                    {mentionQuery !== null &&
-                                        filteredMentionOptions.length > 0 && (
-                                            <div className="mb-3 max-h-56 overflow-y-auto rounded-xl border border-border bg-card p-2 shadow-lg">
-                                                {filteredMentionOptions.map(
-                                                    (option) => (
-                                                        <button
-                                                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-muted/40"
-                                                            key={option.id}
-                                                            onMouseDown={(
-                                                                event,
-                                                            ) => {
-                                                                event.preventDefault();
-                                                                insertMention(
-                                                                    option,
-                                                                );
-                                                            }}
-                                                            type="button"
-                                                        >
-                                                            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand/10 text-xs font-bold text-brand">
-                                                                {option.id ===
-                                                                'everyone'
-                                                                    ? '@'
-                                                                    : initials(
-                                                                          option.label,
-                                                                      )}
-                                                            </span>
-                                                            <span className="min-w-0 flex-1">
-                                                                <span className="block truncate text-sm font-semibold text-foreground">
-                                                                    {
-                                                                        option.token
-                                                                    }
-                                                                </span>
-                                                                <span className="block truncate text-xs text-muted-foreground">
-                                                                    {
-                                                                        option.description
-                                                                    }
-                                                                </span>
-                                                            </span>
-                                                        </button>
-                                                    ),
-                                                )}
-                                            </div>
-                                        )}
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            className="sr-only"
-                                            multiple
-                                            onChange={(event) =>
-                                                setSelectedFiles((files) =>
-                                                    [
-                                                        ...files,
-                                                        ...Array.from(
-                                                            event.target
-                                                                .files ?? [],
-                                                        ),
-                                                    ].slice(0, 5),
-                                                )
-                                            }
-                                            ref={fileInputRef}
-                                            disabled={
-                                                isEditing ||
-                                                recordedVoiceNote !== null ||
-                                                voiceRecorderStatus !== 'idle'
-                                            }
-                                            type="file"
-                                        />
-                                        <button
-                                            aria-label="Attach file"
-                                            className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted"
-                                            onClick={() =>
-                                                fileInputRef.current?.click()
-                                            }
-                                            disabled={
-                                                isEditing ||
-                                                recordedVoiceNote !== null ||
-                                                voiceRecorderStatus !== 'idle'
-                                            }
-                                            type="button"
-                                        >
-                                            <Paperclip className="size-5" />
-                                        </button>
-                                        <VoiceNoteControls
-                                            disabled={
-                                                isEditing ||
-                                                selectedFiles.length > 0 ||
-                                                sending
-                                            }
-                                            key={activeConversationId}
-                                            onRecorded={handleRecordedVoiceNote}
-                                            onStatusChange={
-                                                setVoiceRecorderStatus
-                                            }
-                                        />
-                                        <button
-                                            aria-label="Create poll"
-                                            className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-brand"
-                                            disabled={
-                                                isEditing ||
-                                                voiceRecorderStatus !== 'idle'
-                                            }
-                                            onClick={() =>
-                                                setPollComposerOpen(true)
-                                            }
-                                            type="button"
-                                        >
-                                            <ListChecks className="size-5" />
-                                        </button>
-                                        <button
-                                            aria-label="Create event"
-                                            className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-brand"
-                                            disabled={
-                                                isEditing ||
-                                                voiceRecorderStatus !== 'idle'
-                                            }
-                                            onClick={() =>
-                                                setEventComposerOpen(true)
-                                            }
-                                            type="button"
-                                        >
-                                            <Calendar className="size-5" />
-                                        </button>
-                                        <input
-                                            className="h-11 min-w-0 flex-1 rounded-xl border border-transparent bg-secondary/70 px-4 text-sm transition outline-none placeholder:text-muted-foreground focus:bg-card focus:ring-4 focus:ring-ring/20"
-                                            onClick={(event) =>
-                                                syncMentionQueryFromInput(
-                                                    event.currentTarget,
-                                                )
-                                            }
-                                            onChange={(event) =>
-                                                handleMessageBodyChange(
-                                                    event.target.value,
-                                                )
-                                            }
-                                            maxLength={5000}
-                                            onKeyUp={(event) =>
-                                                syncMentionQueryFromInput(
-                                                    event.currentTarget,
-                                                )
-                                            }
-                                            placeholder="Type a message..."
-                                            ref={messageInputRef}
-                                            value={messageBody}
-                                        />
-                                        <button
-                                            aria-label="Send message"
-                                            className="grid size-11 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:bg-[#121e41] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-                                            disabled={
-                                                (!messageBody.trim() &&
-                                                    selectedFiles.length ===
-                                                        0) ||
-                                                sending ||
-                                                voiceRecorderStatus !== 'idle'
-                                            }
-                                            type="submit"
-                                        >
-                                            <Send className="size-5" />
-                                        </button>
-                                    </div>
-                                </form>
+                                    onSyncMentionQuery={
+                                        syncMentionQueryFromInput
+                                    }
+                                    onVoiceNoteRecorded={
+                                        handleRecordedVoiceNote
+                                    }
+                                    onVoiceRecorderStatusChange={
+                                        setVoiceRecorderStatus
+                                    }
+                                    recordedVoiceNote={recordedVoiceNote}
+                                    replyToMessage={replyToMessage}
+                                    selectedFiles={selectedFiles}
+                                    sending={sending}
+                                    setRecordedVoiceNote={setRecordedVoiceNote}
+                                    setSelectedFiles={setSelectedFiles}
+                                    voiceRecorderStatus={voiceRecorderStatus}
+                                />
                             </>
                         ) : (
                             <EmptyState

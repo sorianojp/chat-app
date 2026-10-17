@@ -103,3 +103,40 @@ test('sending a file attachment', async ({ alice }) => {
         alice.getByRole('button', { name: /^Files\s*1$/ }),
     ).toBeVisible();
 });
+
+test('searching messages in a conversation', async ({ alice }) => {
+    await sendMessage(alice, 'Bring your art supplies');
+    await sendMessage(alice, 'Library closes early today');
+
+    await alice.getByRole('button', { name: 'Search messages' }).click();
+    await alice.getByPlaceholder('Search messages').fill('library');
+
+    await expect(
+        thread(alice).getByText('Library closes early today'),
+    ).toBeVisible();
+    await expect(
+        thread(alice).getByText('Bring your art supplies'),
+    ).toBeHidden();
+
+    await alice.getByRole('button', { name: 'Close search' }).click();
+    await expect(
+        thread(alice).getByText('Bring your art supplies'),
+    ).toBeVisible();
+});
+
+test('replying to a message', async ({ alice }) => {
+    await sendMessage(alice, 'Is the meeting at 3pm?');
+    const bubble = messageBubble(alice, 'Is the meeting at 3pm?');
+
+    await bubble.hover();
+    await bubble.getByRole('button', { name: 'Reply' }).click();
+    await expect(alice.getByText('Replying to yourself')).toBeVisible();
+
+    await sendMessage(alice, 'Yes, in Room 4');
+    await expect(alice.getByText('Replying to yourself')).toBeHidden();
+    await expect(
+        messageBubble(alice, 'Yes, in Room 4').getByText(
+            'Is the meeting at 3pm?',
+        ),
+    ).toBeVisible();
+});
