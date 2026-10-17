@@ -5,7 +5,9 @@ import {
     MessageCircle,
     Pin,
     Search,
+    X,
 } from 'lucide-react';
+import { useState } from 'react';
 import { Avatar, EmptyState } from '@/features/messenger/components/common';
 import {
     conversationHasOnlineParticipants,
@@ -50,15 +52,33 @@ export function ConversationList({
     onlineUserIds: Set<number>;
     onSelectConversation: (conversationId: number) => void;
 }) {
+    const [alertsDismissed, setAlertsDismissedState] =
+        useState(readAlertsDismissed);
+    const setAlertsDismissed = (dismissed: boolean) => {
+        setAlertsDismissedState(dismissed);
+        writeAlertsDismissed(dismissed);
+    };
+
     return (
         <aside
             className={`min-h-0 flex-col border-r border-border bg-card lg:flex ${hasActiveConversation ? 'hidden' : 'flex'}`}
         >
             <div className="border-b border-border p-4">
-                <div className="mb-3 flex items-center">
+                <div className="mb-3 flex items-center justify-between">
                     <h2 className="text-lg font-bold text-foreground">
                         {archived ? 'Archives' : 'Chats'}
                     </h2>
+                    {showBrowserAlerts && alertsDismissed && (
+                        <button
+                            aria-label="Show browser alerts settings"
+                            className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                            onClick={() => setAlertsDismissed(false)}
+                            title="Browser alerts"
+                            type="button"
+                        >
+                            <Bell className="size-4" />
+                        </button>
+                    )}
                 </div>
                 <label className="flex h-11 items-center gap-2 rounded-xl bg-secondary/70 px-3 text-muted-foreground transition focus-within:bg-card focus-within:ring-4 focus-within:ring-ring/20">
                     <Search className="size-4" />
@@ -70,9 +90,10 @@ export function ConversationList({
                         value={search}
                     />
                 </label>
-                {showBrowserAlerts && (
+                {showBrowserAlerts && !alertsDismissed && (
                     <BrowserAlertsCard
                         notifications={browserNotifications}
+                        onDismiss={() => setAlertsDismissed(true)}
                         webPushAvailable={Boolean(webPushPublicKey)}
                     />
                 )}
@@ -118,12 +139,39 @@ export function ConversationList({
     );
 }
 
+const ALERTS_DISMISSED_KEY = 'uhoo:browser-alerts-dismissed';
+
+function readAlertsDismissed() {
+    try {
+        return (
+            typeof window !== 'undefined' &&
+            window.localStorage.getItem(ALERTS_DISMISSED_KEY) === '1'
+        );
+    } catch {
+        return false;
+    }
+}
+
+function writeAlertsDismissed(dismissed: boolean) {
+    try {
+        if (dismissed) {
+            window.localStorage.setItem(ALERTS_DISMISSED_KEY, '1');
+        } else {
+            window.localStorage.removeItem(ALERTS_DISMISSED_KEY);
+        }
+    } catch {
+        // Private browsing or blocked storage: the choice just won't persist.
+    }
+}
+
 function BrowserAlertsCard({
     notifications,
     webPushAvailable,
+    onDismiss,
 }: {
     notifications: BrowserNotifications;
     webPushAvailable: boolean;
+    onDismiss: () => void;
 }) {
     return (
         <div className="mt-3 flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-2.5">
@@ -171,6 +219,14 @@ function BrowserAlertsCard({
                 {notifications.enabled && notifications.permission === 'granted'
                     ? 'On'
                     : 'Enable'}
+            </button>
+            <button
+                aria-label="Hide browser alerts"
+                className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                onClick={onDismiss}
+                type="button"
+            >
+                <X className="size-3.5" />
             </button>
         </div>
     );

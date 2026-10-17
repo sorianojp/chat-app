@@ -57,6 +57,13 @@ Route::prefix('_e2e')->group(function () {
             ]);
         }
 
+        if ($request->boolean('pin_oldest')) {
+            $conversation->messages()->oldest('id')->first()?->forceFill([
+                'pinned_at' => now(),
+                'pinned_by' => $alice->id,
+            ])->save();
+        }
+
         if ($request->boolean('second_chat')) {
             $dana = User::factory()->create(['name' => 'Dana Parent']);
             $team->members()->attach($dana, ['role' => TeamRole::Member->value]);

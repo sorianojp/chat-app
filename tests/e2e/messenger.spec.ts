@@ -176,3 +176,87 @@ test.describe('long conversations', () => {
         ).toBeInViewport();
     });
 });
+
+test('tapping a message on a phone reveals its actions', async ({ alice }) => {
+    await alice.setViewportSize({ width: 390, height: 844 });
+    await sendMessage(alice, 'Tap me on a phone');
+    const bubble = messageBubble(alice, 'Tap me on a phone');
+    const reply = bubble.getByRole('button', { name: 'Reply' });
+    // The toolbar (the buttons' parent) is what fades in and out.
+    const toolbar = reply.locator('xpath=..');
+
+    await expect(toolbar).toHaveCSS('opacity', '0');
+    await bubble.getByText('Tap me on a phone').click();
+    await expect(toolbar).toHaveCSS('opacity', '1');
+    await reply.click();
+    await expect(alice.getByText('Replying to yourself')).toBeVisible();
+});
+
+test('the browser alerts box can be hidden and brought back', async ({
+    alice,
+}) => {
+    await alice.getByRole('button', { name: 'Hide browser alerts' }).click();
+    await expect(alice.getByText('Browser alerts')).toBeHidden();
+
+    await alice.reload();
+    await expect(alice.getByText('Browser alerts')).toBeHidden();
+
+    await alice
+        .getByRole('button', { name: 'Show browser alerts settings' })
+        .click();
+    await expect(alice.getByText('Browser alerts')).toBeVisible();
+});
+
+test.describe('long conversation search', () => {
+    test.use({ seedMessages: 50 });
+
+    test('search loads older results on request', async ({ alice }) => {
+        await alice.getByRole('button', { name: 'Search messages' }).click();
+        await alice.getByPlaceholder('Search messages').fill('History');
+
+        const timeline = thread(alice);
+        await expect(
+            timeline.getByText('History message 50', { exact: true }),
+        ).toBeVisible();
+        await expect(
+            timeline.getByText('History message 1', { exact: true }),
+        ).toHaveCount(0);
+
+        await timeline
+            .getByRole('button', { name: 'Load older results' })
+            .click();
+        await expect(
+            timeline.getByText('History message 1', { exact: true }),
+        ).toBeAttached();
+        await expect(
+            timeline.getByRole('button', { name: 'Load older results' }),
+        ).toHaveCount(0);
+    });
+});
+
+test.describe('old pinned messages', () => {
+    // 200 messages: reaching #1 takes several pages beyond any scroll-up load.
+    test.use({ seedMessages: 200, pinOldest: true });
+
+    test('opening an old pinned message loads the history around it', async ({
+        alice,
+    }) => {
+        const timeline = thread(alice);
+        await expect(
+            timeline.getByText('History message 1', { exact: true }),
+        ).toHaveCount(0);
+
+        // The entry in the chat details panel is a button; the banner text is not.
+        await alice
+            .getByRole('button', { name: /Pinned by Alice Teacher/ })
+            .click();
+
+        await expect(
+            timeline.getByText('History message 1', { exact: true }),
+        ).toBeInViewport();
+        // No gap: the messages between it and the newest page loaded too.
+        await expect(
+            timeline.getByText('History message 50', { exact: true }),
+        ).toBeAttached();
+    });
+});

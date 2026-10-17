@@ -161,6 +161,7 @@ export default function Messenger({
         MessengerMessage[]
     >([]);
     const [searchingMessages, setSearchingMessages] = useState(false);
+    const [searchNextPage, setSearchNextPage] = useState<number | null>(null);
     const [pinnedMessagesByConversation, setPinnedMessagesByConversation] =
         useState<Record<number, MessengerMessage[]>>({});
     const [loadingPinnedConversationId, setLoadingPinnedConversationId] =
@@ -441,8 +442,8 @@ export default function Messenger({
         }, 0);
     };
 
-    const openPinnedMessage = (message: MessengerMessage) => {
-        const scrollToMessage = () => {
+    const openPinnedMessage = async (message: MessengerMessage) => {
+        const scrollToMessage = (behavior: ScrollBehavior = 'smooth') => {
             const messageElement = messageRefs.current[message.id];
 
             if (!messageElement) {
@@ -450,7 +451,7 @@ export default function Messenger({
             }
 
             messageElement.scrollIntoView({
-                behavior: 'smooth',
+                behavior,
                 block: 'center',
             });
             setHighlightedMessageId(message.id);
@@ -464,6 +465,16 @@ export default function Messenger({
             return true;
         };
 
+        // Newly loaded messages may take a frame or two to render. Jump instantly:
+        // a smooth scroll gets cancelled while the browser re-anchors new content.
+        const scrollWhenRendered = (attempts = 20) => {
+            if (!scrollToMessage('auto') && attempts > 0) {
+                window.requestAnimationFrame(() =>
+                    scrollWhenRendered(attempts - 1),
+                );
+            }
+        };
+
         if (scrollToMessage()) {
             return;
         }
@@ -472,6 +483,17 @@ export default function Messenger({
         setMessageSearchOpen(false);
         setMessageSearchResults([]);
 
+        // Load the history in between so the pinned message appears in context.
+        if (
+            message.conversation_id === activeConversationId &&
+            (await loadOlderMessagesUntil(message.id))
+        ) {
+            scrollWhenRendered();
+
+            return;
+        }
+
+        // Too far back (or unavailable): show just that message.
         setMessagesByConversation((messages) => {
             const conversationMessages =
                 messages[message.conversation_id] ?? [];
@@ -493,7 +515,7 @@ export default function Messenger({
                 ]),
             };
         });
-        window.setTimeout(scrollToMessage, 0);
+        scrollWhenRendered();
     };
 
     const appendMessage = useCallback(
@@ -1041,6 +1063,7 @@ export default function Messenger({
         hasOlder: hasOlderMessages,
         loadingOlder: loadingOlderMessages,
         loadOlder: loadOlderMessages,
+        loadOlderUntil: loadOlderMessagesUntil,
         setHasOlder: setHasOlderMessages,
     } = useOlderMessages({
         apiBaseUrl,
@@ -1101,11 +1124,14 @@ export default function Messenger({
     );
 
     const searchMessages = useCallback(
-        async (conversationId: number, query: string) => {
+        async (conversationId: number, query: string, page = 1) => {
             setSearchingMessages(true);
 
             try {
-                const params = new URLSearchParams({ search: query });
+                const params = new URLSearchParams({
+                    search: query,
+                    page: String(page),
+                });
                 const response = await fetch(
                     `${apiBaseUrl}/conversations/${conversationId}/messages?${params.toString()}`,
                     {
@@ -1122,9 +1148,28 @@ export default function Messenger({
 
                 const payload = (await response.json()) as {
                     data: MessengerMessage[];
+                    next_page_url: string | null;
                 };
+                const results = [...payload.data].reverse();
 
-                setMessageSearchResults([...payload.data].reverse());
+                // Older matches go above the ones already shown.
+                setMessageSearchResults((current) => {
+                    if (page === 1) {
+                        return results;
+                    }
+
+                    const shownIds = new Set(
+                        current.map((message) => message.id),
+                    );
+
+                    return [
+                        ...results.filter(
+                            (message) => !shownIds.has(message.id),
+                        ),
+                        ...current,
+                    ];
+                });
+                setSearchNextPage(payload.next_page_url ? page + 1 : null);
             } finally {
                 setSearchingMessages(false);
             }
@@ -1793,6 +1838,21 @@ export default function Messenger({
                                     searchOpen={messageSearchOpen}
                                     searchTerm={messageSearchTerm}
                                     searching={searchingMessages}
+                                    hasMoreSearchResults={
+                                        searchNextPage !== null
+                                    }
+                                    onLoadMoreSearchResults={() => {
+                                        if (
+                                            activeConversationId &&
+                                            searchNextPage !== null
+                                        ) {
+                                            void searchMessages(
+                                                activeConversationId,
+                                                messageSearchTerm,
+                                                searchNextPage,
+                                            );
+                                        }
+                                    }}
                                     seenMessageId={seenMessageId}
                                     showDeliveryStatus={hasHydrated}
                                     showJumpToLatest={showJumpToLatest}

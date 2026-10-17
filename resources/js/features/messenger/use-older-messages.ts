@@ -6,6 +6,7 @@ type ScrollAnchor = {
     conversationId: number;
     messageId: number;
     offset: number;
+    generation: number;
 };
 
 /**
@@ -42,6 +43,11 @@ export function useOlderMessages({
         number | null
     >(null);
     const anchorRef = useRef<ScrollAnchor | null>(null);
+    // A ref, not state: scroll handlers can hold stale closures, and two loads
+    // at once would fight over the scroll position.
+    const busyRef = useRef(false);
+    // Bumped by a jump (loadOlderUntil) so older "keep your place" restores are dropped.
+    const generationRef = useRef(0);
 
     const setHasOlder = useCallback(
         (targetConversationId: number, hasOlder: boolean) => {
@@ -62,9 +68,11 @@ export function useOlderMessages({
     const loadOlder = useCallback(async () => {
         const oldest = messages[0];
 
-        if (!conversationId || !hasOlder || loadingConversationId || !oldest) {
+        if (!conversationId || !hasOlder || busyRef.current || !oldest) {
             return;
         }
+
+        busyRef.current = true;
 
         const viewport = viewportRef.current;
         const oldestElement = messageRefs.current[oldest.id];
@@ -76,6 +84,7 @@ export function useOlderMessages({
                       offset:
                           oldestElement.getBoundingClientRect().top -
                           viewport.getBoundingClientRect().top,
+                      generation: generationRef.current,
                   }
                 : null;
         setLoadingConversationId(conversationId);
@@ -107,13 +116,13 @@ export function useOlderMessages({
             onLoaded(conversationId, payload.data);
             setHasOlder(conversationId, payload.next_page_url !== null);
         } finally {
+            busyRef.current = false;
             setLoadingConversationId(null);
         }
     }, [
         apiBaseUrl,
         conversationId,
         hasOlder,
-        loadingConversationId,
         messageRefs,
         messages,
         onLoaded,
@@ -121,13 +130,95 @@ export function useOlderMessages({
         viewportRef,
     ]);
 
+    /**
+     * Loads contiguous history back to `messageId` (e.g. to jump to an old
+     * pinned message) without leaving gaps. Gives up after `maxPages` pages
+     * and returns whether the message is now loaded.
+     */
+    const loadOlderUntil = useCallback(
+        async (messageId: number, maxPages = 10) => {
+            const oldest = messages[0];
+
+            // The caller is about to jump to `messageId`: cancel any pending
+            // "keep your place" restore from an in-flight scroll-up load.
+            generationRef.current += 1;
+            anchorRef.current = null;
+
+            if (!conversationId || !oldest) {
+                return false;
+            }
+
+            if (oldest.id <= messageId) {
+                return true;
+            }
+
+            const targetConversationId = conversationId;
+            const loaded: MessengerMessage[] = [];
+            let cursor = oldest.id;
+            let more = hasOlder;
+            busyRef.current = true;
+            setLoadingConversationId(targetConversationId);
+
+            try {
+                for (let page = 0; page < maxPages && more; page++) {
+                    const response = await fetch(
+                        `${apiBaseUrl}/conversations/${targetConversationId}/messages?before_id=${cursor}`,
+                        {
+                            credentials: 'same-origin',
+                            headers: { Accept: 'application/json' },
+                        },
+                    );
+
+                    if (!response.ok) {
+                        break;
+                    }
+
+                    const payload = (await response.json()) as {
+                        data: MessengerMessage[];
+                        next_page_url: string | null;
+                    };
+
+                    loaded.push(...payload.data);
+                    more = payload.next_page_url !== null;
+
+                    if (payload.data.length === 0) {
+                        break;
+                    }
+
+                    cursor = payload.data[payload.data.length - 1].id;
+
+                    if (cursor <= messageId) {
+                        break;
+                    }
+                }
+            } finally {
+                busyRef.current = false;
+                setLoadingConversationId(null);
+            }
+
+            if (loaded.length > 0) {
+                onLoaded(targetConversationId, loaded);
+            }
+
+            setHasOlder(targetConversationId, more);
+
+            return cursor <= messageId;
+        },
+        [apiBaseUrl, conversationId, hasOlder, messages, onLoaded, setHasOlder],
+    );
+
     // Once the older messages are rendered above, put the previously-first
     // message back where it was so the view does not jump.
     useLayoutEffect(() => {
         const anchor = anchorRef.current;
 
+        if (!anchor || anchor.generation !== generationRef.current) {
+            anchorRef.current = null;
+
+            return;
+        }
+
         if (
-            !anchor ||
             anchor.conversationId !== conversationId ||
             messages[0]?.id === anchor.messageId
         ) {
@@ -148,5 +239,5 @@ export function useOlderMessages({
             anchor.offset;
     }, [conversationId, messageRefs, messages, viewportRef]);
 
-    return { hasOlder, loadingOlder, loadOlder, setHasOlder };
+    return { hasOlder, loadingOlder, loadOlder, loadOlderUntil, setHasOlder };
 }

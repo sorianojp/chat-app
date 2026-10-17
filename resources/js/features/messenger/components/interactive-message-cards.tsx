@@ -151,7 +151,7 @@ export function EventCard({
                 {choices.map(({ status, label }) => (
                     <button
                         aria-pressed={event.my_response === status}
-                        className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                        className={`rounded-lg border px-1.5 py-2 text-xs font-semibold whitespace-nowrap transition ${
                             event.my_response === status
                                 ? 'border-brand bg-brand/15 text-brand'
                                 : 'border-border bg-card/70 text-muted-foreground hover:border-brand/50'

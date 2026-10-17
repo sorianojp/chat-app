@@ -39,6 +39,8 @@ export function MessageTimeline({
     hasOlderMessages,
     loadingOlderMessages,
     onLoadOlderMessages,
+    hasMoreSearchResults,
+    onLoadMoreSearchResults,
     highlightedMessageId,
     firstUnreadMessageId,
     unreadCount,
@@ -67,6 +69,8 @@ export function MessageTimeline({
     hasOlderMessages: boolean;
     loadingOlderMessages: boolean;
     onLoadOlderMessages: () => void;
+    hasMoreSearchResults: boolean;
+    onLoadMoreSearchResults: () => void;
     highlightedMessageId: number | null;
     firstUnreadMessageId: number | null;
     unreadCount: number | undefined;
@@ -93,18 +97,20 @@ export function MessageTimeline({
                 ref={viewportRef}
             >
                 {hasOlderMessages && !searchTerm && (
-                    <div className="flex justify-center">
-                        <button
-                            className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-60"
-                            disabled={loadingOlderMessages}
-                            onClick={onLoadOlderMessages}
-                            type="button"
-                        >
-                            {loadingOlderMessages
-                                ? 'Loading older messages…'
-                                : 'Load older messages'}
-                        </button>
-                    </div>
+                    <LoadEarlierButton
+                        label="Load older messages"
+                        loading={loadingOlderMessages}
+                        loadingLabel="Loading older messages…"
+                        onClick={onLoadOlderMessages}
+                    />
+                )}
+                {hasMoreSearchResults && searchTerm && messages.length > 0 && (
+                    <LoadEarlierButton
+                        label="Load older results"
+                        loading={searching}
+                        loadingLabel="Searching…"
+                        onClick={onLoadMoreSearchResults}
+                    />
                 )}
                 {messages.length > 0 ||
                 (!searchTerm && pendingMessages.length > 0) ? (
@@ -198,6 +204,31 @@ export function MessageTimeline({
                     Jump to latest
                 </button>
             )}
+        </div>
+    );
+}
+
+function LoadEarlierButton({
+    label,
+    loadingLabel,
+    loading,
+    onClick,
+}: {
+    label: string;
+    loadingLabel: string;
+    loading: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <div className="flex justify-center">
+            <button
+                className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+                disabled={loading}
+                onClick={onClick}
+                type="button"
+            >
+                {loading ? loadingLabel : label}
+            </button>
         </div>
     );
 }

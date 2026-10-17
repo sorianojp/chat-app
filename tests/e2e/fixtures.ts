@@ -51,14 +51,16 @@ export const test = base.extend<{
     scenarioType: 'direct' | 'group';
     secondChat: boolean;
     seedMessages: number;
+    pinOldest: boolean;
     scenario: Scenario;
     alice: Page;
 }>({
     scenarioType: ['direct', { option: true }],
     secondChat: [false, { option: true }],
     seedMessages: [0, { option: true }],
+    pinOldest: [false, { option: true }],
     scenario: async (
-        { request, scenarioType, secondChat, seedMessages },
+        { request, scenarioType, secondChat, seedMessages, pinOldest },
         use,
     ) => {
         const response = await request.post('/_e2e/scenario', {
@@ -66,6 +68,7 @@ export const test = base.extend<{
                 type: scenarioType,
                 second_chat: secondChat,
                 messages: seedMessages,
+                pin_oldest: pinOldest,
             },
         });
         expect(response.ok()).toBeTruthy();

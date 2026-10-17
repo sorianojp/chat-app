@@ -90,15 +90,14 @@ export function MessageBubble({
 
     return (
         <div
-            className={`group flex w-full flex-col ${mine ? 'items-end' : 'items-start'}`}
+            className={`group flex w-full flex-col outline-none ${mine ? 'items-end' : 'items-start'}`}
+            // Tap-focusable (not a Tab stop) so a tap reveals the actions on touch screens;
+            // keyboard users reveal them by tabbing to the action buttons themselves.
+            tabIndex={-1}
         >
             <div className="relative max-w-[min(82%,34rem)]">
                 {!unsent && (
-                    <div
-                        className={`mb-1 flex gap-1 opacity-100 md:absolute md:-top-3.5 md:right-3 md:z-10 md:mb-0 md:opacity-0 md:transition md:group-focus-within:opacity-100 md:group-hover:opacity-100 ${
-                            mine ? 'justify-end' : 'justify-start'
-                        }`}
-                    >
+                    <div className="pointer-events-none absolute -top-3.5 right-3 z-10 flex gap-1 opacity-0 transition group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
                         <button
                             aria-label="Reply"
                             className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
@@ -257,7 +256,7 @@ export function MessageBubble({
                         <div className="absolute right-2 -bottom-3 flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1">
                             <button
                                 aria-label="Add reaction"
-                                className="grid size-7 place-items-center rounded-full border border-border bg-card text-muted-foreground opacity-100 shadow-sm transition hover:scale-105 hover:text-brand md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                                className="pointer-events-none grid size-7 place-items-center rounded-full border border-border bg-card text-muted-foreground opacity-0 shadow-sm transition group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:scale-105 hover:text-brand"
                                 onClick={() =>
                                     setReactionPickerOpen((open) => !open)
                                 }
