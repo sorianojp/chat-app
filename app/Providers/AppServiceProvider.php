@@ -35,6 +35,13 @@ class AppServiceProvider extends ServiceProvider
             Vite::useBuildDirectory('build-e2e');
             Vite::useHotFile(storage_path('framework/e2e.hot'));
             config(['filesystems.disks.local.root' => storage_path('app/e2e')]);
+            // php artisan serve runs several workers against one SQLite file: wait for locks.
+            config([
+                'database.connections.sqlite.busy_timeout' => 5000,
+                'database.connections.sqlite.journal_mode' => 'wal',
+                'database.connections.sqlite.synchronous' => 'normal',
+                'database.connections.sqlite.transaction_mode' => 'IMMEDIATE',
+            ]);
         }
     }
 

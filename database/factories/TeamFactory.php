@@ -22,7 +22,8 @@ class TeamFactory extends Factory
 
         return [
             'name' => $name,
-            'slug' => Str::slug($name),
+            // fake()->unique() resets per process; the suffix keeps slugs unique in long-lived databases.
+            'slug' => Str::slug($name).'-'.Str::lower(Str::random(6)),
             'is_personal' => false,
         ];
     }
