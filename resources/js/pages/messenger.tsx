@@ -54,7 +54,6 @@ import {
     VoiceNoteDraftPreview,
 } from '@/features/messenger/components/voice-note-controls';
 import { apiFetch } from '@/features/messenger/lib/api';
-import { EMPTY_SHARED_CONTENT } from '@/features/messenger/lib/constants';
 import {
     applyConversationSystemMessage,
     conversationHasOnlineParticipants,
@@ -107,13 +106,13 @@ import type {
     MessengerMessage,
     MessengerPageProps,
     NewConversationPayload,
-    SharedContent,
 } from '@/features/messenger/types';
 import { useBrowserNotifications } from '@/features/messenger/use-browser-notifications';
 import { useConversationActions } from '@/features/messenger/use-conversation-actions';
 import { useMessageActions } from '@/features/messenger/use-message-actions';
 import { useNotificationSound } from '@/features/messenger/use-notification-sound';
 import { usePresence } from '@/features/messenger/use-presence';
+import { useSharedContent } from '@/features/messenger/use-shared-content';
 import { useTypingIndicators } from '@/features/messenger/use-typing-indicators';
 import type { VoiceRecorderStatus } from '@/features/messenger/use-voice-recorder';
 import type { User } from '@/types';
@@ -186,12 +185,8 @@ export default function Messenger({
         MessengerMessage[]
     >([]);
     const [searchingMessages, setSearchingMessages] = useState(false);
-    const [sharedContentByConversation, setSharedContentByConversation] =
-        useState<Record<number, SharedContent>>({});
     const [pinnedMessagesByConversation, setPinnedMessagesByConversation] =
         useState<Record<number, MessengerMessage[]>>({});
-    const [loadingSharedConversationId, setLoadingSharedConversationId] =
-        useState<number | null>(initialConversationId);
     const [loadingPinnedConversationId, setLoadingPinnedConversationId] =
         useState<number | null>(initialConversationId);
     const hasHydrated = useSyncExternalStore(
@@ -365,13 +360,16 @@ export default function Messenger({
         visibleMessages,
         auth.user.id,
     );
-    const activeSharedContent = activeConversationId
-        ? (sharedContentByConversation[activeConversationId] ??
-          EMPTY_SHARED_CONTENT)
-        : EMPTY_SHARED_CONTENT;
-    const loadingSharedContent =
-        activeConversationId !== null &&
-        loadingSharedConversationId === activeConversationId;
+    const {
+        sharedContent: activeSharedContent,
+        loadingSharedContent,
+        markSharedContentLoading,
+    } = useSharedContent({
+        apiBaseUrl,
+        activeConversationId,
+        messageCount: activeMessages.length,
+        initialConversationId,
+    });
     const loadingPinnedMessages =
         activeConversationId !== null &&
         loadingPinnedConversationId === activeConversationId;
@@ -928,7 +926,7 @@ export default function Messenger({
         );
         setSelectedFiles([]);
         setRecordedVoiceNote(null);
-        setLoadingSharedConversationId(conversationId);
+        markSharedContentLoading(conversationId);
         setLoadingPinnedConversationId(conversationId);
         const url = new URL(window.location.href);
 
@@ -1133,42 +1131,6 @@ export default function Messenger({
         [apiBaseUrl],
     );
 
-    const fetchSharedContent = useCallback(
-        async (conversationId: number) => {
-            try {
-                const response = await fetch(
-                    `${apiBaseUrl}/conversations/${conversationId}/shared`,
-                    {
-                        credentials: 'same-origin',
-                        headers: {
-                            Accept: 'application/json',
-                        },
-                    },
-                );
-
-                if (!response.ok) {
-                    return;
-                }
-
-                const payload = (await response.json()) as {
-                    data: SharedContent;
-                };
-
-                setSharedContentByConversation((content) => ({
-                    ...content,
-                    [conversationId]: payload.data,
-                }));
-            } finally {
-                setLoadingSharedConversationId((loadingConversationId) =>
-                    loadingConversationId === conversationId
-                        ? null
-                        : loadingConversationId,
-                );
-            }
-        },
-        [apiBaseUrl],
-    );
-
     const fetchPinnedMessages = useCallback(
         async (conversationId: number) => {
             try {
@@ -1326,14 +1288,6 @@ export default function Messenger({
 
         void fetchMessages(activeConversationId);
     }, [activeConversationId, fetchMessages]);
-
-    useEffect(() => {
-        if (!activeConversationId) {
-            return;
-        }
-
-        void fetchSharedContent(activeConversationId);
-    }, [activeConversationId, activeMessages.length, fetchSharedContent]);
 
     useEffect(() => {
         if (!activeConversationId) {

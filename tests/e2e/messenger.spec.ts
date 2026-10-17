@@ -97,4 +97,9 @@ test('sending a file attachment', async ({ alice }) => {
 
     await alice.reload();
     await expect(thread(alice).getByText('permission-slip.pdf')).toBeVisible();
+
+    // The chat details panel lists it under shared files.
+    await expect(
+        alice.getByRole('button', { name: /^Files\s*1$/ }),
+    ).toBeVisible();
 });
