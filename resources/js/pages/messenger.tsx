@@ -207,6 +207,11 @@ export default function Messenger({
     const unreadMarkerRef = useRef<HTMLDivElement | null>(null);
     const initialScrollConversationRef = useRef(initialConversationId);
     const nearBottomRef = useRef(true);
+    const previousTimelineRef = useRef<{
+        conversationId: number | null;
+        count: number;
+        latestId: number | null;
+    } | null>(null);
     const forceScrollToLatestRef = useRef(false);
     const activeConversationIdRef = useRef(activeConversationId);
     const conversationsRef = useRef(conversations);
@@ -354,6 +359,7 @@ export default function Messenger({
         () => new Set(onlineUserIds),
         [onlineUserIds],
     );
+    const latestActiveMessageId = activeMessages.at(-1)?.id ?? null;
     const activeTypingUsers = activeConversationId
         ? Object.values(typingUsersByConversation[activeConversationId] ?? {})
         : [];
@@ -1255,6 +1261,12 @@ export default function Messenger({
     };
 
     useEffect(() => {
+        const previousTimeline = previousTimelineRef.current;
+        previousTimelineRef.current = {
+            conversationId: activeConversationId,
+            count: activeMessages.length,
+            latestId: latestActiveMessageId,
+        };
         const viewport = messagesViewportRef.current;
 
         if (!viewport || !activeConversationId || messageSearchTerm) {
@@ -1286,6 +1298,17 @@ export default function Messenger({
             return;
         }
 
+        // Older history was loaded above (more messages, same newest one):
+        // keep the reader where they are, e.g. after jumping to a pinned message.
+        const loadedOlderHistory =
+            previousTimeline?.conversationId === activeConversationId &&
+            activeMessages.length > previousTimeline.count &&
+            latestActiveMessageId === previousTimeline.latestId;
+
+        if (loadedOlderHistory && !forceScrollToLatestRef.current) {
+            return;
+        }
+
         if (forceScrollToLatestRef.current || nearBottomRef.current) {
             scrollToLatest('auto');
         } else {
@@ -1295,6 +1318,7 @@ export default function Messenger({
     }, [
         activeConversationId,
         activeMessages.length,
+        latestActiveMessageId,
         activePendingMessages.length,
         activeTypingUsers.length,
         firstUnreadMessageId,

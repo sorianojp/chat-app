@@ -57,6 +57,12 @@ Route::prefix('_e2e')->group(function () {
             ]);
         }
 
+        if ($request->integer('messages') > 0) {
+            // Seeded history counts as read, so the chat opens at the bottom
+            // (opening at an unread divider near the top would auto-load older pages).
+            $conversation->participants()->updateExistingPivot($alice->id, ['last_read_at' => now()]);
+        }
+
         if ($request->boolean('pin_oldest')) {
             $conversation->messages()->oldest('id')->first()?->forceFill([
                 'pinned_at' => now(),
