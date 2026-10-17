@@ -53,7 +53,7 @@ import {
     VoiceNoteControls,
     VoiceNoteDraftPreview,
 } from '@/features/messenger/components/voice-note-controls';
-import { getCookie } from '@/features/messenger/lib/api';
+import { apiFetch } from '@/features/messenger/lib/api';
 import { EMPTY_SHARED_CONTENT } from '@/features/messenger/lib/constants';
 import {
     applyConversationSystemMessage,
@@ -942,15 +942,9 @@ export default function Messenger({
     };
 
     const createConversation = async (payload: NewConversationPayload) => {
-        const response = await fetch(`${apiBaseUrl}/conversations`, {
+        const response = await apiFetch(`${apiBaseUrl}/conversations`, {
             method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-            },
-            body: JSON.stringify(payload),
+            json: payload,
         });
 
         if (!response.ok) {
@@ -1089,32 +1083,19 @@ export default function Messenger({
 
     const markConversationRead = useCallback(
         async (conversationId: number) => {
-            await fetch(`${apiBaseUrl}/conversations/${conversationId}/read`, {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                },
-            });
+            await apiFetch(
+                `${apiBaseUrl}/conversations/${conversationId}/read`,
+                { method: 'PATCH', json: {} },
+            );
         },
         [apiBaseUrl],
     );
 
     const markMessageDelivered = useCallback(
         async (message: MessengerMessage) => {
-            await fetch(
+            await apiFetch(
                 `${apiBaseUrl}/conversations/${message.conversation_id}/messages/${message.id}/delivered`,
-                {
-                    method: 'PATCH',
-                    credentials: 'same-origin',
-                    headers: {
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                    },
-                },
+                { method: 'PATCH', json: {} },
             );
         },
         [apiBaseUrl],
@@ -1429,18 +1410,9 @@ export default function Messenger({
         setSending(true);
 
         try {
-            const response = await fetch(
+            const response = await apiFetch(
                 `${apiBaseUrl}/conversations/${editingMessage.conversation_id}/messages/${editingMessage.id}`,
-                {
-                    method: 'PATCH',
-                    credentials: 'same-origin',
-                    headers: {
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                    },
-                    body: JSON.stringify({ body: messageBody.trim() }),
-                },
+                { method: 'PATCH', json: { body: messageBody.trim() } },
             );
 
             if (!response.ok) {
@@ -1567,17 +1539,9 @@ export default function Messenger({
                 );
             }
 
-            const response = await fetch(
+            const response = await apiFetch(
                 `${apiBaseUrl}/conversations/${pendingMessage.conversationId}/messages`,
-                {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        Accept: 'application/json',
-                        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN'),
-                    },
-                    body: formData,
-                },
+                { method: 'POST', body: formData },
             );
 
             if (!response.ok) {

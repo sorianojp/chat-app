@@ -1,3 +1,5 @@
+import { echo } from '@laravel/echo-react';
+
 export async function apiErrorMessage(response: Response) {
     try {
         const payload = (await response.json()) as {
@@ -21,8 +23,22 @@ export function getCookie(name: string) {
 }
 
 /**
+ * The current Reverb connection's socket ID, or null before Echo connects.
+ */
+function currentSocketId(): string | null {
+    try {
+        return echo().socketId() ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Same-origin API request with the XSRF header. Pass `json` for a JSON body,
  * or `body` for FormData (the browser sets the multipart boundary).
+ *
+ * Sends `X-Socket-ID` so the server's `->toOthers()` broadcasts skip this tab,
+ * which already applies the response itself (other tabs still receive them).
  */
 export function apiFetch(
     url: string,
@@ -35,6 +51,12 @@ export function apiFetch(
 
     if (json !== undefined) {
         headers['Content-Type'] = 'application/json';
+    }
+
+    const socketId = currentSocketId();
+
+    if (socketId) {
+        headers['X-Socket-ID'] = socketId;
     }
 
     return fetch(url, {
