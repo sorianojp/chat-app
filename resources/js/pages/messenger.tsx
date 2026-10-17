@@ -1291,10 +1291,12 @@ export default function Messenger({
         } else {
             setShowJumpToLatest(true);
         }
+        // Typing indicator changes too: it renders at the bottom of the timeline.
     }, [
         activeConversationId,
         activeMessages.length,
         activePendingMessages.length,
+        activeTypingUsers.length,
         firstUnreadMessageId,
         messageSearchTerm,
         scrollToLatest,

@@ -27,10 +27,18 @@ test('messages and typing arrive in real time for the other participant', async 
 }) => {
     const bob = await openAs(browser, scenario.bob.id, scenario.url);
 
+    // Fill Bob's view first so the indicator has to scroll into view.
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+        await sendMessage(alice, `Earlier message ${n}`);
+    }
+    await expect(
+        thread(bob).getByText('Earlier message 6', { exact: true }),
+    ).toBeInViewport();
+
     await composer(alice).pressSequentially('Typing something');
     await expect(
         thread(bob).getByText('Alice Teacher is typing...'),
-    ).toBeVisible();
+    ).toBeInViewport();
 
     await alice.getByRole('button', { name: 'Send message' }).click();
     await expect(thread(bob).getByText('Typing something')).toBeVisible();
