@@ -3,6 +3,7 @@ import {
     ArchiveRestore,
     Bell,
     BellOff,
+    Info,
     Pin,
     PinOff,
     Search,
@@ -33,6 +34,8 @@ export function ConversationHeader({
     onTogglePin,
     onlineUserIds,
     typingUsers,
+    detailsOpen,
+    onToggleDetails,
 }: {
     archived: boolean;
     conversation: Conversation;
@@ -45,6 +48,8 @@ export function ConversationHeader({
     onTogglePin: (conversation: Conversation) => void;
     onlineUserIds: Set<number>;
     typingUsers: TypingUser[];
+    detailsOpen: boolean;
+    onToggleDetails: () => void;
 }) {
     const status = conversationStatusLabel(
         conversation,
@@ -87,6 +92,19 @@ export function ConversationHeader({
                 </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
+                <button
+                    aria-label="Chat details"
+                    aria-pressed={detailsOpen}
+                    className={`grid size-9 place-items-center rounded-full transition ${
+                        detailsOpen
+                            ? 'bg-brand/10 text-brand'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                    onClick={onToggleDetails}
+                    type="button"
+                >
+                    <Info className="size-4" />
+                </button>
                 <button
                     aria-label="Search messages"
                     className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"

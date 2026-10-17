@@ -51,7 +51,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                                 variant="ghost"
                                 asChild
                                 className={cn('w-full justify-start', {
-                                    'bg-gold text-gold-foreground hover:bg-gold/90':
+                                    'bg-brand-solid text-brand-foreground hover:bg-brand-solid/90':
                                         isCurrentOrParentUrl(item.href),
                                 })}
                             >

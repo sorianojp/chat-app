@@ -37,6 +37,15 @@ export async function sendMessage(page: Page, body: string) {
     await page.getByRole('button', { name: 'Send message' }).click();
 }
 
+/** Opens the chat details panel (hidden by default) if it is closed. */
+export async function openDetails(page: Page) {
+    const toggle = page.getByRole('button', { name: 'Chat details' });
+
+    if ((await toggle.getAttribute('aria-pressed')) !== 'true') {
+        await toggle.click();
+    }
+}
+
 /** The open conversation's message timeline (excludes the sidebar previews). */
 export function thread(page: Page) {
     return page.getByTestId('message-thread');

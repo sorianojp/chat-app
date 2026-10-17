@@ -1,4 +1,4 @@
-import { composer, expect, test, thread } from './fixtures';
+import { composer, expect, openDetails, test, thread } from './fixtures';
 
 test('pinning and muting a chat persist after reload', async ({ alice }) => {
     await alice.getByRole('button', { name: 'Pin chat' }).click();
@@ -37,6 +37,7 @@ test.describe('group chats', () => {
     test.use({ scenarioType: 'group' });
 
     test('renaming the group and removing a member', async ({ alice }) => {
+        await openDetails(alice);
         await alice.getByPlaceholder('Group name').fill('Field Trip');
         await alice.getByRole('button', { name: 'Save', exact: true }).click();
         await expect(thread(alice).getByText(/Field Trip/)).toBeVisible();
@@ -57,9 +58,27 @@ test.describe('group chats', () => {
 
     test('leaving the group', async ({ alice }) => {
         alice.once('dialog', (dialog) => dialog.accept());
+        await openDetails(alice);
         await alice.getByRole('button', { name: 'Leave group' }).click();
 
         await expect(composer(alice)).toBeHidden();
         await expect(alice.getByText('Planning')).toBeHidden();
     });
+});
+
+test('the chat details panel is hidden by default and remembers being opened', async ({
+    alice,
+}) => {
+    const toggle = alice.getByRole('button', { name: 'Chat details' });
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(alice.getByText('Media, Links and Files')).toBeHidden();
+
+    await toggle.click();
+    await expect(alice.getByText('Media, Links and Files')).toBeVisible();
+
+    await alice.reload();
+    await expect(alice.getByText('Media, Links and Files')).toBeVisible();
+
+    await alice.getByRole('button', { name: 'Close chat details' }).click();
+    await expect(alice.getByText('Media, Links and Files')).toBeHidden();
 });

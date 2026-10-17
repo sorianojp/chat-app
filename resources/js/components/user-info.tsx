@@ -16,7 +16,7 @@ export function UserInfo({
 
     return (
         <>
-            <Avatar className="h-9 w-9 overflow-hidden rounded-full ring-2 ring-gold/70">
+            <Avatar className="h-9 w-9 overflow-hidden rounded-full ring-2 ring-white/25">
                 {showAvatar ? (
                     <AvatarImage src={user.avatar} alt={user.name} />
                 ) : null}

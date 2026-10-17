@@ -52,11 +52,7 @@
     --color-message-outgoing: var(--message-outgoing);
     --color-message-outgoing-foreground: var(--message-outgoing-foreground);
     --color-message-incoming: var(--message-incoming);
-    --color-highlight: var(--highlight);
-    --color-highlight-foreground: var(--highlight-foreground);
     --color-online: var(--online);
-    --color-gold: var(--gold);
-    --color-gold-foreground: var(--gold-foreground);
     --color-canvas: var(--background);
 
     --color-chart-1: var(--chart-1);
@@ -102,25 +98,21 @@
     --message-outgoing: #1a2d61;
     --message-outgoing-foreground: #ffffff;
     --message-incoming: #ffffff;
-    --highlight: #f5c400;
-    --highlight-foreground: #0c132c;
     --online: #16a34a;
-    --gold: #f5c400;
-    --gold-foreground: #0c132c;
     --chart-1: #1a2d61;
     --chart-2: #3c53a9;
     --chart-3: #748bd4;
-    --chart-4: #f5c400;
+    --chart-4: #9eafe4;
     --chart-5: #64748b;
     --radius: 0.75rem;
     --sidebar: #1a2d61;
     --sidebar-foreground: #f1f4fc;
-    --sidebar-primary: #f5c400;
-    --sidebar-primary-foreground: #0c132c;
+    --sidebar-primary: #ffffff;
+    --sidebar-primary-foreground: #1a2d61;
     --sidebar-accent: #28356e;
     --sidebar-accent-foreground: #ffffff;
     --sidebar-border: #324388;
-    --sidebar-ring: #ffdc5f;
+    --sidebar-ring: #9eafe4;
 }
 
 .dark {
@@ -149,19 +141,15 @@
     --message-outgoing: #324388;
     --message-outgoing-foreground: #ffffff;
     --message-incoming: #1e293b;
-    --highlight: #f5c400;
-    --highlight-foreground: #0c132c;
     --online: #4ade80;
-    --gold: #f5c400;
-    --gold-foreground: #0c132c;
     --sidebar: #0c132c;
     --sidebar-foreground: #f1f4fc;
-    --sidebar-primary: #f5c400;
-    --sidebar-primary-foreground: #0c132c;
+    --sidebar-primary: #324388;
+    --sidebar-primary-foreground: #ffffff;
     --sidebar-accent: #121e41;
     --sidebar-accent-foreground: #ffffff;
     --sidebar-border: #28356e;
-    --sidebar-ring: #ffdc5f;
+    --sidebar-ring: #748bd4;
 }
 
 @layer base {
@@ -184,7 +172,7 @@
     }
 
     ::selection {
-        @apply bg-gold text-gold-foreground;
+        @apply bg-brand-solid text-brand-foreground;
     }
 
     button,

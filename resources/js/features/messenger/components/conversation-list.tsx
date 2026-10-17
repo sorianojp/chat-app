@@ -253,7 +253,7 @@ function ConversationListItem({
         <button
             className={`flex w-full gap-3 rounded-xl px-3 py-3 text-left transition ${
                 active
-                    ? 'bg-gold/20 ring-1 ring-gold/35'
+                    ? 'bg-brand/10 ring-1 ring-brand/20'
                     : 'bg-card hover:bg-muted'
             }`}
             onClick={() => onSelect(conversation.id)}
@@ -283,7 +283,7 @@ function ConversationListItem({
                         )}
                     </span>
                     {conversation.unread_count > 0 && (
-                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-gold text-[10px] font-bold text-gold-foreground">
+                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-solid text-[10px] font-bold text-brand-foreground">
                             {conversation.unread_count}
                         </span>
                     )}

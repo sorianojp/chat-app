@@ -4,9 +4,9 @@ import {
     Archive,
     ArrowLeft,
     Inbox,
-    Info,
     MessageCircle,
     PencilLine,
+    X,
 } from 'lucide-react';
 import {
     useCallback,
@@ -60,7 +60,9 @@ import {
 } from '@/features/messenger/lib/messages';
 import {
     loadConversationDrafts,
+    loadDetailsPanelOpen,
     saveConversationDrafts,
+    saveDetailsPanelOpen,
 } from '@/features/messenger/lib/storage';
 import {
     mentionOptionsFor,
@@ -155,6 +157,11 @@ export default function Messenger({
     >({});
     const [mentionQuery, setMentionQuery] = useState<string | null>(null);
     const [search, setSearch] = useState('');
+    const [detailsOpen, setDetailsOpenState] = useState(loadDetailsPanelOpen);
+    const setDetailsOpen = (open: boolean) => {
+        setDetailsOpenState(open);
+        saveDetailsPanelOpen(open);
+    };
     const [messageSearch, setMessageSearch] = useState('');
     const [messageSearchOpen, setMessageSearchOpen] = useState(false);
     const [messageSearchResults, setMessageSearchResults] = useState<
@@ -297,6 +304,7 @@ export default function Messenger({
             ) ?? null,
         [activeConversationId, conversations],
     );
+    const showDetails = detailsOpen && activeConversation !== null;
     const activeMessages = useMemo(
         () =>
             activeConversationId
@@ -1757,7 +1765,13 @@ export default function Messenger({
                     </div>
                 </div>
 
-                <div className="mx-4 mb-4 grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[20px] bg-card shadow-sm sm:mx-6 sm:mb-6 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)_320px]">
+                <div
+                    className={`relative mx-4 mb-4 grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[20px] bg-card shadow-sm sm:mx-6 sm:mb-6 lg:grid-cols-[340px_minmax(0,1fr)] ${
+                        showDetails
+                            ? 'xl:grid-cols-[340px_minmax(0,1fr)_320px]'
+                            : ''
+                    }`}
+                >
                     <ConversationList
                         activeConversationId={activeConversationId}
                         archived={archived}
@@ -1782,6 +1796,10 @@ export default function Messenger({
                             <>
                                 <ConversationHeader
                                     archived={archived}
+                                    detailsOpen={detailsOpen}
+                                    onToggleDetails={() =>
+                                        setDetailsOpen(!detailsOpen)
+                                    }
                                     conversation={activeConversation}
                                     currentUserId={auth.user.id}
                                     onArchive={(conversation) =>
@@ -1934,43 +1952,59 @@ export default function Messenger({
                         )}
                     </section>
 
-                    <aside className="hidden min-h-0 border-l border-border bg-card xl:flex xl:flex-col">
-                        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                            {activeConversation ? (
-                                <ChatDetails
-                                    contacts={contacts}
-                                    conversation={activeConversation}
-                                    currentUserId={auth.user.id}
-                                    loadingPinnedMessages={
-                                        loadingPinnedMessages
-                                    }
-                                    loadingSharedContent={loadingSharedContent}
-                                    onlineUserIds={onlineUserIdsSet}
-                                    onAddMembers={addConversationMembers}
-                                    onLeave={leaveConversation}
-                                    onNotificationChange={
-                                        updateNotificationPreference
-                                    }
-                                    onRemoveMember={removeConversationMember}
-                                    onRename={renameConversation}
-                                    onRemovePhoto={removeConversationPhoto}
-                                    onUpdateNickname={updateParticipantNickname}
-                                    onUpdatePhoto={updateConversationPhoto}
-                                    onOpenPinnedMessage={openPinnedMessage}
-                                    onUnpinPinnedMessage={toggleMessagePin}
-                                    pinnedMessages={activePinnedMessages}
-                                    sharedContent={activeSharedContent}
-                                    key={`${activeConversation.id}:${activeConversation.title ?? ''}:${activeConversation.participants.map((participant) => participant.id).join(',')}`}
-                                />
-                            ) : (
-                                <EmptyState
-                                    icon={<Info className="size-6" />}
-                                    title="No chat selected"
-                                    body="Choose a chat to see details."
-                                />
-                            )}
-                        </div>
-                    </aside>
+                    {showDetails && activeConversation && (
+                        // A column on wide screens; a drawer over the chat below xl.
+                        <aside className="absolute inset-y-0 right-0 z-30 flex min-h-0 w-[min(22rem,100%)] flex-col border-l border-border bg-card shadow-xl xl:static xl:z-auto xl:w-auto xl:shadow-none">
+                            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                                <h2 className="text-sm font-semibold text-foreground">
+                                    Chat details
+                                </h2>
+                                <button
+                                    aria-label="Close chat details"
+                                    className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                                    onClick={() => setDetailsOpen(false)}
+                                    type="button"
+                                >
+                                    <X className="size-4" />
+                                </button>
+                            </div>
+                            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                                {activeConversation ? (
+                                    <ChatDetails
+                                        contacts={contacts}
+                                        conversation={activeConversation}
+                                        currentUserId={auth.user.id}
+                                        loadingPinnedMessages={
+                                            loadingPinnedMessages
+                                        }
+                                        loadingSharedContent={
+                                            loadingSharedContent
+                                        }
+                                        onlineUserIds={onlineUserIdsSet}
+                                        onAddMembers={addConversationMembers}
+                                        onLeave={leaveConversation}
+                                        onNotificationChange={
+                                            updateNotificationPreference
+                                        }
+                                        onRemoveMember={
+                                            removeConversationMember
+                                        }
+                                        onRename={renameConversation}
+                                        onRemovePhoto={removeConversationPhoto}
+                                        onUpdateNickname={
+                                            updateParticipantNickname
+                                        }
+                                        onUpdatePhoto={updateConversationPhoto}
+                                        onOpenPinnedMessage={openPinnedMessage}
+                                        onUnpinPinnedMessage={toggleMessagePin}
+                                        pinnedMessages={activePinnedMessages}
+                                        sharedContent={activeSharedContent}
+                                        key={`${activeConversation.id}:${activeConversation.title ?? ''}:${activeConversation.participants.map((participant) => participant.id).join(',')}`}
+                                    />
+                                ) : null}
+                            </div>
+                        </aside>
+                    )}
                 </div>
                 {composerOpen && (
                     <ConversationComposer

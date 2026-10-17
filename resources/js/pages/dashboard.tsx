@@ -102,10 +102,10 @@ export default function Dashboard({ pendingInvitations = [] }: Props) {
 
                 <section className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.5fr)]">
                     <div className="relative overflow-hidden rounded-[20px] bg-primary p-6 text-primary-foreground sm:p-8">
-                        <div className="absolute -top-16 -right-12 size-48 rounded-full bg-gold/15" />
+                        <div className="absolute -top-16 -right-12 size-48 rounded-full bg-white/10" />
                         <div className="absolute -right-4 -bottom-24 size-56 rounded-full bg-white/5" />
                         <div className="relative max-w-xl">
-                            <span className="inline-flex rounded-full bg-gold px-3 py-1 text-xs font-bold text-gold-foreground">
+                            <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-primary-foreground">
                                 STEP communication
                             </span>
                             <h2 className="mt-5 font-heading text-2xl font-bold sm:text-3xl">
@@ -118,7 +118,7 @@ export default function Dashboard({ pendingInvitations = [] }: Props) {
                             </p>
                             <Button
                                 asChild
-                                className="mt-6 bg-gold text-gold-foreground hover:bg-[#ffd024]"
+                                className="mt-6 bg-white text-primary hover:bg-white/90"
                             >
                                 <Link href={messagesHref}>
                                     Go to chat <ArrowRight />

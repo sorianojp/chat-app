@@ -3,6 +3,7 @@ import {
     expect,
     messageBubble,
     openAs,
+    openDetails,
     sendMessage,
     test,
     thread,
@@ -108,6 +109,7 @@ test('sending a file attachment', async ({ alice }) => {
     await expect(thread(alice).getByText('permission-slip.pdf')).toBeVisible();
 
     // The chat details panel lists it under shared files.
+    await openDetails(alice);
     await expect(
         alice.getByRole('button', { name: /^Files\s*1$/ }),
     ).toBeVisible();
@@ -256,6 +258,7 @@ test.describe('old pinned messages', () => {
         ).toHaveCount(0);
 
         // The entry in the chat details panel is a button; the banner text is not.
+        await openDetails(alice);
         await alice
             .getByRole('button', { name: /Pinned by Alice Teacher/ })
             .click();
