@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, openAs, sendMessage, test } from './fixtures';
+import { expect, openAs, sendMessage, test, thread } from './fixtures';
 
 type Shown = { title: string; body?: string };
 
@@ -118,7 +118,9 @@ test.describe('browser alerts', () => {
 
         // Alice has the chat with Bob open: no notification for it.
         await sendMessage(bob, 'Hi from the open chat');
-        await expect(alice.getByText('Hi from the open chat')).toBeVisible();
+        await expect(
+            thread(alice).getByText('Hi from the open chat'),
+        ).toBeVisible();
 
         // Dana writes in another chat: Alice gets a notification.
         await sendMessage(dana, 'Hi from another chat');
