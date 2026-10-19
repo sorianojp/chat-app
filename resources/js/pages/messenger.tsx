@@ -583,6 +583,7 @@ export default function Messenger({
                     conversationId: message.conversation_id,
                     title,
                     body,
+                    conversationOnScreen: isActive,
                 }).then((shown) => {
                     if (!shown) {
                         playNotificationSound();

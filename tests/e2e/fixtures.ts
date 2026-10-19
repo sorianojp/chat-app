@@ -1,10 +1,12 @@
 import { test as base, expect } from '@playwright/test';
-import type { Browser, Page } from '@playwright/test';
+import type { Browser, BrowserContextOptions, Page } from '@playwright/test';
 
 export type Scenario = {
     alice: { id: number; name: string };
     bob: { id: number; name: string };
     team: { slug: string };
+    dana: { id: number; name: string } | null;
+    second_conversation: { id: number } | null;
     conversation: { id: number };
     url: string;
 };
@@ -16,8 +18,15 @@ export async function openAs(
     browser: Browser,
     userId: number,
     url: string,
+    contextOptions: BrowserContextOptions = {},
+    initScript?: () => void,
 ): Promise<Page> {
-    const context = await browser.newContext();
+    const context = await browser.newContext(contextOptions);
+
+    if (initScript) {
+        await context.addInitScript(initScript);
+    }
+
     const page = await context.newPage();
 
     await page.goto(

@@ -8,7 +8,18 @@ type MessageNotification = {
     conversationId: number;
     title: string;
     body: string;
+    /** The message's chat is the one currently open on screen. */
+    conversationOnScreen: boolean;
 };
+
+/** Explains why background (push) alerts could not be registered. */
+function pushBlockedMessage(): string {
+    const isBrave = 'brave' in navigator;
+
+    return isBrave
+        ? 'Alerts work while Uhoo! is open. For alerts when it\'s closed, turn on "Use Google services for push messaging" in Brave\'s privacy settings, then enable again.'
+        : "Alerts work while Uhoo! is open. This browser blocked alerts for when it's closed (check that push services aren't blocked by your network).";
+}
 
 function currentPermission(): BrowserNotificationPermission {
     if (
@@ -145,6 +156,11 @@ export function useBrowserNotifications(
         typeof window === 'undefined' ? false : loadEnabled(storageKey),
     );
     const [error, setError] = useState<string | null>(null);
+    // Background (push) alerts can fail while in-tab alerts still work.
+    const [pushActive, setPushActive] = useState(
+        () => enabled && webPushPublicKey !== null,
+    );
+    const [warning, setWarning] = useState<string | null>(null);
     const enabledRef = useRef(enabled);
     const registrationRef =
         useRef<Promise<ServiceWorkerRegistration | null> | null>(null);
@@ -258,6 +274,8 @@ export function useBrowserNotifications(
                 const subscription =
                     await registration.pushManager.getSubscription();
 
+                setPushActive(subscription !== null);
+
                 if (subscription) {
                     await storeSubscription(subscription).catch(() => null);
                 }
@@ -269,10 +287,12 @@ export function useBrowserNotifications(
 
     const toggle = useCallback(async () => {
         setError(null);
+        setWarning(null);
 
         if (enabledRef.current) {
             enabledRef.current = false;
             setEnabled(false);
+            setPushActive(false);
             saveEnabled(storageKey, false);
             await disablePush();
 
@@ -295,19 +315,26 @@ export function useBrowserNotifications(
             setPermission(nextPermission);
 
             if (nextPermission === 'granted') {
-                const registration = await getRegistration();
-
-                if (webPushPublicKey && !registration) {
-                    throw new Error('Background alerts are not supported.');
-                }
-
-                if (registration) {
-                    await enablePush(registration);
-                }
-
+                // In-tab alerts only need permission; turn them on first.
                 enabledRef.current = true;
                 setEnabled(true);
                 saveEnabled(storageKey, true);
+
+                if (webPushPublicKey) {
+                    const registration = await getRegistration();
+
+                    try {
+                        if (!registration) {
+                            throw new Error('Push is not supported.');
+                        }
+
+                        await enablePush(registration);
+                        setPushActive(true);
+                    } catch {
+                        setPushActive(false);
+                        setWarning(pushBlockedMessage());
+                    }
+                }
             }
         } catch (toggleError) {
             setError(
@@ -331,11 +358,17 @@ export function useBrowserNotifications(
             conversationId,
             title,
             body,
+            conversationOnScreen,
         }: MessageNotification) => {
+            // Skip only what the user is already looking at: the open chat in a
+            // focused, visible tab. Other chats still notify (like Slack).
+            const alreadyVisible = () =>
+                conversationOnScreen && !document.hidden && document.hasFocus();
+
             if (
                 !enabledRef.current ||
                 currentPermission() !== 'granted' ||
-                (!document.hidden && document.hasFocus())
+                alreadyVisible()
             ) {
                 return false;
             }
@@ -358,7 +391,7 @@ export function useBrowserNotifications(
                 if (
                     !enabledRef.current ||
                     currentPermission() !== 'granted' ||
-                    (!document.hidden && document.hasFocus())
+                    alreadyVisible()
                 ) {
                     return false;
                 }
@@ -395,7 +428,8 @@ export function useBrowserNotifications(
         permission,
         enabled,
         error,
-        backgroundEnabled: enabled && webPushPublicKey !== null,
+        backgroundEnabled: enabled && pushActive,
+        warning,
         toggle,
         notify,
     };

@@ -86,6 +86,8 @@ Route::prefix('_e2e')->group(function () {
             'bob' => ['id' => $bob->id, 'name' => $bob->name],
             'team' => ['slug' => $team->slug],
             'conversation' => ['id' => $conversation->id],
+            'dana' => isset($dana) ? ['id' => $dana->id, 'name' => $dana->name] : null,
+            'second_conversation' => isset($secondChat) ? ['id' => $secondChat->id] : null,
             'url' => route('messenger', ['current_team' => $team->slug, 'conversation' => $conversation->id], false),
         ]);
     });

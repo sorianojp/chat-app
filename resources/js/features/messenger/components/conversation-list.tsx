@@ -201,6 +201,14 @@ function BrowserAlertsCard({
                         {notifications.error}
                     </p>
                 )}
+                {notifications.warning && (
+                    <p
+                        className="mt-1 text-[11px] text-muted-foreground"
+                        role="status"
+                    >
+                        {notifications.warning}
+                    </p>
+                )}
             </div>
             <button
                 aria-label={`${notifications.enabled ? 'Disable' : 'Enable'} browser alerts`}
