@@ -7,7 +7,10 @@ export const MAX_VOICE_NOTE_SECONDS = 5 * 60;
 export type VoiceRecorderStatus =
     'idle' | 'requesting' | 'recording' | 'finishing';
 
+// AAC in MP4 first: it is the one format the iOS app (AVPlayer) can play.
+// Browsers that cannot record it fall back to WebM/Ogg.
 const MIME_TYPES = [
+    'audio/mp4;codecs=mp4a.40.2',
     'audio/webm;codecs=opus',
     'audio/webm',
     'audio/mp4',
