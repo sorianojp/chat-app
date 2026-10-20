@@ -117,6 +117,15 @@ test('mobile session requires authentication and logout revokes only this device
     $this->withToken($phone->plainTextToken)->getJson('/api/mobile/session')->assertUnauthorized();
 });
 
+test('mobile session includes STEP roles and the STEP account link like the web profile', function () {
+    config(['services.step_sso.account_url' => 'https://step.test/account']);
+    $user = User::factory()->create(['step_roles' => ['Teacher', 'Adviser']]);
+
+    $this->withToken($user->createToken('Phone')->plainTextToken)->getJson('/api/mobile/session')->assertOk()
+        ->assertJsonPath('user.step_roles', ['Teacher', 'Adviser'])
+        ->assertJsonPath('step_account_url', 'https://step.test/account');
+});
+
 test('mobile contacts and conversations are scoped to the authenticated school member', function () {
     $user = User::factory()->create(['school_role' => SchoolRole::Teacher]);
     $contact = User::factory()->create(['name' => 'Jane Classmate']);

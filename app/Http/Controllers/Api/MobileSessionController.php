@@ -26,8 +26,12 @@ class MobileSessionController extends Controller
                     'code' => $user->step_department_code,
                     'name' => $user->step_department_name,
                 ],
+                'step_roles' => $user->step_roles ?? [],
                 'current_team_id' => $user->current_team_id,
             ],
+            // Same link as the web profile page's "Manage account in STEP".
+            'step_account_url' => config('services.step_sso.account_url')
+                ?: config('services.step_sso.base_url'),
             'teams' => $user->teams()->orderBy('name')->get()->map(fn (Team $team) => [
                 'id' => $team->id, 'name' => $team->name, 'slug' => $team->slug,
             ]),
