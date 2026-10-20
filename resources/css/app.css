@@ -71,7 +71,8 @@
     --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* STEP-S design tokens mirrored from step-v2. */
+/* STEP-S design tokens mirrored from step-v2. The mobile app copies these into
+   step_messenger/lib/src/theme.dart (StepPalette) — change both together. */
 :root {
     --background: #f5f7fb;
     --foreground: #0f172a;

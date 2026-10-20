@@ -199,7 +199,10 @@ export function MessageBubble({
                         message.body &&
                         !message.poll &&
                         !message.event && (
-                            <LinkedMessageText text={message.body} />
+                            <LinkedMessageText
+                                outgoing={mine && !interactive}
+                                text={message.body}
+                            />
                         )
                     )}
                     {!unsent && message.poll && (
@@ -376,8 +379,10 @@ export function MessageAttachmentPreview({
         (mimeType.startsWith('audio/') ||
             (voiceNote && mimeType.startsWith('video/')));
     const isVideo = canPreview && mimeType.startsWith('video/') && !isAudio;
+    // Outgoing shells tint with the bubble's own text colour (like the reply
+    // preview) so names and sizes stay readable on the brand fill.
     const shellClass = mine
-        ? 'border-brand/30 bg-card/60'
+        ? 'border-message-outgoing-foreground/25 bg-message-outgoing-foreground/10'
         : 'border-border bg-muted/40';
 
     if (isImage) {
@@ -426,8 +431,20 @@ export function MessageAttachmentPreview({
             <div
                 className={`max-w-full rounded-xl border px-3 py-2 ${shellClass}`}
             >
-                <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                    <Mic className="size-3.5 text-brand" />
+                <div
+                    className={`mb-2 flex items-center gap-2 text-xs font-medium ${
+                        mine
+                            ? 'text-message-outgoing-foreground/70'
+                            : 'text-muted-foreground'
+                    }`}
+                >
+                    <Mic
+                        className={`size-3.5 ${
+                            mine
+                                ? 'text-message-outgoing-foreground'
+                                : 'text-brand'
+                        }`}
+                    />
                     <span className="min-w-0 truncate">
                         {voiceNote ? 'Voice message' : attachment.name}
                     </span>
@@ -446,7 +463,7 @@ export function MessageAttachmentPreview({
         <a
             className={`flex max-w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
                 mine
-                    ? 'border-brand/30 bg-card/60 hover:bg-card'
+                    ? 'border-message-outgoing-foreground/25 bg-message-outgoing-foreground/10 hover:bg-message-outgoing-foreground/15'
                     : 'border-border bg-muted/40 hover:bg-muted'
             }`}
             href={attachment.url}
@@ -460,7 +477,13 @@ export function MessageAttachmentPreview({
                 <span className="block max-w-full truncate text-sm font-medium">
                     {attachment.name}
                 </span>
-                <span className="block text-xs text-muted-foreground">
+                <span
+                    className={`block text-xs ${
+                        mine
+                            ? 'text-message-outgoing-foreground/70'
+                            : 'text-muted-foreground'
+                    }`}
+                >
                     {formatFileSize(attachment.size)}
                 </span>
             </span>
@@ -468,13 +491,24 @@ export function MessageAttachmentPreview({
     );
 }
 
-export function LinkedMessageText({ text }: { text: string }) {
+export function LinkedMessageText({
+    outgoing = false,
+    text,
+}: {
+    outgoing?: boolean;
+    text: string;
+}) {
+    // On the brand-filled outgoing bubble, brand-coloured links would vanish.
+    const accent = outgoing
+        ? 'text-message-outgoing-foreground decoration-message-outgoing-foreground/40 hover:decoration-message-outgoing-foreground'
+        : 'text-brand decoration-brand/30 hover:decoration-brand';
+
     return (
         <p className="text-sm leading-6 [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
             {linkifyText(text).map((part, index) =>
                 part.type === 'link' ? (
                     <a
-                        className="font-medium text-brand underline decoration-brand/30 underline-offset-2 hover:decoration-brand"
+                        className={`font-medium underline underline-offset-2 ${accent}`}
                         href={part.href}
                         key={`${part.href}-${index}`}
                         rel="noreferrer"
@@ -486,7 +520,11 @@ export function LinkedMessageText({ text }: { text: string }) {
                     mentionifyText(part.text).map((mentionPart, partIndex) =>
                         mentionPart.type === 'mention' ? (
                             <span
-                                className="font-semibold text-brand"
+                                className={`font-semibold ${
+                                    outgoing
+                                        ? 'text-message-outgoing-foreground'
+                                        : 'text-brand'
+                                }`}
                                 key={`${mentionPart.text}-${index}-${partIndex}`}
                             >
                                 {mentionPart.text}
