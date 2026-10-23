@@ -82,3 +82,30 @@ test('the chat details panel is hidden by default and remembers being opened', a
     await alice.getByRole('button', { name: 'Close chat details' }).click();
     await expect(alice.getByText('Media, Links and Files')).toBeHidden();
 });
+
+test.describe('inbox filters', () => {
+    test.use({ scenarioType: 'group', secondChat: true });
+
+    test('filtering the inbox to unread or group chats', async ({ alice }) => {
+        const inbox = alice.getByRole('complementary');
+        const filters = inbox.getByRole('group', {
+            name: 'Filter conversations',
+        });
+
+        await expect(inbox.getByText('Planning')).toBeVisible();
+        await expect(inbox.getByText('Dana Parent')).toBeVisible();
+
+        await filters.getByRole('button', { name: 'Groups' }).click();
+        await expect(
+            filters.getByRole('button', { name: 'Groups' }),
+        ).toHaveAttribute('aria-pressed', 'true');
+        await expect(inbox.getByText('Planning')).toBeVisible();
+        await expect(inbox.getByText('Dana Parent')).toBeHidden();
+
+        await filters.getByRole('button', { name: 'Unread' }).click();
+        await expect(inbox.getByText('You’re all caught up')).toBeVisible();
+
+        await filters.getByRole('button', { name: 'All' }).click();
+        await expect(inbox.getByText('Dana Parent')).toBeVisible();
+    });
+});

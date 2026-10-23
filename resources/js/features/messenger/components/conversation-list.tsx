@@ -20,6 +20,14 @@ import type { useBrowserNotifications } from '@/features/messenger/use-browser-n
 
 type BrowserNotifications = ReturnType<typeof useBrowserNotifications>;
 
+type InboxFilter = 'all' | 'unread' | 'groups';
+
+const INBOX_FILTERS: { value: InboxFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'unread', label: 'Unread' },
+    { value: 'groups', label: 'Groups' },
+];
+
 /** Left column: chat search, browser alert toggle and the conversation list. */
 export function ConversationList({
     archived,
@@ -52,6 +60,13 @@ export function ConversationList({
     onlineUserIds: Set<number>;
     onSelectConversation: (conversationId: number) => void;
 }) {
+    const [filter, setFilter] = useState<InboxFilter>('all');
+    const activeFilter = archived ? 'all' : filter;
+    const visibleConversations = conversations.filter(
+        (conversation) =>
+            (activeFilter !== 'unread' || conversation.unread_count > 0) &&
+            (activeFilter !== 'groups' || conversation.type !== 'direct'),
+    );
     const [alertsDismissed, setAlertsDismissedState] =
         useState(readAlertsDismissed);
     const setAlertsDismissed = (dismissed: boolean) => {
@@ -90,6 +105,30 @@ export function ConversationList({
                         value={search}
                     />
                 </label>
+                {!archived && (
+                    // Same filters as the mobile app's inbox.
+                    <div
+                        aria-label="Filter conversations"
+                        className="mt-3 flex gap-2"
+                        role="group"
+                    >
+                        {INBOX_FILTERS.map(({ value, label }) => (
+                            <button
+                                aria-pressed={filter === value}
+                                className={`rounded-full px-3 py-1.5 text-xs transition ${
+                                    filter === value
+                                        ? 'bg-brand/15 font-bold text-brand'
+                                        : 'bg-muted font-semibold text-foreground hover:bg-muted/70'
+                                }`}
+                                key={value}
+                                onClick={() => setFilter(value)}
+                                type="button"
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 {showBrowserAlerts && !alertsDismissed && (
                     <BrowserAlertsCard
                         notifications={browserNotifications}
@@ -99,8 +138,8 @@ export function ConversationList({
                 )}
             </div>
             <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-                {conversations.length > 0 ? (
-                    conversations.map((conversation) => (
+                {visibleConversations.length > 0 ? (
+                    visibleConversations.map((conversation) => (
                         <ConversationListItem
                             active={conversation.id === activeConversationId}
                             conversation={conversation}
@@ -125,12 +164,20 @@ export function ConversationList({
                             )
                         }
                         title={
-                            archived ? 'No archived chats' : 'No conversations'
+                            archived
+                                ? 'No archived chats'
+                                : activeFilter === 'unread'
+                                  ? 'You’re all caught up'
+                                  : activeFilter === 'groups'
+                                    ? 'No group chats'
+                                    : 'No conversations'
                         }
                         body={
                             archived
                                 ? 'Archived chats will appear here.'
-                                : 'Start a direct message or create a group chat.'
+                                : activeFilter === 'unread'
+                                  ? 'Unread conversations will appear here.'
+                                  : 'Start a direct message or create a group chat.'
                         }
                     />
                 )}
