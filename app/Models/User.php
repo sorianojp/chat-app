@@ -78,6 +78,16 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Get the messages the user saved to their Saved list.
+     *
+     * @return BelongsToMany<Message, $this>
+     */
+    public function savedMessages(): BelongsToMany
+    {
+        return $this->belongsToMany(Message::class, 'saved_messages')->withTimestamps();
+    }
+
+    /**
      * Get conversations this user participates in.
      *
      * @return BelongsToMany<Conversation, $this, ConversationParticipant, 'pivot'>

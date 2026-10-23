@@ -345,3 +345,67 @@ export function bodyContainsMention(body: string, token: string) {
 
     return mentionPattern.test(body);
 }
+
+export type MessageReceiptGroups = {
+    seen: { id: number; name: string; at: string }[];
+    delivered: { id: number; name: string; at: string }[];
+    pending: { id: number; name: string }[];
+};
+
+/**
+ * Who has seen, received, or not yet received a message: everyone in the
+ * conversation except its sender, newest first. Mirrored by
+ * messageReceipts() in the mobile app's models.dart.
+ */
+export function messageReceipts(
+    message: MessengerMessage,
+    conversation: Conversation,
+): MessageReceiptGroups {
+    const senderId = message.sender?.id;
+    // Nickname first, as in participantDisplayName() (not imported:
+    // lib/conversations imports this module).
+    const nameFor = (id: number, fallback: string) => {
+        const participant = conversation.participants.find(
+            (item) => item.id === id,
+        );
+
+        return participant?.nickname || participant?.name || fallback;
+    };
+    const newestFirst = (first: { at: string }, second: { at: string }) =>
+        timestamp(second.at) - timestamp(first.at);
+
+    const seen = message.read_by
+        .filter((receipt) => receipt.id !== senderId)
+        .map((receipt) => ({
+            id: receipt.id,
+            name: nameFor(receipt.id, receipt.name),
+            at: receipt.read_at,
+        }))
+        .sort(newestFirst);
+    const seenIds = new Set(seen.map((person) => person.id));
+    const delivered = message.delivered_to
+        .filter(
+            (receipt) => receipt.id !== senderId && !seenIds.has(receipt.id),
+        )
+        .map((receipt) => ({
+            id: receipt.id,
+            name: nameFor(receipt.id, receipt.name),
+            at: receipt.delivered_at,
+        }))
+        .sort(newestFirst);
+    const reachedIds = new Set([
+        ...seenIds,
+        ...delivered.map((person) => person.id),
+    ]);
+    const pending = conversation.participants
+        .filter(
+            (participant) =>
+                participant.id !== senderId && !reachedIds.has(participant.id),
+        )
+        .map((participant) => ({
+            id: participant.id,
+            name: participant.nickname || participant.name,
+        }));
+
+    return { seen, delivered, pending };
+}

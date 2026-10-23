@@ -1,6 +1,9 @@
 import {
+    Bookmark,
+    BookmarkCheck,
     FileText,
     Forward,
+    Info,
     ImageIcon,
     Mic,
     PencilLine,
@@ -46,10 +49,12 @@ export function MessageBubble({
     message,
     onEdit,
     onForward,
+    onInfo,
     onPin,
     onReact,
     onReply,
     onRsvp,
+    onSave,
     onUnsend,
     onVote,
 }: {
@@ -60,10 +65,12 @@ export function MessageBubble({
     message: MessengerMessage;
     onEdit: (message: MessengerMessage) => void;
     onForward: (message: MessengerMessage) => void;
+    onInfo: (message: MessengerMessage) => void;
     onPin: (message: MessengerMessage) => void;
     onReact: (message: MessengerMessage, emoji: string) => void;
     onReply: (message: MessengerMessage) => void;
     onRsvp: (message: MessengerMessage, status: RsvpStatus) => void;
+    onSave: (message: MessengerMessage) => void;
     onUnsend: (message: MessengerMessage) => void;
     onVote: (message: MessengerMessage, optionId: string) => void;
 }) {
@@ -114,6 +121,27 @@ export function MessageBubble({
                         >
                             <Forward className="size-3.5" />
                         </button>
+                        <button
+                            aria-label={
+                                message.saved_by_me
+                                    ? 'Remove from saved'
+                                    : 'Save message'
+                            }
+                            aria-pressed={message.saved_by_me === true}
+                            className={`grid size-7 place-items-center rounded-full bg-card shadow-sm ring-1 ring-border ${
+                                message.saved_by_me
+                                    ? 'text-brand hover:text-muted-foreground'
+                                    : 'text-muted-foreground hover:text-brand'
+                            }`}
+                            onClick={() => onSave(message)}
+                            type="button"
+                        >
+                            {message.saved_by_me ? (
+                                <BookmarkCheck className="size-3.5" />
+                            ) : (
+                                <Bookmark className="size-3.5" />
+                            )}
+                        </button>
                         {canPin && (
                             <button
                                 aria-label={
@@ -138,6 +166,14 @@ export function MessageBubble({
                         )}
                         {mine && (
                             <>
+                                <button
+                                    aria-label="Message info"
+                                    className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
+                                    onClick={() => onInfo(message)}
+                                    type="button"
+                                >
+                                    <Info className="size-3.5" />
+                                </button>
                                 {['text', 'attachment'].includes(
                                     message.type,
                                 ) && (

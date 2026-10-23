@@ -2,6 +2,7 @@ import {
     Archive,
     Bell,
     BellOff,
+    Bookmark,
     MessageCircle,
     Pin,
     Search,
@@ -31,6 +32,7 @@ const INBOX_FILTERS: { value: InboxFilter; label: string }[] = [
 /** Left column: chat search, browser alert toggle and the conversation list. */
 export function ConversationList({
     archived,
+    onOpenSaved,
     search,
     onSearchChange,
     showBrowserAlerts,
@@ -46,6 +48,7 @@ export function ConversationList({
     onSelectConversation,
 }: {
     archived: boolean;
+    onOpenSaved: () => void;
     search: string;
     onSearchChange: (value: string) => void;
     showBrowserAlerts: boolean;
@@ -83,17 +86,28 @@ export function ConversationList({
                     <h2 className="text-lg font-bold text-foreground">
                         {archived ? 'Archives' : 'Chats'}
                     </h2>
-                    {showBrowserAlerts && alertsDismissed && (
+                    <div className="flex items-center gap-1">
                         <button
-                            aria-label="Show browser alerts settings"
+                            aria-label="Saved messages"
                             className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                            onClick={() => setAlertsDismissed(false)}
-                            title="Browser alerts"
+                            onClick={onOpenSaved}
+                            title="Saved messages"
                             type="button"
                         >
-                            <Bell className="size-4" />
+                            <Bookmark className="size-4" />
                         </button>
-                    )}
+                        {showBrowserAlerts && alertsDismissed && (
+                            <button
+                                aria-label="Show browser alerts settings"
+                                className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                                onClick={() => setAlertsDismissed(false)}
+                                title="Browser alerts"
+                                type="button"
+                            >
+                                <Bell className="size-4" />
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <label className="flex h-11 items-center gap-2 rounded-xl bg-secondary/70 px-3 text-muted-foreground transition focus-within:bg-card focus-within:ring-4 focus-within:ring-ring/20">
                     <Search className="size-4" />

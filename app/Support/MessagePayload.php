@@ -31,6 +31,11 @@ class MessagePayload
             'reactions.user:id,name',
             'readers:id,name',
         ]);
+
+        if ($currentUserId !== null) {
+            $message->loadMissing('savedBy:id');
+        }
+
         $isUnsent = $message->unsent_at !== null;
 
         return [
@@ -66,6 +71,11 @@ class MessagePayload
             'delivered_to' => self::deliveries($message),
             'reactions' => $isUnsent ? [] : self::reactions($message, $currentUserId),
             'read_by' => self::readers($message),
+            // Per-user, so only present when the payload is built for a user;
+            // broadcasts omit it and clients keep their own value.
+            ...($currentUserId === null ? [] : [
+                'saved_by_me' => ! $isUnsent && $message->savedBy->contains('id', $currentUserId),
+            ]),
             'created_at' => $message->created_at?->toISOString(),
             'edited_at' => $message->edited_at?->toISOString(),
             'unsent_at' => $message->unsent_at?->toISOString(),

@@ -59,6 +59,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::delete('conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
         Route::post('conversations/{conversation}/messages/{message}/forward', [MessageController::class, 'forward'])->middleware('throttle:messages');
         Route::patch('conversations/{conversation}/messages/{message}/pin', [MessageController::class, 'pin']);
+        Route::put('conversations/{conversation}/messages/{message}/save', [MessageController::class, 'save']);
+        Route::delete('conversations/{conversation}/messages/{message}/save', [MessageController::class, 'unsave']);
+        Route::get('saved-messages', [MessageController::class, 'saved']);
         Route::patch('conversations/{conversation}/messages/{message}/delivered', [MessageController::class, 'markDelivered']);
         Route::patch('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'react']);
         Route::delete('conversations/{conversation}/messages/{message}/reaction', [MessageController::class, 'unreact']);

@@ -38,7 +38,7 @@ class MessageController extends Controller
         abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
 
         $messages = $conversation->messages()
-            ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'eventRsvps.user:id,name', 'mentions.user:id,name', 'pollVotes.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name'])
+            ->with(['attachments', 'conversation.team', 'deliveries.user:id,name', 'eventRsvps.user:id,name', 'mentions.user:id,name', 'pollVotes.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name', 'savedBy:id'])
             ->when($request->string('search')->isNotEmpty(), function ($query) use ($request) {
                 $search = $request->string('search')->toString();
 
@@ -491,6 +491,69 @@ class MessageController extends Controller
                 ->map(fn (Message $forwardedMessage) => MessagePayload::from($forwardedMessage, $request->user()->id))
                 ->values(),
         ], 201);
+    }
+
+    /**
+     * Add a message to the user's Saved list.
+     */
+    public function save(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureMessageBelongsToConversation($conversation, $message);
+        abort_if($message->unsent_at !== null || $message->type === 'system', 422, 'This message cannot be saved.');
+
+        $message->savedBy()->syncWithoutDetaching([$request->user()->id]);
+
+        return response()->json(['data' => ['saved' => true]]);
+    }
+
+    /**
+     * Remove a message from the user's Saved list.
+     */
+    public function unsave(Request $request, Team $team, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_unless($this->canAccessConversation($request, $team, $conversation), 403);
+        $this->ensureMessageBelongsToConversation($conversation, $message);
+
+        $message->savedBy()->detach($request->user()->id);
+
+        return response()->json(['data' => ['saved' => false]]);
+    }
+
+    /**
+     * The user's saved messages in this team, newest saved first. Messages
+     * from chats they have left, or that were unsent, are not listed.
+     */
+    public function saved(Request $request, Team $team): JsonResponse
+    {
+        abort_unless($request->user()->teams()->whereKey($team->id)->exists(), 403);
+
+        $userId = $request->user()->id;
+        $messages = Message::query()
+            ->join('saved_messages', 'saved_messages.message_id', '=', 'messages.id')
+            ->where('saved_messages.user_id', $userId)
+            ->whereNull('messages.unsent_at')
+            ->whereHas('conversation', fn ($query) => $query
+                ->where('team_id', $team->id)
+                ->whereHas('participants', fn ($query) => $query->whereKey($userId)))
+            ->select('messages.*', 'saved_messages.created_at as saved_at')
+            ->with(['attachments', 'conversation.team', 'conversation.participants:id,name', 'deliveries.user:id,name', 'eventRsvps.user:id,name', 'mentions.user:id,name', 'pollVotes.user:id,name', 'replyTo.sender:id,name', 'sender:id,name,school_role', 'reactions.user:id,name', 'readers:id,name', 'savedBy:id'])
+            ->orderByDesc('saved_messages.created_at')
+            ->orderByDesc('messages.id')
+            ->paginate(30)
+            ->through(fn (Message $message): array => [
+                'saved_at' => Carbon::parse($message->getAttribute('saved_at'))->toISOString(),
+                'conversation' => [
+                    'id' => $message->conversation->id,
+                    'type' => $message->conversation->type->value,
+                    'display_name' => $message->conversation->title
+                        ?? $message->conversation->participants->firstWhere('id', '!=', $userId)->name
+                        ?? 'Conversation',
+                ],
+                'message' => MessagePayload::from($message, $userId),
+            ]);
+
+        return response()->json($messages);
     }
 
     /**

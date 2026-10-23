@@ -32,9 +32,11 @@ import {
 } from '@/features/messenger/components/interactive-composers';
 import {} from '@/features/messenger/components/message-bubble';
 import { MessageComposer } from '@/features/messenger/components/message-composer';
+import { MessageInfoDialog } from '@/features/messenger/components/message-info-dialog';
 import { MessageSearchBar } from '@/features/messenger/components/message-search-bar';
 import { MessageTimeline } from '@/features/messenger/components/message-timeline';
 import type { PendingOutgoingMessage } from '@/features/messenger/components/pending-message';
+import { SavedMessagesDialog } from '@/features/messenger/components/saved-messages-dialog';
 import {} from '@/features/messenger/components/voice-note-controls';
 import { apiFetch } from '@/features/messenger/lib/api';
 import {
@@ -82,6 +84,7 @@ import type {
     MessengerMessage,
     MessengerPageProps,
     NewConversationPayload,
+    SavedMessage,
     SchoolClassSummary,
 } from '@/features/messenger/types';
 import { useBrowserNotifications } from '@/features/messenger/use-browser-notifications';
@@ -191,6 +194,14 @@ export default function Messenger({
     >(null);
     const [editingMessage, setEditingMessage] =
         useState<MessengerMessage | null>(null);
+    const [infoMessage, setInfoMessage] = useState<MessengerMessage | null>(
+        null,
+    );
+    const [savedOpen, setSavedOpen] = useState(false);
+    // A saved message to show once its (just selected) chat has loaded.
+    const [pendingJump, setPendingJump] = useState<MessengerMessage | null>(
+        null,
+    );
     const [forwardingMessage, setForwardingMessage] =
         useState<MessengerMessage | null>(null);
     const [replyToMessage, setReplyToMessage] =
@@ -457,6 +468,19 @@ export default function Messenger({
         }, 0);
     };
 
+    const openSavedMessage = (saved: SavedMessage) => {
+        setSavedOpen(false);
+
+        if (saved.conversation.id === activeConversationId) {
+            void openPinnedMessage(saved.message);
+
+            return;
+        }
+
+        selectConversation(saved.conversation.id);
+        setPendingJump(saved.message);
+    };
+
     const openPinnedMessage = async (message: MessengerMessage) => {
         const scrollToMessage = (behavior: ScrollBehavior = 'smooth') => {
             const messageElement = messageRefs.current[message.id];
@@ -532,6 +556,25 @@ export default function Messenger({
         });
         scrollWhenRendered();
     };
+
+    // Read through a ref: openPinnedMessage is rebuilt on every render.
+    const openPinnedMessageRef = useRef(openPinnedMessage);
+    useEffect(() => {
+        openPinnedMessageRef.current = openPinnedMessage;
+    });
+
+    useEffect(() => {
+        if (
+            pendingJump === null ||
+            pendingJump.conversation_id !== activeConversationId ||
+            !loadedConversationIdsRef.current.has(pendingJump.conversation_id)
+        ) {
+            return;
+        }
+
+        setPendingJump(null);
+        void openPinnedMessageRef.current(pendingJump);
+    }, [pendingJump, activeConversationId, messagesByConversation]);
 
     const appendMessage = useCallback(
         (message: MessengerMessage) => {
@@ -696,6 +739,15 @@ export default function Messenger({
         [],
     );
 
+    // Broadcast payloads leave out the per-user saved flag; keep ours.
+    const keepSavedState = (
+        next: MessengerMessage,
+        current: MessengerMessage,
+    ): MessengerMessage =>
+        next.saved_by_me === undefined
+            ? { ...next, saved_by_me: current.saved_by_me }
+            : next;
+
     const replaceMessage = useCallback((message: MessengerMessage) => {
         const personalizedMessage = personalizeMessage(
             message,
@@ -705,7 +757,7 @@ export default function Messenger({
         setMessagesByConversation((messages) =>
             mapMessages(messages, (item) => {
                 if (item.id === personalizedMessage.id) {
-                    return personalizedMessage;
+                    return keepSavedState(personalizedMessage, item);
                 }
 
                 if (item.reply_to?.id === personalizedMessage.id) {
@@ -721,7 +773,7 @@ export default function Messenger({
         setMessageSearchResults((messages) =>
             messages.map((item) => {
                 if (item.id === personalizedMessage.id) {
-                    return personalizedMessage;
+                    return keepSavedState(personalizedMessage, item);
                 }
 
                 if (item.reply_to?.id === personalizedMessage.id) {
@@ -1555,6 +1607,7 @@ export default function Messenger({
         toggleReaction,
         unsendMessage,
         toggleMessagePin,
+        toggleMessageSave,
         forwardMessage,
     } = useMessageActions({
         apiBaseUrl,
@@ -1817,6 +1870,7 @@ export default function Messenger({
                     }`}
                 >
                     <ConversationList
+                        onOpenSaved={() => setSavedOpen(true)}
                         activeConversationId={activeConversationId}
                         archived={archived}
                         browserNotifications={browserNotifications}
@@ -1907,10 +1961,12 @@ export default function Messenger({
                                     messageActions={{
                                         onEdit: startEdit,
                                         onForward: setForwardingMessage,
+                                        onInfo: setInfoMessage,
                                         onPin: toggleMessagePin,
                                         onReact: toggleReaction,
                                         onReply: startReply,
                                         onRsvp: respondToEvent,
+                                        onSave: toggleMessageSave,
                                         onUnsend: unsendMessage,
                                         onVote: votePoll,
                                     }}
@@ -2057,6 +2113,24 @@ export default function Messenger({
                         onCreate={createConversation}
                         onLoadClasses={loadClasses}
                         onOpenClassChat={openClassChat}
+                    />
+                )}
+                {infoMessage && activeConversation && (
+                    <MessageInfoDialog
+                        conversation={activeConversation}
+                        message={
+                            activeMessages.find(
+                                (message) => message.id === infoMessage.id,
+                            ) ?? infoMessage
+                        }
+                        onClose={() => setInfoMessage(null)}
+                    />
+                )}
+                {savedOpen && (
+                    <SavedMessagesDialog
+                        apiBaseUrl={apiBaseUrl}
+                        onClose={() => setSavedOpen(false)}
+                        onOpen={openSavedMessage}
                     />
                 )}
                 {forwardingMessage && (

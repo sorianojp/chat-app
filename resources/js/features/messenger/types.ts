@@ -83,6 +83,8 @@ export type MessengerMessage = {
     mentions: MessageMention[];
     mentions_me: boolean;
     mentions_everyone: boolean;
+    /** Absent on broadcast payloads; see keepSavedState in pages/messenger.tsx. */
+    saved_by_me?: boolean;
     delivered_to: MessageDeliveryReceipt[];
     reactions: MessageReactionSummary[];
     read_by: MessageReadReceipt[];
@@ -310,4 +312,15 @@ export type SchoolClassSummary = {
     students_count: number;
     joined_count: number;
     conversation_id: number | null;
+};
+
+/** An entry in the Saved list (GET /saved-messages). */
+export type SavedMessage = {
+    saved_at: string;
+    conversation: {
+        id: number;
+        type: Conversation['type'];
+        display_name: string;
+    };
+    message: MessengerMessage;
 };

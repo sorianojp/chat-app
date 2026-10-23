@@ -36,6 +36,7 @@ use Illuminate\Support\Carbon;
  * @property-read User|null $pinner
  * @property-read Collection<int, MessageReaction> $reactions
  * @property-read Collection<int, User> $readers
+ * @property-read Collection<int, User> $savedBy
  * @property-read Message|null $replyTo
  * @property-read User|null $sender
  */
@@ -92,6 +93,16 @@ class Message extends Model
     public function readers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'message_reads')->withPivot('read_at');
+    }
+
+    /**
+     * Get the users who saved this message to their Saved list.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function savedBy(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'saved_messages')->withTimestamps();
     }
 
     /**

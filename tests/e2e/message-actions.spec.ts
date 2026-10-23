@@ -1,4 +1,11 @@
-import { expect, messageBubble, sendMessage, test, thread } from './fixtures';
+import {
+    expect,
+    messageBubble,
+    openAs,
+    sendMessage,
+    test,
+    thread,
+} from './fixtures';
 
 test('pinning and unpinning a message', async ({ alice }) => {
     await sendMessage(alice, 'Field trip is on Friday');
@@ -99,4 +106,50 @@ test('creating an event and responding to it', async ({ alice }) => {
     await expect(
         thread(alice).getByRole('button', { name: 'Going · 1' }),
     ).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('message info lists who has seen your message', async ({
+    alice,
+    browser,
+    scenario,
+}) => {
+    await sendMessage(alice, 'Did everyone get this?');
+    const bubble = messageBubble(alice, 'Did everyone get this?');
+
+    await bubble.hover();
+    await bubble.getByRole('button', { name: 'Message info' }).click();
+    const info = alice.getByRole('dialog', { name: 'Message info' });
+    await expect(info.getByText('Not delivered yet · 1')).toBeVisible();
+    await info.getByRole('button', { name: 'Close' }).click();
+
+    // Bob opens the chat, which marks it read.
+    const bob = await openAs(browser, scenario.bob.id, scenario.url);
+    await expect(thread(bob).getByText('Did everyone get this?')).toBeVisible();
+
+    await bubble.hover();
+    await bubble.getByRole('button', { name: 'Message info' }).click();
+    await expect(info.getByText('Seen by · 1')).toBeVisible();
+    await expect(info.getByText('Bob Parent')).toBeVisible();
+
+    await bob.context().close();
+});
+
+test('saving a message and finding it in Saved', async ({ alice }) => {
+    await sendMessage(alice, 'Bring lab gowns on Monday');
+    const bubble = messageBubble(alice, 'Bring lab gowns on Monday');
+
+    await bubble.hover();
+    await bubble.getByRole('button', { name: 'Save message' }).click();
+    await expect(
+        bubble.getByRole('button', { name: 'Remove from saved' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+
+    await alice.reload();
+    await alice.getByRole('button', { name: 'Saved messages' }).click();
+    const saved = alice.getByRole('dialog', { name: 'Saved messages' });
+    await saved.getByText('Bring lab gowns on Monday').click();
+    await expect(saved).toBeHidden();
+    await expect(
+        messageBubble(alice, 'Bring lab gowns on Monday'),
+    ).toBeVisible();
 });

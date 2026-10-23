@@ -181,6 +181,24 @@ export function useMessageActions({
         );
     };
 
+    /** Optimistic: the bookmark flips at once and reverts if the save fails. */
+    const toggleMessageSave = async (message: MessengerMessage) => {
+        if (message.unsent_at || message.type === 'system') {
+            return;
+        }
+
+        const saved = message.saved_by_me !== true;
+        replaceMessage({ ...message, saved_by_me: saved });
+
+        const response = await apiFetch(messageUrl(message, '/save'), {
+            method: saved ? 'PUT' : 'DELETE',
+        });
+
+        if (!response.ok) {
+            replaceMessage({ ...message, saved_by_me: !saved });
+        }
+    };
+
     const forwardMessage = async (
         message: MessengerMessage,
         conversationIds: number[],
@@ -225,6 +243,7 @@ export function useMessageActions({
         toggleReaction,
         unsendMessage,
         toggleMessagePin,
+        toggleMessageSave,
         forwardMessage,
     };
 }

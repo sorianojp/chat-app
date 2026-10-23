@@ -18,10 +18,12 @@ export type MessageActions = Pick<
     ComponentProps<typeof MessageBubble>,
     | 'onEdit'
     | 'onForward'
+    | 'onInfo'
     | 'onPin'
     | 'onReact'
     | 'onReply'
     | 'onRsvp'
+    | 'onSave'
     | 'onUnsend'
     | 'onVote'
 >;
