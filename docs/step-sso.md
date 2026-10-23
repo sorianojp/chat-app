@@ -44,7 +44,7 @@ STEP_SSO_BASE_URL=https://step.example.edu
 STEP_SSO_CLIENT_ID=<passport-client-id>
 STEP_SSO_CLIENT_SECRET=<passport-client-secret>
 STEP_SSO_REDIRECT_URI=https://chat.example.edu/auth/step/callback
-STEP_SSO_SCOPES=chat:identity
+STEP_SSO_SCOPES="chat:identity chat:classes"
 STEP_SSO_TIMEOUT=10
 STEP_SSO_TEAM_NAME="STEP Messenger"
 STEP_SSO_TEAM_SLUG=step-messenger
@@ -88,6 +88,24 @@ access instead of receiving an unsafe fallback role.
 Name, email, verification state, roles, and shared-team membership are updated
 on every successful SSO login. Existing pre-SSO Uhoo! users are linked by
 email only when that local account is not already linked to another STEP ID.
+
+## Class chats
+
+With the `chat:classes` scope, every sign-in also calls STEP's
+`GET /api/v1/sso/classes` (current school year and term from STEP's
+settings). Teachers bring their classes and rosters; students only confirm the
+classes they are enrolled in and never receive classmates' details.
+
+- A teacher starts a class chat from **New message → Class** (web and mobile).
+  Everyone on the roster who has a Uhoo! account is added.
+- Students who sign in to Uhoo! later join the class chat on that sign-in.
+  Each person is added once: someone who leaves is not re-added.
+- Students removed from the STEP class leave the roster but stay in the chat
+  until the teacher removes them.
+- Rosters refresh when the teacher signs in again.
+
+Class sync never blocks sign-in. Tokens issued before the scope was added,
+or a STEP outage, simply skip it.
 
 ## Expected behavior
 

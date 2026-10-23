@@ -109,3 +109,30 @@ test.describe('inbox filters', () => {
         await expect(inbox.getByText('Dana Parent')).toBeVisible();
     });
 });
+
+test.describe('class chats', () => {
+    test.use({ withClass: true });
+
+    test('a teacher starts a class chat from their STEP class', async ({
+        alice,
+    }) => {
+        await alice.getByRole('button', { name: 'New message' }).click();
+        const dialog = alice.locator('form').filter({ hasText: 'New message' });
+
+        await dialog
+            .getByRole('button', { name: 'Class', exact: true })
+            .click();
+        await expect(
+            dialog.getByText('Data Structures', { exact: true }),
+        ).toBeVisible();
+        await expect(
+            dialog.getByText('1 of 2 students on Uhoo!'),
+        ).toBeVisible();
+
+        await dialog.getByRole('button', { name: 'Start chat' }).click();
+        await expect(dialog).toBeHidden();
+        await expect(
+            alice.getByRole('heading', { name: 'Data Structures · BSIT-2A' }),
+        ).toBeVisible();
+    });
+});

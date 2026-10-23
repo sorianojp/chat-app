@@ -79,6 +79,37 @@ class StepOAuthClient
         return StepIdentity::fromPayload($payload);
     }
 
+    /**
+     * The user's current-semester STEP classes, or null when STEP cannot
+     * provide them (no `chat:classes` scope, an outage, or a bad response).
+     * Class sync is best-effort and must never block sign-in.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    public function classes(string $accessToken): ?array
+    {
+        try {
+            $response = Http::acceptJson()
+                ->withToken($accessToken)
+                ->timeout($this->timeout())
+                ->get($this->url('/api/v1/sso/classes'));
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            if (! in_array($response->status(), [401, 403], true)) {
+                Log::warning('STEP class sync request failed.', ['status' => $response->status()]);
+            }
+
+            return null;
+        }
+
+        $classes = $response->json('data');
+
+        return is_array($classes) && array_is_list($classes) ? $classes : null;
+    }
+
     private function url(string $path): string
     {
         $baseUrl = rtrim($this->requiredConfig('base_url'), '/');

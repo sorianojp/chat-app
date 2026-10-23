@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Actions\Auth\ProvisionStepUser;
+use App\Actions\Classes\SyncStepClasses;
 use App\Exceptions\StepSsoException;
 use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Controller;
+use App\Models\Team;
 use App\Models\TeamInvitation;
+use App\Models\User;
 use App\Services\StepOAuthClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +17,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class StepSsoController extends Controller
 {
@@ -67,6 +71,7 @@ class StepSsoController extends Controller
         Request $request,
         StepOAuthClient $client,
         ProvisionStepUser $provisioner,
+        SyncStepClasses $classSync,
     ): RedirectResponse {
         $expectedState = $request->session()->pull(self::SESSION_STATE);
         $verifier = $request->session()->pull(self::SESSION_VERIFIER);
@@ -99,6 +104,8 @@ class StepSsoController extends Controller
             return $this->failed($exception->getMessage());
         }
 
+        $this->syncClasses($client, $classSync, $accessToken, $user);
+
         Auth::login($user);
         $request->session()->regenerate();
 
@@ -112,6 +119,24 @@ class StepSsoController extends Controller
         }
 
         return to_route('messenger', ['current_team' => $user->currentTeam->slug]);
+    }
+
+    /**
+     * Best-effort: class chats are a convenience, so a STEP hiccup here is
+     * reported but never stops the user from signing in.
+     */
+    private function syncClasses(StepOAuthClient $client, SyncStepClasses $classSync, string $accessToken, User $user): void
+    {
+        try {
+            $classes = $client->classes($accessToken);
+            $team = Team::query()->where('external_source', ProvisionStepUser::STEP_TEAM_SOURCE)->first();
+
+            if ($classes !== null && $team !== null) {
+                $classSync->handle($user, $team, $classes);
+            }
+        } catch (Throwable $exception) {
+            report($exception);
+        }
     }
 
     public function logout(Request $request): RedirectResponse

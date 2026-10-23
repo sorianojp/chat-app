@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 class ProvisionStepUser
 {
-    private const STEP_TEAM_SOURCE = 'step-v2';
+    public const STEP_TEAM_SOURCE = 'step-v2';
 
     public function __construct(private StepRoleMapper $roleMapper)
     {

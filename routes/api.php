@@ -29,6 +29,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::post('presence', [PresenceController::class, 'store']);
 
         Route::get('school-classes', [SchoolClassController::class, 'index']);
+        Route::post('school-classes/{schoolClass}/conversation', [ConversationController::class, 'storeForClass'])->middleware('throttle:messages');
         Route::get('students', [StudentController::class, 'index']);
 
         Route::get('conversations', [ConversationController::class, 'index']);

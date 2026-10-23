@@ -82,6 +82,7 @@ import type {
     MessengerMessage,
     MessengerPageProps,
     NewConversationPayload,
+    SchoolClassSummary,
 } from '@/features/messenger/types';
 import { useBrowserNotifications } from '@/features/messenger/use-browser-notifications';
 import { useConversationActions } from '@/features/messenger/use-conversation-actions';
@@ -962,8 +963,52 @@ export default function Messenger({
         }
 
         const created = (await response.json()) as { data: Conversation };
-        const conversation = created.data;
+        addAndSelectConversation(created.data);
 
+        return true;
+    };
+
+    const loadClasses = useCallback(async () => {
+        const response = await apiFetch(`${apiBaseUrl}/school-classes`, {
+            method: 'GET',
+        });
+
+        if (!response.ok) {
+            return [];
+        }
+
+        return ((await response.json()) as { data: SchoolClassSummary[] }).data;
+    }, [apiBaseUrl]);
+
+    /** Opens the class chat, starting it first if the teacher has none yet. */
+    const openClassChat = async (schoolClass: SchoolClassSummary) => {
+        const existing = conversations.find(
+            (conversation) => conversation.id === schoolClass.conversation_id,
+        );
+
+        if (existing) {
+            selectConversation(existing.id);
+
+            return true;
+        }
+
+        const response = await apiFetch(
+            `${apiBaseUrl}/school-classes/${schoolClass.id}/conversation`,
+            { method: 'POST', json: {} },
+        );
+
+        if (!response.ok) {
+            return false;
+        }
+
+        addAndSelectConversation(
+            ((await response.json()) as { data: Conversation }).data,
+        );
+
+        return true;
+    };
+
+    const addAndSelectConversation = (conversation: Conversation) => {
         setConversations((items) =>
             sortConversations([
                 conversation,
@@ -976,8 +1021,6 @@ export default function Messenger({
         }));
         loadedConversationIdsRef.current.add(conversation.id);
         selectConversation(conversation.id);
-
-        return true;
     };
 
     useEffect(() => {
@@ -2012,6 +2055,8 @@ export default function Messenger({
                         contacts={contacts}
                         onClose={() => setComposerOpen(false)}
                         onCreate={createConversation}
+                        onLoadClasses={loadClasses}
+                        onOpenClassChat={openClassChat}
                     />
                 )}
                 {forwardingMessage && (

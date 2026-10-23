@@ -81,6 +81,27 @@ Route::prefix('_e2e')->group(function () {
             $secondChat->participants()->attach($dana, ['role' => 'member']);
         }
 
+        if ($request->boolean('with_class')) {
+            // Alice teaches a synced STEP class with Bob on its roster.
+            $alice->forceFill(['step_user_id' => 'e2e-alice-'.$alice->id])->save();
+            $bob->forceFill(['step_user_id' => 'e2e-bob-'.$bob->id])->save();
+            $schoolClass = $team->schoolClasses()->create([
+                'step_room_id' => 'e2e-room-'.$team->id,
+                'adviser_id' => $alice->id,
+                'name' => 'Data Structures',
+                'subject' => 'DATA STRUCTURES',
+                'grade_level' => '2',
+                'section' => 'BSIT-2A',
+                'school_year' => '2026-2027',
+                'semester' => '1',
+            ]);
+            $schoolClass->members()->createMany([
+                ['step_user_id' => $alice->step_user_id, 'name' => $alice->name, 'role' => 'teacher'],
+                ['step_user_id' => $bob->step_user_id, 'name' => $bob->name, 'role' => 'student'],
+                ['step_user_id' => 'e2e-absent-'.$team->id, 'name' => 'Not Yet Signed In', 'role' => 'student'],
+            ]);
+        }
+
         return response()->json([
             'alice' => ['id' => $alice->id, 'name' => $alice->name],
             'bob' => ['id' => $bob->id, 'name' => $bob->name],

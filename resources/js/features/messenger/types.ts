@@ -298,3 +298,16 @@ export type NewConversationPayload = {
     title: string | null;
     participant_ids: number[];
 };
+
+/** A STEP class the signed-in user teaches (GET /school-classes). */
+export type SchoolClassSummary = {
+    id: number;
+    name: string;
+    subject: string | null;
+    section: string;
+    school_year: string;
+    semester: string | null;
+    students_count: number;
+    joined_count: number;
+    conversation_id: number | null;
+};

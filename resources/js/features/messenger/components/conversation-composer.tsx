@@ -1,22 +1,68 @@
-import { Check, Reply, Search, UsersRound, X } from 'lucide-react';
-import { useState } from 'react';
+import {
+    Check,
+    GraduationCap,
+    Reply,
+    Search,
+    UsersRound,
+    X,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { initials } from '@/features/messenger/lib/format';
 import type {
     Contact,
     NewConversationPayload,
+    SchoolClassSummary,
 } from '@/features/messenger/types';
+
+type ComposerMode = 'direct' | 'group' | 'class';
 
 export function ConversationComposer({
     contacts,
     onClose,
     onCreate,
+    onLoadClasses,
+    onOpenClassChat,
 }: {
     contacts: Contact[];
     onClose: () => void;
     onCreate: (payload: NewConversationPayload) => Promise<boolean>;
+    onLoadClasses: () => Promise<SchoolClassSummary[]>;
+    onOpenClassChat: (schoolClass: SchoolClassSummary) => Promise<boolean>;
 }) {
-    const [mode, setMode] = useState<'direct' | 'group'>('direct');
+    const [mode, setMode] = useState<ComposerMode>('direct');
+    // Teachers see a Class tab for their STEP classes; others never do.
+    const [classes, setClasses] = useState<SchoolClassSummary[]>([]);
+    const [openingClassId, setOpeningClassId] = useState<number | null>(null);
+
+    useEffect(() => {
+        let active = true;
+
+        onLoadClasses()
+            .then((items) => active && setClasses(items))
+            .catch(() => undefined);
+
+        return () => {
+            active = false;
+        };
+    }, [onLoadClasses]);
+
+    const openClassChat = async (schoolClass: SchoolClassSummary) => {
+        setOpeningClassId(schoolClass.id);
+        setError(null);
+
+        try {
+            if (await onOpenClassChat(schoolClass)) {
+                onClose();
+
+                return;
+            }
+
+            setError('Could not open that class chat.');
+        } finally {
+            setOpeningClassId(null);
+        }
+    };
     const [query, setQuery] = useState('');
     const [title, setTitle] = useState('');
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -30,7 +76,7 @@ export function ConversationComposer({
     const canSubmit =
         selectedIds.length > 0 && (mode === 'direct' || title.trim() !== '');
 
-    const chooseMode = (nextMode: 'direct' | 'group') => {
+    const chooseMode = (nextMode: ComposerMode) => {
         setMode(nextMode);
         setError(null);
 
@@ -60,7 +106,8 @@ export function ConversationComposer({
     const submit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        if (!canSubmit || submitting) {
+        // Class chats are opened from their own row, not by submitting.
+        if (mode === 'class' || !canSubmit || submitting) {
             return;
         }
 
@@ -107,8 +154,15 @@ export function ConversationComposer({
                 </div>
 
                 <div className="shrink-0 space-y-3 border-b border-border p-4">
-                    <div className="grid grid-cols-2 rounded-xl bg-muted p-1">
-                        {(['direct', 'group'] as const).map((item) => (
+                    <div
+                        className={`grid rounded-xl bg-muted p-1 ${
+                            classes.length > 0 ? 'grid-cols-3' : 'grid-cols-2'
+                        }`}
+                    >
+                        {(classes.length > 0
+                            ? (['direct', 'group', 'class'] as const)
+                            : (['direct', 'group'] as const)
+                        ).map((item) => (
                             <button
                                 className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
                                     mode === item
@@ -119,7 +173,11 @@ export function ConversationComposer({
                                 onClick={() => chooseMode(item)}
                                 type="button"
                             >
-                                {item === 'direct' ? 'Direct' : 'Group'}
+                                {item === 'direct'
+                                    ? 'Direct'
+                                    : item === 'group'
+                                      ? 'Group'
+                                      : 'Class'}
                             </button>
                         ))}
                     </div>
@@ -133,7 +191,19 @@ export function ConversationComposer({
                         />
                     )}
 
-                    <label className="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 text-muted-foreground">
+                    {mode === 'class' && (
+                        <p className="text-xs leading-5 text-muted-foreground">
+                            Your STEP classes this semester. Students join the
+                            class chat automatically, including those who sign
+                            in to Uhoo! later.
+                        </p>
+                    )}
+
+                    <label
+                        className={`h-11 items-center gap-2 rounded-xl bg-muted px-3 text-muted-foreground ${
+                            mode === 'class' ? 'hidden' : 'flex'
+                        }`}
+                    >
                         <Search className="size-4" />
                         <input
                             className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
@@ -146,7 +216,16 @@ export function ConversationComposer({
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                    {filteredContacts.length > 0 ? (
+                    {mode === 'class' ? (
+                        classes.map((schoolClass) => (
+                            <ClassRow
+                                key={schoolClass.id}
+                                onOpen={() => void openClassChat(schoolClass)}
+                                opening={openingClassId === schoolClass.id}
+                                schoolClass={schoolClass}
+                            />
+                        ))
+                    ) : filteredContacts.length > 0 ? (
                         filteredContacts.map((contact) => {
                             const selected = selectedIds.includes(contact.id);
 
@@ -197,20 +276,80 @@ export function ConversationComposer({
                 </div>
 
                 <div className="shrink-0 border-t border-border p-4">
-                    {error && (
-                        <p className="mb-3 text-sm font-medium text-rose-600 dark:text-rose-400">
-                            {error}
-                        </p>
+                    {mode === 'class' ? (
+                        error && (
+                            <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                                {error}
+                            </p>
+                        )
+                    ) : (
+                        <>
+                            {error && (
+                                <p className="mb-3 text-sm font-medium text-rose-600 dark:text-rose-400">
+                                    {error}
+                                </p>
+                            )}
+                            <button
+                                className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-brand-foreground transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                                disabled={!canSubmit || submitting}
+                                type="submit"
+                            >
+                                {submitting ? 'Creating...' : 'Create'}
+                            </button>
+                        </>
                     )}
-                    <button
-                        className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-brand-foreground transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-                        disabled={!canSubmit || submitting}
-                        type="submit"
-                    >
-                        {submitting ? 'Creating...' : 'Create'}
-                    </button>
                 </div>
             </form>
+        </div>
+    );
+}
+
+function ClassRow({
+    schoolClass,
+    opening,
+    onOpen,
+}: {
+    schoolClass: SchoolClassSummary;
+    opening: boolean;
+    onOpen: () => void;
+}) {
+    const details = [schoolClass.section, schoolClass.subject]
+        .filter(Boolean)
+        .join(' · ');
+
+    return (
+        <div className="flex items-center gap-3 rounded-xl px-3 py-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
+                <GraduationCap className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-foreground">
+                    {schoolClass.name}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                    {details}
+                </span>
+                <span className="mt-0.5 block text-[11px] font-medium text-muted-foreground">
+                    {schoolClass.joined_count} of {schoolClass.students_count}{' '}
+                    students on Uhoo!
+                </span>
+            </span>
+            <button
+                className={`h-9 shrink-0 rounded-xl px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                    schoolClass.conversation_id
+                        ? 'bg-muted text-foreground hover:bg-muted/70'
+                        : 'bg-brand-solid text-brand-foreground hover:bg-brand-solid/90'
+                }`}
+                disabled={opening}
+                onClick={onOpen}
+                type="button"
+            >
+                {opening
+                    ? 'Opening...'
+                    : schoolClass.conversation_id
+                      ? 'Open chat'
+                      : 'Start chat'}
+            </button>
         </div>
     );
 }

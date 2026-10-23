@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Classes\SyncStepClasses;
 use App\Enums\ConversationType;
 use App\Events\MessageCreated;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreConversationRequest;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\SchoolClass;
 use App\Models\Team;
 use App\Models\User;
 use App\Support\MessagePayload;
@@ -15,6 +17,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -84,8 +87,10 @@ class ConversationController extends Controller
             ->values()
             ->all();
 
+        // school_class_id is set only by storeForClass(): students are added
+        // to class chats automatically, so tagging one must stay with the
+        // class's teacher.
         $conversation = $team->conversations()->create([
-            'school_class_id' => $data['school_class_id'] ?? null,
             'created_by' => $request->user()->id,
             'type' => $data['type'],
             'title' => $data['title'] ?? null,
@@ -104,6 +109,50 @@ class ConversationController extends Controller
 
         return response()->json([
             'data' => $this->conversationPayload($conversation, $request->user()->id),
+        ], 201);
+    }
+
+    /**
+     * Start the group chat for a STEP class the user teaches, with everyone on
+     * its roster who has a Uhoo! account. Returns the existing one if the
+     * teacher already started it.
+     */
+    public function storeForClass(Request $request, Team $team, SchoolClass $schoolClass, SyncStepClasses $classSync): JsonResponse
+    {
+        abort_unless($this->belongsToTeam($request, $team), 403);
+        abort_unless($schoolClass->team_id === $team->id, 404);
+        abort_unless($schoolClass->adviser_id === $request->user()->id, 403);
+
+        $existing = $schoolClass->conversations()
+            ->where('type', ConversationType::Group)
+            ->whereHas('participants', fn ($query) => $query->whereKey($request->user()->id))
+            ->first();
+
+        if ($existing !== null) {
+            return response()->json([
+                'data' => $this->conversationPayload($this->conversationForUser($request, $existing), $request->user()->id),
+            ]);
+        }
+
+        $conversation = DB::transaction(function () use ($request, $team, $schoolClass, $classSync): Conversation {
+            $conversation = $team->conversations()->create([
+                'school_class_id' => $schoolClass->id,
+                'created_by' => $request->user()->id,
+                'type' => ConversationType::Group,
+                'title' => Str::limit(
+                    $schoolClass->section !== '' ? "{$schoolClass->name} · {$schoolClass->section}" : $schoolClass->name,
+                    160,
+                    '',
+                ),
+            ]);
+            $conversation->participants()->attach($request->user()->id, ['role' => 'owner']);
+            $classSync->addRosterToChats($schoolClass);
+
+            return $conversation;
+        });
+
+        return response()->json([
+            'data' => $this->conversationPayload($this->conversationForUser($request, $conversation), $request->user()->id),
         ], 201);
     }
 

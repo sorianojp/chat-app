@@ -70,6 +70,7 @@ export const test = base.extend<{
     secondChat: boolean;
     seedMessages: number;
     pinOldest: boolean;
+    withClass: boolean;
     scenario: Scenario;
     alice: Page;
 }>({
@@ -77,8 +78,16 @@ export const test = base.extend<{
     secondChat: [false, { option: true }],
     seedMessages: [0, { option: true }],
     pinOldest: [false, { option: true }],
+    withClass: [false, { option: true }],
     scenario: async (
-        { request, scenarioType, secondChat, seedMessages, pinOldest },
+        {
+            request,
+            scenarioType,
+            secondChat,
+            seedMessages,
+            pinOldest,
+            withClass,
+        },
         use,
     ) => {
         const response = await request.post('/_e2e/scenario', {
@@ -87,6 +96,7 @@ export const test = base.extend<{
                 second_chat: secondChat,
                 messages: seedMessages,
                 pin_oldest: pinOldest,
+                with_class: withClass,
             },
         });
         expect(response.ok()).toBeTruthy();

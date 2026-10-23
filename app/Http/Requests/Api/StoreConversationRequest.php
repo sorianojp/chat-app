@@ -26,7 +26,6 @@ class StoreConversationRequest extends FormRequest
         return [
             'type' => ['required', Rule::enum(ConversationType::class)],
             'title' => ['nullable', 'string', 'max:160', 'required_if:type,'.ConversationType::Group->value],
-            'school_class_id' => ['nullable', 'integer', 'exists:school_classes,id'],
             'participant_ids' => ['required', 'array', 'min:1'],
             'participant_ids.*' => ['integer', 'exists:users,id'],
         ];
