@@ -1943,6 +1943,7 @@ export default function Messenger({
                                                 .can_pin_messages
                                         }
                                         message={activePinnedMessage}
+                                        onOpen={openPinnedMessage}
                                         onUnpin={toggleMessagePin}
                                     />
                                 )}

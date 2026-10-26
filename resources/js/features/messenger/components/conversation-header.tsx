@@ -186,10 +186,12 @@ export function ConversationHeader({
 export function PinnedMessageBanner({
     canUnpin,
     message,
+    onOpen,
     onUnpin,
 }: {
     canUnpin: boolean;
     message: MessengerMessage;
+    onOpen: (message: MessengerMessage) => void;
     onUnpin: (message: MessengerMessage) => void;
 }) {
     return (
@@ -198,7 +200,13 @@ export function PinnedMessageBanner({
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-card text-brand shadow-sm">
                     <Pin className="size-4" />
                 </span>
-                <div className="min-w-0 flex-1">
+                {/* Jumps to the message, as tapping the banner does on mobile. */}
+                <button
+                    aria-label="Go to pinned message"
+                    className="min-w-0 flex-1 rounded-lg text-left focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => onOpen(message)}
+                    type="button"
+                >
                     <p className="text-xs font-semibold text-brand">
                         Pinned message
                     </p>
@@ -210,7 +218,7 @@ export function PinnedMessageBanner({
                             Pinned by {message.pinned_by.name}
                         </p>
                     )}
-                </div>
+                </button>
                 {canUnpin && (
                     <button
                         aria-label="Unpin message"

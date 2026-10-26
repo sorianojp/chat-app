@@ -249,6 +249,18 @@ test.describe('old pinned messages', () => {
     // 200 messages: reaching #1 takes several pages beyond any scroll-up load.
     test.use({ seedMessages: 200, pinOldest: true });
 
+    test('clicking the pinned banner jumps to the pinned message', async ({
+        alice,
+    }) => {
+        await alice
+            .getByRole('button', { name: 'Go to pinned message' })
+            .click();
+
+        await expect(
+            thread(alice).getByText('History message 1', { exact: true }),
+        ).toBeInViewport();
+    });
+
     test('opening an old pinned message loads the history around it', async ({
         alice,
     }) => {
@@ -257,7 +269,7 @@ test.describe('old pinned messages', () => {
             timeline.getByText('History message 1', { exact: true }),
         ).toHaveCount(0);
 
-        // The entry in the chat details panel is a button; the banner text is not.
+        // Through the pinned list in the chat details panel.
         await openDetails(alice);
         await alice
             .getByRole('button', { name: /Pinned by Alice Teacher/ })
