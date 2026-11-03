@@ -107,7 +107,7 @@ export function MessageBubble({
                     <div className="pointer-events-none absolute -top-3.5 right-3 z-10 flex gap-1 opacity-0 transition group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
                         <button
                             aria-label="Reply"
-                            className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
+                            className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground hover:text-brand"
                             onClick={() => onReply(message)}
                             type="button"
                         >
@@ -115,7 +115,7 @@ export function MessageBubble({
                         </button>
                         <button
                             aria-label="Forward"
-                            className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
+                            className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground hover:text-brand"
                             onClick={() => onForward(message)}
                             type="button"
                         >
@@ -128,7 +128,7 @@ export function MessageBubble({
                                     : 'Save message'
                             }
                             aria-pressed={message.saved_by_me === true}
-                            className={`grid size-7 place-items-center rounded-full bg-card shadow-sm ring-1 ring-border ${
+                            className={`grid size-7 place-items-center rounded-full bg-card ${
                                 message.saved_by_me
                                     ? 'text-brand hover:text-muted-foreground'
                                     : 'text-muted-foreground hover:text-brand'
@@ -149,7 +149,7 @@ export function MessageBubble({
                                         ? 'Unpin message'
                                         : 'Pin message'
                                 }
-                                className={`grid size-7 place-items-center rounded-full bg-card shadow-sm ring-1 ring-border ${
+                                className={`grid size-7 place-items-center rounded-full bg-card ${
                                     message.pinned_at
                                         ? 'text-brand hover:text-muted-foreground'
                                         : 'text-muted-foreground hover:text-brand'
@@ -168,7 +168,7 @@ export function MessageBubble({
                             <>
                                 <button
                                     aria-label="Message info"
-                                    className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
+                                    className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground hover:text-brand"
                                     onClick={() => onInfo(message)}
                                     type="button"
                                 >
@@ -179,7 +179,7 @@ export function MessageBubble({
                                 ) && (
                                     <button
                                         aria-label="Edit"
-                                        className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-brand"
+                                        className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground hover:text-brand"
                                         onClick={() => onEdit(message)}
                                         type="button"
                                     >
@@ -188,7 +188,7 @@ export function MessageBubble({
                                 )}
                                 <button
                                     aria-label="Unsend"
-                                    className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-rose-600 dark:hover:text-rose-400"
+                                    className="grid size-7 place-items-center rounded-full bg-card text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400"
                                     onClick={() => onUnsend(message)}
                                     type="button"
                                 >
@@ -199,12 +199,12 @@ export function MessageBubble({
                     </div>
                 )}
                 <div
-                    className={`relative min-w-0 rounded-2xl px-4 py-3 shadow-sm ${
+                    className={`relative min-w-0 rounded-2xl px-4 py-3 ${
                         mine
                             ? unsent
                                 ? 'rounded-br-md bg-muted text-muted-foreground'
                                 : interactive
-                                  ? 'rounded-br-md bg-message-incoming text-foreground ring-1 ring-brand/25'
+                                  ? 'rounded-br-md bg-message-incoming text-foreground'
                                   : 'rounded-br-md bg-message-outgoing text-message-outgoing-foreground'
                             : 'rounded-bl-md bg-message-incoming text-foreground'
                     } mb-3`}
@@ -295,7 +295,7 @@ export function MessageBubble({
                         <div className="absolute right-2 -bottom-3 flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1">
                             <button
                                 aria-label="Add reaction"
-                                className="pointer-events-none grid size-7 place-items-center rounded-full border border-border bg-card text-muted-foreground opacity-0 shadow-sm transition group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:scale-105 hover:text-brand"
+                                className="pointer-events-none grid size-7 place-items-center rounded-full bg-card text-muted-foreground opacity-0 transition group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:scale-105 hover:text-brand"
                                 onClick={() =>
                                     setReactionPickerOpen((open) => !open)
                                 }
@@ -307,10 +307,10 @@ export function MessageBubble({
                                 <button
                                     aria-label={`Reacted with ${reaction.emoji}`}
                                     aria-pressed={reaction.reacted_by_me}
-                                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs shadow-sm transition ${
+                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs transition ${
                                         reaction.reacted_by_me
-                                            ? 'border-brand/40 bg-brand/15 text-brand hover:bg-brand/20'
-                                            : 'border-border bg-card text-muted-foreground hover:bg-muted/40'
+                                            ? 'bg-brand/15 text-brand hover:bg-brand/20'
+                                            : 'bg-card text-muted-foreground hover:bg-muted'
                                     }`}
                                     key={reaction.emoji}
                                     onClick={() =>
@@ -331,7 +331,7 @@ export function MessageBubble({
 
                 {reactionPickerOpen && !unsent && (
                     <div
-                        className={`absolute bottom-11 z-10 flex gap-1 rounded-full border border-border bg-card p-1.5 shadow-xl ${
+                        className={`absolute bottom-11 z-10 flex gap-1 rounded-full bg-card p-1.5 ${
                             mine ? 'right-0' : 'left-0'
                         }`}
                     >
@@ -418,14 +418,14 @@ export function MessageAttachmentPreview({
     // Outgoing shells tint with the bubble's own text colour (like the reply
     // preview) so names and sizes stay readable on the brand fill.
     const shellClass = mine
-        ? 'border-message-outgoing-foreground/25 bg-message-outgoing-foreground/10'
-        : 'border-border bg-muted/40';
+        ? 'bg-message-outgoing-foreground/10'
+        : 'bg-muted/60';
 
     if (isImage) {
         return (
             <div className="space-y-1.5">
                 <a
-                    className={`block max-w-full overflow-hidden rounded-xl border ${shellClass}`}
+                    className={`block max-w-full overflow-hidden rounded-xl ${shellClass}`}
                     href={attachment.preview_url ?? attachment.url}
                     rel="noreferrer"
                     target="_blank"
@@ -449,7 +449,7 @@ export function MessageAttachmentPreview({
         return (
             <div className="space-y-1.5">
                 <video
-                    className={`max-h-80 w-full max-w-full rounded-xl border ${shellClass}`}
+                    className={`max-h-80 w-full max-w-full rounded-xl ${shellClass}`}
                     controls
                     preload="metadata"
                     src={attachment.preview_url ?? attachment.url}
@@ -464,9 +464,7 @@ export function MessageAttachmentPreview({
 
     if (isAudio) {
         return (
-            <div
-                className={`max-w-full rounded-xl border px-3 py-2 ${shellClass}`}
-            >
+            <div className={`max-w-full rounded-xl px-3 py-2 ${shellClass}`}>
                 <div
                     className={`mb-2 flex items-center gap-2 text-xs font-medium ${
                         mine
@@ -497,10 +495,10 @@ export function MessageAttachmentPreview({
 
     return (
         <a
-            className={`flex max-w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
+            className={`flex max-w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left transition ${
                 mine
-                    ? 'border-message-outgoing-foreground/25 bg-message-outgoing-foreground/10 hover:bg-message-outgoing-foreground/15'
-                    : 'border-border bg-muted/40 hover:bg-muted'
+                    ? 'bg-message-outgoing-foreground/10 hover:bg-message-outgoing-foreground/15'
+                    : 'bg-muted/60 hover:bg-muted'
             }`}
             href={attachment.url}
             rel="noreferrer"
@@ -603,7 +601,7 @@ export function AttachmentCaption({
 export function TypingIndicator({ users }: { users: TypingUser[] }) {
     return (
         <div className="flex w-full flex-col items-start">
-            <div className="rounded-2xl rounded-bl-md bg-card px-4 py-3 shadow-sm">
+            <div className="rounded-2xl rounded-bl-md bg-card px-4 py-3">
                 <div className="flex items-center gap-1.5">
                     {[0, 1, 2].map((index) => (
                         <span

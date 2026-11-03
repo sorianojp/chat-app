@@ -1852,7 +1852,7 @@ export default function Messenger({
                         {!archived && (
                             <button
                                 aria-label="New message"
-                                className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:bg-[#121e41]"
+                                className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground transition hover:bg-[#121e41]"
                                 onClick={() => setComposerOpen(true)}
                                 type="button"
                             >
@@ -1863,7 +1863,7 @@ export default function Messenger({
                 </div>
 
                 <div
-                    className={`relative mx-4 mb-4 grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[20px] bg-card shadow-sm sm:mx-6 sm:mb-6 lg:grid-cols-[340px_minmax(0,1fr)] ${
+                    className={`relative mx-4 mb-4 grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[20px] bg-card sm:mx-6 sm:mb-6 lg:grid-cols-[340px_minmax(0,1fr)] ${
                         showDetails
                             ? 'xl:grid-cols-[340px_minmax(0,1fr)_320px]'
                             : ''
@@ -2055,8 +2055,8 @@ export default function Messenger({
 
                     {showDetails && activeConversation && (
                         // A column on wide screens; a drawer over the chat below xl.
-                        <aside className="absolute inset-y-0 right-0 z-30 flex min-h-0 w-[min(22rem,100%)] flex-col border-l border-border bg-card shadow-xl xl:static xl:z-auto xl:w-auto xl:shadow-none">
-                            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                        <aside className="absolute inset-y-0 right-0 z-30 flex min-h-0 w-[min(22rem,100%)] flex-col bg-card xl:static xl:z-auto xl:w-auto xl:shadow-none">
+                            <div className="flex shrink-0 items-center justify-between px-4 py-3">
                                 <h2 className="text-sm font-semibold text-foreground">
                                     Chat details
                                 </h2>

@@ -11,7 +11,7 @@ export function MessageSearchBar({
     onClose: () => void;
 }) {
     return (
-        <div className="border-b border-border bg-card px-4 py-3 md:px-6">
+        <div className="bg-card px-4 py-3 md:px-6">
             <label className="flex h-11 items-center gap-2 rounded-xl bg-secondary/70 px-3 text-muted-foreground transition focus-within:bg-card focus-within:ring-4 focus-within:ring-ring/20">
                 <Search className="size-4" />
                 <input

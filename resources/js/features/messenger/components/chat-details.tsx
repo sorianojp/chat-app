@@ -232,7 +232,7 @@ export function ChatDetails({
                                     className={`rounded-lg px-2 py-2 text-xs font-semibold capitalize transition ${
                                         conversation.notification_preference ===
                                         preference
-                                            ? 'bg-card text-brand shadow-sm'
+                                            ? 'bg-card text-brand'
                                             : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                     disabled={savingPreference}
@@ -271,7 +271,7 @@ export function ChatDetails({
                             <button
                                 className={`rounded-lg px-2 py-2 text-xs font-semibold transition ${
                                     activeTab === tab.id
-                                        ? 'bg-card text-brand shadow-sm'
+                                        ? 'bg-card text-brand'
                                         : 'text-muted-foreground hover:text-foreground'
                                 }`}
                                 key={tab.id}
@@ -316,7 +316,7 @@ export function ChatDetails({
                                 onSubmit={saveTitle}
                             >
                                 <input
-                                    className="min-w-0 flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-brand"
+                                    className="min-w-0 flex-1 rounded-lg bg-card px-3 py-2 text-sm outline-none"
                                     onChange={(event) =>
                                         setTitle(event.target.value)
                                     }
@@ -350,7 +350,7 @@ export function ChatDetails({
                             )}
 
                         <button
-                            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-rose-50 px-3 text-sm font-semibold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50"
                             onClick={() => onLeave(conversation)}
                             type="button"
                         >
@@ -527,10 +527,10 @@ export function AddMembersDialog({
     return (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
             <form
-                className="flex max-h-[min(620px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl"
+                className="flex max-h-[min(620px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card"
                 onSubmit={submit}
             >
-                <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                <div className="flex shrink-0 items-center justify-between px-4 py-3">
                     <h2 className="text-base font-semibold text-foreground">
                         Add members
                     </h2>
@@ -544,7 +544,7 @@ export function AddMembersDialog({
                     </button>
                 </div>
 
-                <div className="shrink-0 border-b border-border p-4">
+                <div className="shrink-0 p-4">
                     <label className="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 text-muted-foreground">
                         <Search className="size-4" />
                         <input
@@ -569,7 +569,7 @@ export function AddMembersDialog({
                                     onClick={() => toggleContact(contact.id)}
                                     type="button"
                                 >
-                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-bold text-foreground ring-1 ring-border">
+                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-bold text-foreground">
                                         {initials(contact.name)}
                                     </span>
                                     <span className="min-w-0 flex-1">
@@ -581,10 +581,10 @@ export function AddMembersDialog({
                                         </span>
                                     </span>
                                     <span
-                                        className={`grid size-6 shrink-0 place-items-center rounded-full border ${
+                                        className={`grid size-6 shrink-0 place-items-center rounded-full ${
                                             selected
-                                                ? 'border-brand bg-brand-solid text-brand-foreground'
-                                                : 'border-border text-transparent'
+                                                ? 'bg-brand-solid text-brand-foreground'
+                                                : 'bg-muted text-transparent'
                                         }`}
                                     >
                                         <Check className="size-4" />
@@ -604,7 +604,7 @@ export function AddMembersDialog({
                     )}
                 </div>
 
-                <div className="shrink-0 border-t border-border p-4">
+                <div className="shrink-0 p-4">
                     {error && (
                         <p className="mb-3 text-sm font-medium text-rose-600 dark:text-rose-400">
                             {error}
@@ -642,7 +642,7 @@ export function SharedMediaGrid({ media }: { media: SharedAttachment[] }) {
 
                 return (
                     <a
-                        className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted"
+                        className="group relative aspect-square overflow-hidden rounded-lg bg-muted"
                         href={item.preview_url ?? item.url}
                         key={item.id}
                         rel="noreferrer"
@@ -686,7 +686,7 @@ export function SharedLinksList({ links }: { links: SharedLink[] }) {
         <div className="space-y-2">
             {links.map((link) => (
                 <a
-                    className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 transition hover:border-brand hover:bg-brand/10"
+                    className="flex min-w-0 items-center gap-3 rounded-lg bg-card px-3 py-2 transition hover:bg-brand/10"
                     href={link.url}
                     key={`${link.message_id}-${link.url}`}
                     rel="noreferrer"
@@ -723,7 +723,7 @@ export function SharedFilesList({ files }: { files: SharedAttachment[] }) {
         <div className="space-y-2">
             {files.map((file) => (
                 <a
-                    className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 transition hover:border-brand hover:bg-brand/10"
+                    className="flex min-w-0 items-center gap-3 rounded-lg bg-card px-3 py-2 transition hover:bg-brand/10"
                     href={file.url}
                     key={file.id}
                     rel="noreferrer"
@@ -785,7 +785,7 @@ export function PinnedMessagesList({
         <div className="mt-3 space-y-2">
             {messages.map((message) => (
                 <div
-                    className="group flex min-w-0 items-start gap-3 rounded-lg border border-border bg-card px-3 py-2 text-left transition hover:border-brand hover:bg-brand/10"
+                    className="group flex min-w-0 items-start gap-3 rounded-lg bg-card px-3 py-2 text-left transition hover:bg-brand/10"
                     key={message.id}
                 >
                     <button
@@ -835,7 +835,7 @@ export function SharedContentEmpty({
     title: string;
 }) {
     return (
-        <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 px-3 text-center">
+        <div className="flex min-h-40 flex-col items-center justify-center rounded-lg bg-muted/40 px-3 text-center">
             <span className="grid size-10 place-items-center rounded-full bg-card text-muted-foreground">
                 {icon}
             </span>

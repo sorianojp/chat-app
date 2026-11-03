@@ -120,7 +120,7 @@ export function MessageTimeline({
                         <div
                             className={`rounded-2xl transition ${
                                 highlightedMessageId === message.id
-                                    ? 'bg-brand/15 ring-2 ring-brand/30'
+                                    ? 'bg-brand/15'
                                     : ''
                             }`}
                             key={message.id}
@@ -198,7 +198,7 @@ export function MessageTimeline({
             {showJumpToLatest && !searchTerm && (
                 <button
                     aria-label="Jump to latest message"
-                    className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground shadow-lg transition hover:bg-muted"
+                    className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-card px-4 py-2 text-xs font-semibold text-foreground transition hover:bg-muted"
                     onClick={onJumpToLatest}
                     type="button"
                 >
@@ -224,7 +224,7 @@ function LoadEarlierButton({
     return (
         <div className="flex justify-center">
             <button
-                className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+                className="rounded-full bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-60"
                 disabled={loading}
                 onClick={onClick}
                 type="button"

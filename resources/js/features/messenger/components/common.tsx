@@ -18,7 +18,7 @@ export function Avatar({
             className={`relative grid size-11 shrink-0 place-items-center rounded-full text-sm font-bold ${
                 type === 'direct'
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-foreground ring-1 ring-border'
+                    : 'bg-muted text-foreground'
             }`}
         >
             {photoUrl ? (

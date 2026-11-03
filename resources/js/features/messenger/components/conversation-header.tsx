@@ -63,7 +63,7 @@ export function ConversationHeader({
     );
 
     return (
-        <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-4 md:px-6">
+        <header className="flex shrink-0 items-center gap-3 bg-card px-4 py-4 md:px-6">
             <Avatar
                 label={conversation.display_name}
                 online={online}
@@ -195,9 +195,9 @@ export function PinnedMessageBanner({
     onUnpin: (message: MessengerMessage) => void;
 }) {
     return (
-        <div className="border-b border-border bg-card px-4 py-3 md:px-6">
-            <div className="flex items-center gap-3 rounded-xl border border-brand/20 bg-brand/10 px-3 py-2">
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-card text-brand shadow-sm">
+        <div className="bg-card px-4 py-3 md:px-6">
+            <div className="/20 flex items-center gap-3 rounded-xl bg-brand/10 px-3 py-2">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-card text-brand">
                     <Pin className="size-4" />
                 </span>
                 {/* Jumps to the message, as tapping the banner does on mobile. */}

@@ -53,10 +53,10 @@ export function ForwardMessageDialog({
     return (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
             <form
-                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl"
+                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card"
                 onSubmit={submit}
             >
-                <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                <div className="flex shrink-0 items-center justify-between px-4 py-3">
                     <h2 className="text-base font-semibold text-foreground">
                         Forward message
                     </h2>
@@ -70,7 +70,7 @@ export function ForwardMessageDialog({
                     </button>
                 </div>
 
-                <div className="shrink-0 space-y-3 border-b border-border p-4">
+                <div className="shrink-0 space-y-3 p-4">
                     <div className="rounded-xl bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
                         <span className="line-clamp-2">
                             {messagePreview(message)}
@@ -120,10 +120,10 @@ export function ForwardMessageDialog({
                                         </span>
                                     </span>
                                     <span
-                                        className={`grid size-6 shrink-0 place-items-center rounded-full border ${
+                                        className={`grid size-6 shrink-0 place-items-center rounded-full ${
                                             selected
-                                                ? 'border-brand bg-brand-solid text-brand-foreground'
-                                                : 'border-border text-transparent'
+                                                ? 'bg-brand-solid text-brand-foreground'
+                                                : 'bg-muted text-transparent'
                                         }`}
                                     >
                                         <Check className="size-4" />
@@ -143,7 +143,7 @@ export function ForwardMessageDialog({
                     )}
                 </div>
 
-                <div className="shrink-0 border-t border-border p-4">
+                <div className="shrink-0 p-4">
                     <button
                         className="h-11 w-full rounded-xl bg-brand-solid px-4 text-sm font-semibold text-brand-foreground transition hover:bg-brand-solid/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                         disabled={!canSubmit}

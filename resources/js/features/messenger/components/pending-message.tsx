@@ -27,7 +27,7 @@ export function PendingMessage({
             data-client-message-id={message.clientId}
         >
             <div
-                className={`max-w-[85%] rounded-2xl rounded-br-md bg-message-outgoing px-4 py-3 text-message-outgoing-foreground shadow-sm md:max-w-[75%] ${message.status === 'sending' ? 'opacity-75' : 'ring-2 ring-destructive/50'}`}
+                className={`max-w-[85%] rounded-2xl rounded-br-md bg-message-outgoing px-4 py-3 text-message-outgoing-foreground md:max-w-[75%] ${message.status === 'sending' ? 'opacity-75' : 'ring-2 ring-destructive/50'}`}
             >
                 {message.replyPreview && (
                     <p className="mb-2 border-l-2 border-current/50 pl-2 text-xs opacity-80">

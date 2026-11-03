@@ -76,11 +76,11 @@ export function SavedMessagesDialog({
             <div
                 aria-labelledby="saved-messages-title"
                 aria-modal="true"
-                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl"
+                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card"
                 onClick={(event) => event.stopPropagation()}
                 role="dialog"
             >
-                <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                <div className="flex shrink-0 items-center justify-between px-4 py-3">
                     <h2
                         className="text-base font-semibold text-foreground"
                         id="saved-messages-title"

@@ -47,7 +47,7 @@ export function PollComposer({
     return (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
             <form
-                className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl"
+                className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-5"
                 onSubmit={submit}
             >
                 <div className="flex items-center justify-between">
@@ -72,7 +72,7 @@ export function PollComposer({
                     Question
                     <input
                         autoFocus
-                        className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 font-normal outline-none focus:border-brand"
+                        className="mt-2 h-11 w-full rounded-xl bg-card px-3 font-normal outline-none"
                         maxLength={300}
                         onChange={(event) => setQuestion(event.target.value)}
                         placeholder="What should we choose?"
@@ -86,7 +86,7 @@ export function PollComposer({
                     {options.map((option, index) => (
                         <div className="flex gap-2" key={index}>
                             <input
-                                className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-brand"
+                                className="h-11 min-w-0 flex-1 rounded-xl bg-card px-3 text-sm outline-none"
                                 maxLength={120}
                                 onChange={(event) =>
                                     setOptions((items) =>
@@ -144,7 +144,7 @@ export function PollComposer({
                 <label className="mt-4 block text-sm font-semibold text-foreground">
                     Close voting (optional)
                     <input
-                        className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 font-normal outline-none focus:border-brand"
+                        className="mt-2 h-11 w-full rounded-xl bg-card px-3 font-normal outline-none"
                         min={localDateTimeInputValue(1)}
                         onChange={(event) => setClosesAt(event.target.value)}
                         type="datetime-local"
@@ -201,7 +201,7 @@ export function EventComposer({
     return (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
             <form
-                className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl"
+                className="w-full max-w-lg rounded-2xl bg-card p-5"
                 onSubmit={submit}
             >
                 <div className="flex items-center justify-between">
@@ -225,28 +225,28 @@ export function EventComposer({
                 <div className="mt-5 space-y-4">
                     <input
                         autoFocus
-                        className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-brand"
+                        className="h-11 w-full rounded-xl bg-card px-3 text-sm outline-none"
                         maxLength={200}
                         onChange={(event) => setTitle(event.target.value)}
                         placeholder="Event title"
                         value={title}
                     />
                     <input
-                        className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-brand"
+                        className="h-11 w-full rounded-xl bg-card px-3 text-sm outline-none"
                         min={localDateTimeInputValue(1)}
                         onChange={(event) => setStartsAt(event.target.value)}
                         type="datetime-local"
                         value={startsAt}
                     />
                     <input
-                        className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-brand"
+                        className="h-11 w-full rounded-xl bg-card px-3 text-sm outline-none"
                         maxLength={240}
                         onChange={(event) => setLocation(event.target.value)}
                         placeholder="Location (optional)"
                         value={location}
                     />
                     <textarea
-                        className="min-h-24 w-full rounded-xl border border-border bg-card p-3 text-sm outline-none focus:border-brand"
+                        className="min-h-24 w-full rounded-xl bg-card p-3 text-sm outline-none"
                         maxLength={2000}
                         onChange={(event) => setDescription(event.target.value)}
                         placeholder="Description (optional)"

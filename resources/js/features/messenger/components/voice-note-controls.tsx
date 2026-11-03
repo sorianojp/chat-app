@@ -41,7 +41,7 @@ export function VoiceNoteControls({
             {(status !== 'idle' || error) && (
                 <div
                     aria-live="polite"
-                    className="absolute bottom-12 -left-12 z-30 w-[min(19rem,calc(100vw-2rem))] rounded-xl border border-border bg-card p-3 text-foreground shadow-xl sm:left-0"
+                    className="absolute bottom-12 -left-12 z-30 w-[min(19rem,calc(100vw-2rem))] rounded-xl bg-card p-3 text-foreground sm:left-0"
                     role="status"
                 >
                     {error ? (
@@ -129,7 +129,7 @@ export function VoiceNoteDraftPreview({ file }: { file: File }) {
     }, [file]);
 
     return (
-        <div className="mb-3 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2">
+        <div className="/20 mb-3 rounded-xl bg-brand/5 px-3 py-2">
             <p className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-brand">
                 <Mic className="size-3.5" /> Voice note ready to send
             </p>

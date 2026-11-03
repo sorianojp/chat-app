@@ -136,10 +136,10 @@ export function ConversationComposer({
     return (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
             <form
-                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl"
+                className="flex max-h-[min(680px,calc(100vh-3rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card"
                 onSubmit={submit}
             >
-                <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                <div className="flex shrink-0 items-center justify-between px-4 py-3">
                     <h2 className="text-base font-semibold text-foreground">
                         New message
                     </h2>
@@ -153,7 +153,7 @@ export function ConversationComposer({
                     </button>
                 </div>
 
-                <div className="shrink-0 space-y-3 border-b border-border p-4">
+                <div className="shrink-0 space-y-3 p-4">
                     <div
                         className={`grid rounded-xl bg-muted p-1 ${
                             classes.length > 0 ? 'grid-cols-3' : 'grid-cols-2'
@@ -166,7 +166,7 @@ export function ConversationComposer({
                             <button
                                 className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
                                     mode === item
-                                        ? 'bg-card text-brand shadow-sm'
+                                        ? 'bg-card text-brand'
                                         : 'text-muted-foreground hover:text-foreground'
                                 }`}
                                 key={item}
@@ -184,7 +184,7 @@ export function ConversationComposer({
 
                     {mode === 'group' && (
                         <input
-                            className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm transition outline-none focus:border-brand"
+                            className="h-11 w-full rounded-xl bg-card px-3 text-sm transition outline-none"
                             onChange={(event) => setTitle(event.target.value)}
                             placeholder="Group name"
                             value={title}
@@ -236,7 +236,7 @@ export function ConversationComposer({
                                     onClick={() => toggleContact(contact.id)}
                                     type="button"
                                 >
-                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-bold text-foreground ring-1 ring-border">
+                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-bold text-foreground">
                                         {initials(contact.name)}
                                     </span>
                                     <span className="min-w-0 flex-1">
@@ -248,10 +248,10 @@ export function ConversationComposer({
                                         </span>
                                     </span>
                                     <span
-                                        className={`grid size-6 shrink-0 place-items-center rounded-full border ${
+                                        className={`grid size-6 shrink-0 place-items-center rounded-full ${
                                             selected
-                                                ? 'border-brand bg-brand-solid text-brand-foreground'
-                                                : 'border-border text-transparent'
+                                                ? 'bg-brand-solid text-brand-foreground'
+                                                : 'bg-muted text-transparent'
                                         }`}
                                     >
                                         <Check className="size-4" />
@@ -275,7 +275,7 @@ export function ConversationComposer({
                     )}
                 </div>
 
-                <div className="shrink-0 border-t border-border p-4">
+                <div className="shrink-0 p-4">
                     {mode === 'class' ? (
                         error && (
                             <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
@@ -364,7 +364,7 @@ export function ComposerContext({
     onCancel: () => void;
 }) {
     return (
-        <div className="mb-3 flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-3 py-2">
+        <div className="mb-3 flex items-center gap-3 rounded-xl bg-muted/40 px-3 py-2">
             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-card text-brand">
                 <Reply className="size-4" />
             </span>

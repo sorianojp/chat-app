@@ -66,10 +66,10 @@ export function PollCard({
                     return (
                         <button
                             aria-pressed={option.voted_by_me}
-                            className={`relative w-full overflow-hidden rounded-xl border px-3 py-2.5 text-left transition ${
+                            className={`relative w-full overflow-hidden rounded-xl px-3 py-2.5 text-left transition ${
                                 option.voted_by_me
-                                    ? 'border-brand bg-brand/10'
-                                    : 'border-border bg-card/70 hover:border-brand/50'
+                                    ? 'bg-brand/15'
+                                    : 'bg-muted/60'
                             }`}
                             disabled={closed}
                             key={option.id}
@@ -151,10 +151,10 @@ export function EventCard({
                 {choices.map(({ status, label }) => (
                     <button
                         aria-pressed={event.my_response === status}
-                        className={`rounded-lg border px-1.5 py-2 text-xs font-semibold whitespace-nowrap transition ${
+                        className={`rounded-lg px-1.5 py-2 text-xs font-semibold whitespace-nowrap transition ${
                             event.my_response === status
-                                ? 'border-brand bg-brand/15 text-brand'
-                                : 'border-border bg-card/70 text-muted-foreground hover:border-brand/50'
+                                ? 'bg-brand/15 text-brand'
+                                : 'bg-muted/60 text-muted-foreground'
                         }`}
                         key={status}
                         onClick={() => onRsvp(status)}
@@ -174,7 +174,7 @@ export function EventCard({
 export function LinkPreviewCard({ preview }: { preview: LinkPreview }) {
     return (
         <a
-            className="block overflow-hidden rounded-xl border border-border bg-card/70 text-left transition hover:border-brand/50"
+            className="block overflow-hidden rounded-xl bg-card/70 text-left transition"
             href={preview.url}
             rel="noreferrer"
             target="_blank"

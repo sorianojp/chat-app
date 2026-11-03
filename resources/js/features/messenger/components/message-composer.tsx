@@ -77,10 +77,7 @@ export function MessageComposer({
     const isEditing = editingMessage !== null;
 
     return (
-        <form
-            className="@container shrink-0 border-t border-border bg-card p-4"
-            onSubmit={onSubmit}
-        >
+        <form className="@container shrink-0 bg-card p-4" onSubmit={onSubmit}>
             {editingMessage && (
                 <ComposerContext
                     body={editingMessage.body}
@@ -138,7 +135,7 @@ export function MessageComposer({
                 <VoiceNoteDraftPreview file={recordedVoiceNote} />
             )}
             {mentionQuery !== null && mentionOptions.length > 0 && (
-                <div className="mb-3 max-h-56 overflow-y-auto rounded-xl border border-border bg-card p-2 shadow-lg">
+                <div className="mb-3 max-h-56 overflow-y-auto rounded-xl bg-card p-2">
                     {mentionOptions.map((option) => (
                         <button
                             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-muted/40"
@@ -225,7 +222,7 @@ export function MessageComposer({
                     <Calendar className="size-5" />
                 </button>
                 <input
-                    className="order-first h-11 min-w-0 flex-1 basis-[calc(100%-3.5rem)] rounded-xl border border-transparent bg-secondary/70 px-4 text-sm transition outline-none placeholder:text-muted-foreground focus:bg-card focus:ring-4 focus:ring-ring/20 @xl:order-none @xl:basis-auto"
+                    className="order-first h-11 min-w-0 flex-1 basis-[calc(100%-3.5rem)] rounded-xl bg-secondary/70 px-4 text-sm transition outline-none placeholder:text-muted-foreground focus:bg-card focus:ring-4 focus:ring-ring/20 @xl:order-none @xl:basis-auto"
                     onClick={(event) => onSyncMentionQuery(event.currentTarget)}
                     onChange={(event) => onBodyChange(event.target.value)}
                     maxLength={5000}
@@ -236,7 +233,7 @@ export function MessageComposer({
                 />
                 <button
                     aria-label="Send message"
-                    className="order-first grid size-11 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:bg-[#121e41] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground @xl:order-none"
+                    className="order-first grid size-11 place-items-center rounded-xl bg-primary text-primary-foreground transition hover:bg-[#121e41] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground @xl:order-none"
                     disabled={
                         (!body.trim() && selectedFiles.length === 0) ||
                         sending ||

@@ -51,7 +51,7 @@ export function AppSidebar() {
 
     return (
         <Sidebar collapsible="icon" variant="sidebar">
-            <SidebarHeader className="gap-3 border-b border-sidebar-border/70 p-3">
+            <SidebarHeader className="gap-3 p-3">
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton
@@ -76,7 +76,7 @@ export function AppSidebar() {
                 <NavMain items={mainNavItems} />
             </SidebarContent>
 
-            <SidebarFooter className="border-t border-sidebar-border/70 p-3">
+            <SidebarFooter className="p-3">
                 <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />
             </SidebarFooter>

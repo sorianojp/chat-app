@@ -79,9 +79,9 @@ export function ConversationList({
 
     return (
         <aside
-            className={`min-h-0 flex-col border-r border-border bg-card lg:flex ${hasActiveConversation ? 'hidden' : 'flex'}`}
+            className={`min-h-0 flex-col bg-card lg:flex ${hasActiveConversation ? 'hidden' : 'flex'}`}
         >
-            <div className="border-b border-border p-4">
+            <div className="p-4">
                 <div className="mb-3 flex items-center justify-between">
                     <h2 className="text-lg font-bold text-foreground">
                         {archived ? 'Archives' : 'Chats'}
@@ -235,7 +235,7 @@ function BrowserAlertsCard({
     onDismiss: () => void;
 }) {
     return (
-        <div className="mt-3 flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-2.5">
+        <div className="mt-3 flex items-center gap-3 rounded-xl bg-secondary/40 px-3 py-2.5">
             <Bell className="size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-foreground">
@@ -277,7 +277,7 @@ function BrowserAlertsCard({
                     notifications.enabled &&
                     notifications.permission === 'granted'
                 }
-                className="shrink-0 rounded-lg bg-card px-2.5 py-1.5 text-xs font-semibold text-foreground ring-1 ring-border transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                className="shrink-0 rounded-lg bg-card px-2.5 py-1.5 text-xs font-semibold text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={
                     notifications.permission === 'unsupported' ||
                     notifications.permission === 'denied'
@@ -321,9 +321,7 @@ function ConversationListItem({
     return (
         <button
             className={`flex w-full gap-3 rounded-xl px-3 py-3 text-left transition ${
-                active
-                    ? 'bg-brand/10 ring-1 ring-brand/20'
-                    : 'bg-card hover:bg-muted'
+                active ? 'bg-brand/10' : 'bg-card hover:bg-muted'
             }`}
             onClick={() => onSelect(conversation.id)}
             type="button"
@@ -357,7 +355,7 @@ function ConversationListItem({
                         </span>
                     )}
                     {conversation.unread_mentions_count > 0 && (
-                        <span className="grid size-5 shrink-0 place-items-center rounded-full border border-foreground/15 bg-muted text-[11px] font-bold text-foreground">
+                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-muted text-[11px] font-bold text-foreground">
                             @
                         </span>
                     )}
