@@ -1364,6 +1364,60 @@ export default function Messenger({
         }
     };
 
+    // Late layout shifts (web fonts swapping in, images and link previews
+    // loading) grow the thread without a scroll event; keep a reader who was
+    // at the latest message there.
+    useEffect(() => {
+        const viewport = messagesViewportRef.current;
+
+        if (
+            !viewport ||
+            messageSearchTerm ||
+            typeof ResizeObserver === 'undefined'
+        ) {
+            return;
+        }
+
+        // The last position seen; a jump (to a pinned or saved message, an
+        // unread marker) moves scrollTop first, which turns the pinning off.
+        let lastHeight = viewport.scrollHeight;
+        let lastTop = viewport.scrollTop;
+        const remember = () => {
+            lastHeight = viewport.scrollHeight;
+            lastTop = viewport.scrollTop;
+        };
+        const resizes = new ResizeObserver(() => {
+            const wasAtLatest =
+                viewport.scrollTop === lastTop &&
+                lastHeight - lastTop - viewport.clientHeight < 96;
+
+            if (viewport.scrollHeight !== lastHeight && wasAtLatest) {
+                viewport.scrollTop = viewport.scrollHeight;
+            }
+
+            remember();
+        });
+        const observeChildren = () => {
+            resizes.disconnect();
+            resizes.observe(viewport);
+
+            for (const child of Array.from(viewport.children)) {
+                resizes.observe(child);
+            }
+        };
+        const mutations = new MutationObserver(observeChildren);
+
+        observeChildren();
+        mutations.observe(viewport, { childList: true });
+        viewport.addEventListener('scroll', remember, { passive: true });
+
+        return () => {
+            resizes.disconnect();
+            mutations.disconnect();
+            viewport.removeEventListener('scroll', remember);
+        };
+    }, [activeConversationId, messageSearchTerm]);
+
     useEffect(() => {
         const previousTimeline = previousTimelineRef.current;
         previousTimelineRef.current = {
