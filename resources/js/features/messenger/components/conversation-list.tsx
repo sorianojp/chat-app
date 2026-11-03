@@ -83,7 +83,7 @@ export function ConversationList({
         >
             <div className="p-4">
                 <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-foreground">
+                    <h2 className="text-lg font-semibold text-foreground">
                         {archived ? 'Archives' : 'Chats'}
                     </h2>
                     <div className="flex items-center gap-1">
@@ -109,7 +109,7 @@ export function ConversationList({
                         )}
                     </div>
                 </div>
-                <label className="flex h-11 items-center gap-2 rounded-xl bg-secondary/70 px-3 text-muted-foreground transition focus-within:bg-card focus-within:ring-4 focus-within:ring-ring/20">
+                <label className="flex h-11 items-center gap-2 rounded-xl bg-field px-3 text-muted-foreground transition focus-within:bg-field-active focus-within:ring-2 focus-within:ring-ring/40 hover:bg-field-active">
                     <Search className="size-4" />
                     <input
                         className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
@@ -131,8 +131,8 @@ export function ConversationList({
                                 aria-pressed={filter === value}
                                 className={`rounded-full px-3 py-1.5 text-xs transition ${
                                     filter === value
-                                        ? 'bg-brand/15 font-bold text-brand'
-                                        : 'bg-muted font-semibold text-foreground hover:bg-muted/70'
+                                        ? 'bg-secondary font-semibold text-secondary-foreground'
+                                        : 'bg-muted font-semibold text-foreground hover:bg-field-active'
                                 }`}
                                 key={value}
                                 onClick={() => setFilter(value)}
@@ -235,7 +235,7 @@ function BrowserAlertsCard({
     onDismiss: () => void;
 }) {
     return (
-        <div className="mt-3 flex items-center gap-3 rounded-xl bg-secondary/40 px-3 py-2.5">
+        <div className="mt-3 flex items-center gap-3 rounded-xl bg-muted px-3 py-2.5">
             <Bell className="size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-foreground">
@@ -321,7 +321,7 @@ function ConversationListItem({
     return (
         <button
             className={`flex w-full gap-3 rounded-xl px-3 py-3 text-left transition ${
-                active ? 'bg-brand/10' : 'bg-card hover:bg-muted'
+                active ? 'bg-secondary' : 'bg-card hover:bg-muted'
             }`}
             onClick={() => onSelect(conversation.id)}
             type="button"
@@ -350,12 +350,12 @@ function ConversationListItem({
                         )}
                     </span>
                     {conversation.unread_count > 0 && (
-                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-solid text-[10px] font-bold text-brand-foreground">
+                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-solid text-[10px] font-semibold text-brand-foreground">
                             {conversation.unread_count}
                         </span>
                     )}
                     {conversation.unread_mentions_count > 0 && (
-                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-muted text-[11px] font-bold text-foreground">
+                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-muted text-[11px] font-semibold text-foreground">
                             @
                         </span>
                     )}

@@ -371,7 +371,7 @@ export function ChatDetails({
                                 className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/40"
                                 key={participant.id}
                             >
-                                <span className="relative grid size-9 place-items-center rounded-full bg-muted text-xs font-bold text-foreground">
+                                <span className="relative grid size-9 place-items-center rounded-full bg-muted text-xs font-semibold text-foreground">
                                     {initials(participant.name)}
                                     {onlineUserIds.has(participant.id) && (
                                         <span className="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-card bg-online" />
@@ -569,7 +569,7 @@ export function AddMembersDialog({
                                     onClick={() => toggleContact(contact.id)}
                                     type="button"
                                 >
-                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-bold text-foreground">
+                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold text-foreground">
                                         {initials(contact.name)}
                                     </span>
                                     <span className="min-w-0 flex-1">

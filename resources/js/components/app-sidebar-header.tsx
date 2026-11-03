@@ -10,7 +10,7 @@ export function AppSidebarHeader({
     return (
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 bg-card px-4 transition-[width,height] ease-linear sm:px-6">
             <div className="flex items-center gap-2">
-                <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-primary" />
+                <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-brand" />
                 <Breadcrumbs breadcrumbs={breadcrumbs} />
             </div>
         </header>

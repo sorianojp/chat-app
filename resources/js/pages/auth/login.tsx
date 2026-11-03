@@ -33,12 +33,12 @@ export default function Login({
                     <div className="w-full max-w-md">
                         <section
                             aria-labelledby="login-title"
-                            className="rounded-[20px] bg-card px-6 py-8 shadow-sm sm:px-9 sm:py-10"
+                            className="rounded-card bg-card px-6 py-8 sm:px-9 sm:py-10"
                         >
                             <div className="flex items-center gap-3">
                                 <AppLogoIcon className="size-12 rounded-full object-cover" />
                                 <div>
-                                    <p className="font-heading text-lg leading-tight font-bold">
+                                    <p className="font-heading text-lg leading-tight font-semibold">
                                         Uhoo!
                                     </p>
                                     <p className="text-xs text-muted-foreground">
@@ -50,7 +50,7 @@ export default function Login({
                             <div className="mt-9">
                                 <h1
                                     id="login-title"
-                                    className="font-heading text-2xl font-bold sm:text-3xl"
+                                    className="font-heading text-2xl font-semibold sm:text-3xl"
                                 >
                                     Welcome back
                                 </h1>
@@ -92,7 +92,7 @@ export default function Login({
                             )}
 
                             <a
-                                className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-[#121e41] focus-visible:ring-4 focus-visible:ring-ring/25 dark:hover:bg-[#3c53a9]"
+                                className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:ring-4 focus-visible:ring-ring/25"
                                 data-test="step-sso-button"
                                 href={stepSsoUrl}
                             >

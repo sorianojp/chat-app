@@ -236,7 +236,7 @@ export function ConversationComposer({
                                     onClick={() => toggleContact(contact.id)}
                                     type="button"
                                 >
-                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-bold text-foreground">
+                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold text-foreground">
                                         {initials(contact.name)}
                                     </span>
                                     <span className="min-w-0 flex-1">

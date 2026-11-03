@@ -62,7 +62,7 @@ export default function TeamsIndex({ teams }: Props) {
                             <div
                                 key={team.id}
                                 data-test="team-row"
-                                className="flex items-center justify-between gap-4 rounded-[20px] bg-card p-5 transition hover:shadow-sm"
+                                className="flex items-center justify-between gap-4 rounded-card bg-card p-5 transition hover:bg-field-active"
                             >
                                 <div className="flex items-center gap-4">
                                     <div>
@@ -158,8 +158,8 @@ export default function TeamsIndex({ teams }: Props) {
                     })}
 
                     {teams.length === 0 ? (
-                        <div className="rounded-[20px] bg-card px-6 py-14 text-center">
-                            <p className="font-heading font-bold">
+                        <div className="rounded-card bg-card px-6 py-14 text-center">
+                            <p className="font-heading font-semibold">
                                 No teams yet
                             </p>
                             <p className="mt-1 text-sm text-muted-foreground">

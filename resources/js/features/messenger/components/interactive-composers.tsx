@@ -52,7 +52,7 @@ export function PollComposer({
             >
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-lg font-bold text-foreground">
+                        <h2 className="text-lg font-semibold text-foreground">
                             Create poll
                         </h2>
                         <p className="text-sm text-muted-foreground">
@@ -206,7 +206,7 @@ export function EventComposer({
             >
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-lg font-bold text-foreground">
+                        <h2 className="text-lg font-semibold text-foreground">
                             Create event
                         </h2>
                         <p className="text-sm text-muted-foreground">

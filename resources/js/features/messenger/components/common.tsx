@@ -15,7 +15,7 @@ export function Avatar({
 }) {
     return (
         <span
-            className={`relative grid size-11 shrink-0 place-items-center rounded-full text-sm font-bold ${
+            className={`relative grid size-11 shrink-0 place-items-center rounded-full text-sm font-semibold ${
                 type === 'direct'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-foreground'

@@ -40,7 +40,7 @@ export default function Support() {
                             href={login()}
                         >
                             <AppLogoIcon className="size-10 rounded-full object-cover" />
-                            <span className="font-heading font-bold tracking-tight text-foreground">
+                            <span className="font-heading font-semibold tracking-tight text-foreground">
                                 STEP Messages
                             </span>
                         </Link>
@@ -55,10 +55,10 @@ export default function Support() {
                 </header>
 
                 <article className="mx-auto w-full max-w-3xl px-5 py-12 sm:px-8 sm:py-16">
-                    <p className="inline-flex rounded-full bg-brand/10 px-3 py-1 text-sm font-bold text-brand">
+                    <p className="inline-flex rounded-full bg-brand/10 px-3 py-1 text-sm font-semibold text-brand">
                         Help for the school community
                     </p>
-                    <h1 className="mt-4 font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+                    <h1 className="mt-4 font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
                         Uhoo! Support
                     </h1>
                     <p className="mt-5 text-base leading-7 text-muted-foreground">
@@ -102,7 +102,7 @@ export default function Support() {
                         >
                             Other ways to reach us
                         </h2>
-                        <ul className="mt-5 divide-y divide-border overflow-hidden rounded-[20px] bg-card">
+                        <ul className="mt-5 divide-y divide-border overflow-hidden rounded-card bg-card">
                             {supportLinks.map(({ label, href }) => (
                                 <li key={href}>
                                     <a
@@ -149,7 +149,7 @@ export default function Support() {
 
 function EmailCard({ label, address }: { label: string; address: string }) {
     return (
-        <div className="rounded-[20px] bg-card p-5">
+        <div className="rounded-card bg-card p-5">
             <p className="text-sm font-medium text-muted-foreground">{label}</p>
             <a
                 className="mt-3 inline-flex items-center gap-2 font-semibold break-all text-brand underline underline-offset-4 hover:text-foreground"

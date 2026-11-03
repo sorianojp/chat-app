@@ -1819,7 +1819,7 @@ export default function Messenger({
                         <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                             {workspace.name}
                         </p>
-                        <h1 className="truncate font-heading text-2xl font-bold text-foreground">
+                        <h1 className="truncate font-heading text-2xl font-semibold text-foreground">
                             {archived ? 'Archived' : 'Chat'}
                         </h1>
                     </div>
@@ -1827,7 +1827,7 @@ export default function Messenger({
                         {activeConversation && (
                             <button
                                 aria-label="Back to chats"
-                                className="grid size-10 place-items-center rounded-xl bg-secondary text-foreground transition hover:bg-accent lg:hidden"
+                                className="grid size-10 place-items-center rounded-xl bg-secondary text-secondary-foreground transition hover:bg-secondary-hover lg:hidden"
                                 onClick={() => selectConversation(null)}
                                 type="button"
                             >
@@ -1836,7 +1836,7 @@ export default function Messenger({
                         )}
                         <a
                             aria-label={archived ? 'Back to inbox' : 'Archive'}
-                            className="grid size-10 place-items-center rounded-xl bg-secondary text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                            className="grid size-10 place-items-center rounded-xl bg-secondary text-secondary-foreground transition hover:bg-secondary-hover"
                             href={
                                 archived
                                     ? `/${workspace.slug}/messenger`
@@ -1852,7 +1852,7 @@ export default function Messenger({
                         {!archived && (
                             <button
                                 aria-label="New message"
-                                className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground transition hover:bg-[#121e41]"
+                                className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground transition hover:bg-primary-hover"
                                 onClick={() => setComposerOpen(true)}
                                 type="button"
                             >
@@ -1863,7 +1863,7 @@ export default function Messenger({
                 </div>
 
                 <div
-                    className={`relative mx-4 mb-4 grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[20px] bg-card sm:mx-6 sm:mb-6 lg:grid-cols-[340px_minmax(0,1fr)] ${
+                    className={`relative mx-4 mb-4 grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-card bg-card sm:mx-6 sm:mb-6 lg:grid-cols-[340px_minmax(0,1fr)] ${
                         showDetails
                             ? 'xl:grid-cols-[340px_minmax(0,1fr)_320px]'
                             : ''

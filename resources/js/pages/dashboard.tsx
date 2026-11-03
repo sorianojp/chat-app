@@ -53,7 +53,7 @@ export default function Dashboard({ pendingInvitations = [] }: Props) {
                 <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <h1 className="font-heading text-2xl font-bold text-foreground">
+                            <h1 className="font-heading text-2xl font-semibold text-foreground">
                                 {greeting}, {auth.user.name.split(' ')[0]}
                             </h1>
                             {auth.user.department && (
@@ -101,14 +101,14 @@ export default function Dashboard({ pendingInvitations = [] }: Props) {
                 </div>
 
                 <section className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.5fr)]">
-                    <div className="relative overflow-hidden rounded-[20px] bg-primary p-6 text-primary-foreground sm:p-8">
+                    <div className="relative overflow-hidden rounded-card bg-primary p-6 text-primary-foreground sm:p-8">
                         <div className="absolute -top-16 -right-12 size-48 rounded-full bg-white/10" />
                         <div className="absolute -right-4 -bottom-24 size-56 rounded-full bg-white/5" />
                         <div className="relative max-w-xl">
-                            <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-primary-foreground">
+                            <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-primary-foreground">
                                 STEP communication
                             </span>
-                            <h2 className="mt-5 font-heading text-2xl font-bold sm:text-3xl">
+                            <h2 className="mt-5 font-heading text-2xl font-semibold sm:text-3xl">
                                 Keep school conversations focused and easy to
                                 find.
                             </h2>
@@ -127,11 +127,11 @@ export default function Dashboard({ pendingInvitations = [] }: Props) {
                         </div>
                     </div>
 
-                    <div className="rounded-[20px] bg-card p-6">
-                        <span className="grid size-11 place-items-center rounded-xl bg-muted text-primary">
+                    <div className="rounded-card bg-card p-6">
+                        <span className="grid size-11 place-items-center rounded-xl bg-muted text-brand">
                             <Settings className="size-5" />
                         </span>
-                        <h2 className="mt-5 font-heading text-lg font-bold">
+                        <h2 className="mt-5 font-heading text-lg font-semibold">
                             Workspace settings
                         </h2>
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -166,20 +166,20 @@ function SummaryCard({
     return (
         <Link
             href={href}
-            className="group flex items-center gap-4 rounded-[20px] bg-card p-5 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-4 focus-visible:ring-ring/20"
+            className="group flex items-center gap-4 rounded-card bg-card p-5 transition hover:bg-field-active focus-visible:ring-4 focus-visible:ring-ring/20"
         >
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted text-primary [&>svg]:size-5">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted text-brand [&>svg]:size-5">
                 {icon}
             </span>
             <span className="min-w-0 flex-1">
                 <span className="block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                     {label}
                 </span>
-                <span className="mt-1 block truncate font-heading text-base font-bold">
+                <span className="mt-1 block truncate font-heading text-base font-semibold">
                     {value}
                 </span>
             </span>
-            <ArrowRight className="size-4 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-primary" />
+            <ArrowRight className="size-4 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-brand" />
         </Link>
     );
 }

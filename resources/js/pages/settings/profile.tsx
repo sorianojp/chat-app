@@ -30,7 +30,7 @@ export default function Profile({
                     description="Your identity and roles are synchronized from STEP each time you sign in."
                 />
 
-                <div className="space-y-5 rounded-[20px] bg-card p-6">
+                <div className="space-y-5 rounded-card bg-card p-6">
                     <ReadOnlyField label="Name" value={auth.user.name} />
                     <ReadOnlyField
                         label="Email address"
@@ -94,7 +94,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
     return (
         <div className="grid gap-1">
             <p className="text-sm font-medium">{label}</p>
-            <p className="rounded-xl bg-secondary/70 px-3 py-2.5 text-sm">
+            <p className="rounded-xl bg-muted px-3 py-2.5 text-sm text-muted-foreground">
                 {value}
             </p>
         </div>

@@ -12,7 +12,7 @@ export function MessageSearchBar({
 }) {
     return (
         <div className="bg-card px-4 py-3 md:px-6">
-            <label className="flex h-11 items-center gap-2 rounded-xl bg-secondary/70 px-3 text-muted-foreground transition focus-within:bg-card focus-within:ring-4 focus-within:ring-ring/20">
+            <label className="flex h-11 items-center gap-2 rounded-xl bg-field px-3 text-muted-foreground transition focus-within:bg-field-active focus-within:ring-2 focus-within:ring-ring/40 hover:bg-field-active">
                 <Search className="size-4" />
                 <input
                     autoFocus

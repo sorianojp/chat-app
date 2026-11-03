@@ -24,7 +24,7 @@ export default function Privacy() {
                             href={login()}
                         >
                             <AppLogoIcon className="size-10 rounded-full object-cover" />
-                            <span className="font-heading font-bold tracking-tight text-foreground">
+                            <span className="font-heading font-semibold tracking-tight text-foreground">
                                 STEP Messages
                             </span>
                         </Link>
@@ -40,7 +40,7 @@ export default function Privacy() {
                 </header>
 
                 <article className="mx-auto w-full max-w-3xl px-5 py-12 sm:px-8 sm:py-16">
-                    <h1 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+                    <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
                         Privacy Policy
                     </h1>
                     <p className="mt-3 text-sm text-muted-foreground">

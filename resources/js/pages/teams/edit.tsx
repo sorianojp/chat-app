@@ -171,7 +171,7 @@ export default function TeamEdit({
                             <div
                                 key={member.id}
                                 data-test="member-row"
-                                className="flex items-center justify-between rounded-[20px] bg-card p-5"
+                                className="flex items-center justify-between rounded-card bg-card p-5"
                             >
                                 <div className="flex items-center gap-4">
                                     <Avatar className="h-10 w-10">
@@ -275,7 +275,7 @@ export default function TeamEdit({
                                 <div
                                     key={invitation.code}
                                     data-test="invitation-row"
-                                    className="flex items-center justify-between rounded-[20px] bg-card p-5"
+                                    className="flex items-center justify-between rounded-card bg-card p-5"
                                 >
                                     <div className="flex items-center gap-4">
                                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
@@ -327,7 +327,7 @@ export default function TeamEdit({
                             title="Delete team"
                             description="Permanently delete your team"
                         />
-                        <div className="space-y-4 rounded-[20px] bg-red-50 p-5 dark:bg-red-950/30">
+                        <div className="space-y-4 rounded-card bg-red-50 p-5 dark:bg-red-950/30">
                             <div className="relative space-y-0.5 text-red-600 dark:text-red-100">
                                 <p className="font-medium">Warning</p>
                                 <p className="text-sm">
