@@ -30,8 +30,9 @@
             }
         </style>
 
-        <link rel="icon" href="/assets/logo.png" type="image/png">
-        <link rel="apple-touch-icon" href="/assets/logo.png">
+        @php($logoVersion = substr(md5_file(public_path('assets/logo.png')), 0, 8))
+        <link rel="icon" href="/assets/logo.png?v={{ $logoVersion }}" type="image/png">
+        <link rel="apple-touch-icon" href="/assets/logo.png?v={{ $logoVersion }}">
 
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
