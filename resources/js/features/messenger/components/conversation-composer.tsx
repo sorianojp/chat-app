@@ -6,8 +6,8 @@ import {
     UsersRound,
     X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import type { FormEvent, UIEvent } from 'react';
 import { initials } from '@/features/messenger/lib/format';
 import type {
     Contact,
@@ -16,6 +16,10 @@ import type {
 } from '@/features/messenger/types';
 
 type ComposerMode = 'direct' | 'group' | 'class';
+
+// Rendering every member of a large school at once makes the dialog lag,
+// so rows are rendered in pages and more are added as the list scrolls.
+const CONTACTS_PAGE_SIZE = 50;
 
 export function ConversationComposer({
     contacts,
@@ -68,17 +72,47 @@ export function ConversationComposer({
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const filteredContacts = contacts.filter((contact) => {
-        const haystack = `${contact.name} ${contact.email} ${contact.school_role}`;
+    const [visibleCount, setVisibleCount] = useState(CONTACTS_PAGE_SIZE);
+    const deferredQuery = useDeferredValue(query);
+    const searchableContacts = useMemo(
+        () =>
+            contacts.map((contact) => ({
+                contact,
+                haystack:
+                    `${contact.name} ${contact.email} ${contact.school_role}`.toLowerCase(),
+            })),
+        [contacts],
+    );
+    const filteredContacts = useMemo(() => {
+        const needle = deferredQuery.trim().toLowerCase();
 
-        return haystack.toLowerCase().includes(query.toLowerCase());
-    });
+        if (needle === '') {
+            return contacts;
+        }
+
+        return searchableContacts
+            .filter(({ haystack }) => haystack.includes(needle))
+            .map(({ contact }) => contact);
+    }, [contacts, searchableContacts, deferredQuery]);
+    const visibleContacts = filteredContacts.slice(0, visibleCount);
+
+    const loadMoreOnScroll = (event: UIEvent<HTMLDivElement>) => {
+        const list = event.currentTarget;
+
+        if (
+            visibleCount < filteredContacts.length &&
+            list.scrollTop + list.clientHeight >= list.scrollHeight - 200
+        ) {
+            setVisibleCount((count) => count + CONTACTS_PAGE_SIZE);
+        }
+    };
     const canSubmit =
         selectedIds.length > 0 && (mode === 'direct' || title.trim() !== '');
 
     const chooseMode = (nextMode: ComposerMode) => {
         setMode(nextMode);
         setError(null);
+        setVisibleCount(CONTACTS_PAGE_SIZE);
 
         if (nextMode === 'direct' && selectedIds.length > 1) {
             setSelectedIds([selectedIds[0]]);
@@ -207,7 +241,10 @@ export function ConversationComposer({
                         <Search className="size-4" />
                         <input
                             className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                            onChange={(event) => setQuery(event.target.value)}
+                            onChange={(event) => {
+                                setQuery(event.target.value);
+                                setVisibleCount(CONTACTS_PAGE_SIZE);
+                            }}
                             placeholder="Search people"
                             type="search"
                             value={query}
@@ -215,7 +252,10 @@ export function ConversationComposer({
                     </label>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                <div
+                    className="min-h-0 flex-1 overflow-y-auto p-2"
+                    onScroll={loadMoreOnScroll}
+                >
                     {mode === 'class' ? (
                         classes.map((schoolClass) => (
                             <ClassRow
@@ -226,7 +266,7 @@ export function ConversationComposer({
                             />
                         ))
                     ) : filteredContacts.length > 0 ? (
-                        filteredContacts.map((contact) => {
+                        visibleContacts.map((contact) => {
                             const selected = selectedIds.includes(contact.id);
 
                             return (
