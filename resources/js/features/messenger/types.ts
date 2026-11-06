@@ -229,6 +229,7 @@ export type MessengerPageProps = {
         slug: string;
     };
     contacts: Contact[];
+    suggestedContactIds: number[];
     conversations: Conversation[];
     initialConversationId: number | null;
     initialHasOlderMessages: boolean;

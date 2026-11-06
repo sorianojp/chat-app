@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\ConversationType;
 use App\Enums\SchoolRole;
 use App\Enums\TeamRole;
+use App\Models\Conversation;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -150,4 +152,36 @@ test('mobile contacts and conversations are scoped to the authenticated school m
     Auth::forgetGuards();
     $this->withToken($outsider->createToken('Phone')->plainTextToken)
         ->getJson("/api/teams/{$team->slug}/conversations/{$conversation}")->assertForbidden();
+});
+
+test('suggested contacts are the five most recent direct chat partners in the school', function () {
+    $user = User::factory()->create();
+    $team = Team::factory()->create();
+    $team->members()->attach($user->id, ['role' => TeamRole::Member->value]);
+    $partners = User::factory()->count(6)->create();
+    $team->members()->attach($partners->mapWithKeys(fn ($p) => [$p->id => ['role' => TeamRole::Member->value]])->all());
+    $groupOnly = User::factory()->create();
+    $team->members()->attach($groupOnly->id, ['role' => TeamRole::Member->value]);
+    $token = $user->createToken('Phone')->plainTextToken;
+
+    $this->withToken($token)->getJson("/api/teams/{$team->slug}/contacts?suggested=1")
+        ->assertOk()->assertJsonCount(0, 'data')->assertJsonPath('next_page_url', null);
+
+    foreach ($partners as $index => $partner) {
+        $conversation = Conversation::create([
+            'team_id' => $team->id, 'created_by' => $user->id, 'type' => ConversationType::Direct,
+            'last_message_at' => now()->subMinutes(10 - $index),
+        ]);
+        $conversation->participants()->attach([$user->id, $partner->id]);
+    }
+    $group = Conversation::create([
+        'team_id' => $team->id, 'created_by' => $user->id, 'type' => ConversationType::Group,
+        'title' => 'Club', 'last_message_at' => now(),
+    ]);
+    $group->participants()->attach([$user->id, $groupOnly->id]);
+
+    $ids = $this->withToken($token)->getJson("/api/teams/{$team->slug}/contacts?suggested=1")
+        ->assertOk()->json('data.*.id');
+
+    expect($ids)->toBe($partners->reverse()->take(5)->pluck('id')->values()->all());
 });

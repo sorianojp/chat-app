@@ -8,6 +8,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\WebPushService;
 use App\Support\MessagePayload;
+use App\Support\SuggestedContacts;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -79,6 +80,7 @@ class MessengerController extends Controller
                     'school_role' => $contact->school_role->value,
                     'last_seen_at' => $contact->last_seen_at?->toISOString(),
                 ]),
+            'suggestedContactIds' => SuggestedContacts::ids($user, $current_team),
             'conversations' => $conversations,
             'initialConversationId' => $activeConversationId,
             'initialMessages' => $messages,

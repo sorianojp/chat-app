@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\SuggestedContacts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -48,6 +49,18 @@ class MobileSessionController extends Controller
     {
         abort_unless($request->user()?->teams()->whereKey($team->id)->exists(), 403);
 
+        $columns = ['users.id', 'name', 'email', 'school_role', 'last_seen_at'];
+
+        // Before searching, the picker shows only recent chat partners (or nothing).
+        if ($request->boolean('suggested')) {
+            $ids = SuggestedContacts::ids($request->user(), $team);
+            $people = $team->members()->whereIn('users.id', $ids)->get($columns)
+                ->sortBy(fn (User $person) => $ids->search($person->id))
+                ->values();
+
+            return response()->json(['data' => $people, 'current_page' => 1, 'next_page_url' => null]);
+        }
+
         return response()->json($team->members()
             ->where('users.id', '!=', $request->user()->id)
             ->when($request->filled('search'), function ($query) use ($request) {
@@ -55,6 +68,6 @@ class MobileSessionController extends Controller
                 $query->where(fn ($query) => $query->where('name', 'like', $search)->orWhere('email', 'like', $search));
             })
             ->orderBy('name')
-            ->paginate(100, ['users.id', 'name', 'email', 'school_role', 'last_seen_at']));
+            ->paginate(100, $columns));
     }
 }

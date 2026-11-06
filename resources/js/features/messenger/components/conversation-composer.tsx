@@ -27,12 +27,14 @@ export function ConversationComposer({
     onCreate,
     onLoadClasses,
     onOpenClassChat,
+    suggestedContactIds,
 }: {
     contacts: Contact[];
     onClose: () => void;
     onCreate: (payload: NewConversationPayload) => Promise<boolean>;
     onLoadClasses: () => Promise<SchoolClassSummary[]>;
     onOpenClassChat: (schoolClass: SchoolClassSummary) => Promise<boolean>;
+    suggestedContactIds: number[];
 }) {
     const [mode, setMode] = useState<ComposerMode>('direct');
     // Teachers see a Class tab for their STEP classes; others never do.
@@ -83,23 +85,35 @@ export function ConversationComposer({
             })),
         [contacts],
     );
+    const searching = deferredQuery.trim() !== '';
+    // Before searching, only the selected people and up to five recent chat
+    // partners are listed; with no recent chats the list stays empty.
+    const suggestedContacts = useMemo(() => {
+        const byId = new Map(contacts.map((contact) => [contact.id, contact]));
+        const ids = [...new Set([...selectedIds, ...suggestedContactIds])];
+
+        return ids.flatMap((id) => byId.get(id) ?? []);
+    }, [contacts, selectedIds, suggestedContactIds]);
     const filteredContacts = useMemo(() => {
         const needle = deferredQuery.trim().toLowerCase();
 
         if (needle === '') {
-            return contacts;
+            return [];
         }
 
         return searchableContacts
             .filter(({ haystack }) => haystack.includes(needle))
             .map(({ contact }) => contact);
-    }, [contacts, searchableContacts, deferredQuery]);
-    const visibleContacts = filteredContacts.slice(0, visibleCount);
+    }, [searchableContacts, deferredQuery]);
+    const visibleContacts = searching
+        ? filteredContacts.slice(0, visibleCount)
+        : suggestedContacts;
 
     const loadMoreOnScroll = (event: UIEvent<HTMLDivElement>) => {
         const list = event.currentTarget;
 
         if (
+            searching &&
             visibleCount < filteredContacts.length &&
             list.scrollTop + list.clientHeight >= list.scrollHeight - 200
         ) {
@@ -265,41 +279,52 @@ export function ConversationComposer({
                                 schoolClass={schoolClass}
                             />
                         ))
-                    ) : filteredContacts.length > 0 ? (
-                        visibleContacts.map((contact) => {
-                            const selected = selectedIds.includes(contact.id);
+                    ) : visibleContacts.length > 0 ? (
+                        <>
+                            {!searching && (
+                                <p className="px-3 pt-1 pb-2 text-xs font-semibold text-muted-foreground">
+                                    Suggested
+                                </p>
+                            )}
+                            {visibleContacts.map((contact) => {
+                                const selected = selectedIds.includes(
+                                    contact.id,
+                                );
 
-                            return (
-                                <button
-                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-muted/40"
-                                    key={contact.id}
-                                    onClick={() => toggleContact(contact.id)}
-                                    type="button"
-                                >
-                                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold text-foreground">
-                                        {initials(contact.name)}
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-sm font-semibold text-foreground">
-                                            {contact.name}
-                                        </span>
-                                        <span className="block truncate text-xs text-muted-foreground capitalize">
-                                            {contact.school_role}
-                                        </span>
-                                    </span>
-                                    <span
-                                        className={`grid size-6 shrink-0 place-items-center rounded-full ${
-                                            selected
-                                                ? 'bg-brand-solid text-brand-foreground'
-                                                : 'bg-muted text-transparent'
-                                        }`}
+                                return (
+                                    <button
+                                        className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-muted/40"
+                                        key={contact.id}
+                                        onClick={() =>
+                                            toggleContact(contact.id)
+                                        }
+                                        type="button"
                                     >
-                                        <Check className="size-4" />
-                                    </span>
-                                </button>
-                            );
-                        })
-                    ) : (
+                                        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold text-foreground">
+                                            {initials(contact.name)}
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-semibold text-foreground">
+                                                {contact.name}
+                                            </span>
+                                            <span className="block truncate text-xs text-muted-foreground capitalize">
+                                                {contact.school_role}
+                                            </span>
+                                        </span>
+                                        <span
+                                            className={`grid size-6 shrink-0 place-items-center rounded-full ${
+                                                selected
+                                                    ? 'bg-brand-solid text-brand-foreground'
+                                                    : 'bg-muted text-transparent'
+                                            }`}
+                                        >
+                                            <Check className="size-4" />
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </>
+                    ) : searching ? (
                         <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
                             <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
                                 <UsersRound className="size-6" />
@@ -308,11 +333,10 @@ export function ConversationComposer({
                                 No people found
                             </h3>
                             <p className="mt-1 max-w-72 text-sm leading-6 text-muted-foreground">
-                                Team members will appear here when they are
-                                added to this school.
+                                Try another name or email.
                             </p>
                         </div>
-                    )}
+                    ) : null}
                 </div>
 
                 <div className="shrink-0 p-4">

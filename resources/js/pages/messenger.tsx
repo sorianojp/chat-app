@@ -106,6 +106,7 @@ export default function Messenger({
     apiBaseUrl,
     archived,
     contacts,
+    suggestedContactIds,
     conversations: initialConversations,
     initialConversationId,
     initialHasOlderMessages,
@@ -2168,6 +2169,7 @@ export default function Messenger({
                         onCreate={createConversation}
                         onLoadClasses={loadClasses}
                         onOpenClassChat={openClassChat}
+                        suggestedContactIds={suggestedContactIds}
                     />
                 )}
                 {infoMessage && activeConversation && (
