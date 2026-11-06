@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageAttachment;
-use App\Models\Team;
 use App\Models\User;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -113,7 +112,7 @@ class AdminController extends Controller
                     'name' => $attachment->original_name,
                     'mime_type' => $attachment->mime_type,
                     'size' => $attachment->size,
-                ])->values(),
+                ])->values()->all(),
             ]);
 
         return Inertia::render('admin/conversation', [
@@ -156,7 +155,7 @@ class AdminController extends Controller
             'id' => $conversation->id,
             'type' => $conversation->type->value,
             'title' => $conversation->title ?: ($others->take(4)->join(', ') ?: 'Conversation'),
-            'school' => $conversation->team instanceof Team ? $conversation->team->name : null,
+            'school' => $conversation->team->name,
             'participants_count' => $conversation->participants->count(),
             'messages_count' => $conversation->messages_count ?? null,
             'last_message_at' => $conversation->last_message_at?->toISOString(),

@@ -11,8 +11,8 @@ use Inertia\Testing\AssertableInertia as Assert;
 function adminConversationFixture(): array
 {
     $team = Team::factory()->create();
-    $alice = User::factory()->create(['name' => 'Alice', 'last_seen_at' => now()->subMinute()]);
-    $bob = User::factory()->create(['name' => 'Bob', 'last_seen_at' => now()->subHour()]);
+    $alice = User::factory()->create(['name' => 'Alice', 'email' => 'alice@example.test', 'last_seen_at' => now()->subMinute()]);
+    $bob = User::factory()->create(['name' => 'Bob', 'email' => 'bob@example.test', 'last_seen_at' => now()->subHour()]);
     $team->members()->attach([$alice->id => ['role' => TeamRole::Member->value], $bob->id => ['role' => TeamRole::Member->value]]);
     $conversation = $team->conversations()->create(['created_by' => $alice->id, 'type' => ConversationType::Direct, 'last_message_at' => now()]);
     $conversation->participants()->attach([$alice->id => ['role' => 'owner'], $bob->id => ['role' => 'member']]);
@@ -36,7 +36,7 @@ test('only super admins can open the admin area', function () {
 
 test('super admins see every user with online status and can filter by it', function () {
     [$alice, $bob] = adminConversationFixture();
-    $admin = User::factory()->create(['school_role' => SchoolRole::SuperAdmin]);
+    $admin = User::factory()->create(['name' => 'Root Admin', 'email' => 'root@example.test', 'school_role' => SchoolRole::SuperAdmin]);
 
     $this->actingAs($admin)->get('/admin/users')->assertOk()
         ->assertInertia(fn (Assert $page) => $page
@@ -56,7 +56,7 @@ test('super admins see every user with online status and can filter by it', func
 
 test('super admins can read a conversation and the access is logged', function () {
     [$alice, , $conversation] = adminConversationFixture();
-    $admin = User::factory()->create(['school_role' => SchoolRole::SuperAdmin]);
+    $admin = User::factory()->create(['name' => 'Root Admin', 'email' => 'root@example.test', 'school_role' => SchoolRole::SuperAdmin]);
 
     $this->actingAs($admin)->get("/admin/users/{$alice->id}")->assertOk()
         ->assertInertia(fn (Assert $page) => $page
