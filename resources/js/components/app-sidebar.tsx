@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Inbox, MessageCircle } from 'lucide-react';
+import { Inbox, MessageCircle, ShieldCheck } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -15,10 +15,10 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { messenger } from '@/routes';
-import type { NavItem } from '@/types';
+import type { Auth, NavItem } from '@/types';
 
 export function AppSidebar() {
-    const page = usePage();
+    const page = usePage<{ auth: Auth }>();
     const messengerUrl = page.props.currentTeam
         ? messenger(page.props.currentTeam.slug)
         : '/';
@@ -34,6 +34,9 @@ export function AppSidebar() {
             href: '/invitations',
             icon: Inbox,
         },
+        ...(page.props.auth.isSuperAdmin
+            ? [{ title: 'Admin', href: '/admin/users', icon: ShieldCheck }]
+            : []),
     ];
 
     const footerNavItems: NavItem[] = [

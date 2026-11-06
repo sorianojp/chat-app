@@ -58,6 +58,7 @@ class HandleInertiaRequests extends Middleware
                     'updated_at' => $user->updated_at,
                 ] : null,
                 'canCreateTeams' => fn () => $user?->can('create', Team::class) ?? false,
+                'isSuperAdmin' => fn () => $user?->can('viewAdmin') ?? false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'currentTeam' => fn () => $user?->currentTeam ? $user->toUserTeam($user->currentTeam) : null,

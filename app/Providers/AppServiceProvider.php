@@ -2,11 +2,14 @@
 
 namespace App\Providers;
 
+use App\Enums\SchoolRole;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -29,6 +32,9 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureRateLimiting();
+
+        // Super admins may see every user's status and read any conversation.
+        Gate::define('viewAdmin', fn (User $user) => $user->school_role === SchoolRole::SuperAdmin);
 
         if ($this->app->environment('e2e')) {
             // End-to-end tests use their own asset build and ignore a running `npm run dev`.

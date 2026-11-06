@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Api\MessageController as ApiMessageController;
 use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Auth\StepSsoController;
@@ -43,6 +44,16 @@ Route::prefix('teams/{team:slug}')
             ->name('messenger.attachments.download');
         Route::get('conversations/{conversation}/messages/{message}/attachments/{attachment}/preview', [ApiMessageController::class, 'previewAttachment'])
             ->name('messenger.attachments.preview');
+    });
+
+Route::prefix('admin')
+    ->middleware(['auth', 'verified', 'can:viewAdmin'])
+    ->name('admin.')
+    ->group(function () {
+        Route::redirect('/', '/admin/users');
+        Route::get('users', [AdminController::class, 'users'])->name('users.index');
+        Route::get('users/{user}', [AdminController::class, 'user'])->name('users.show');
+        Route::get('conversations/{conversation}', [AdminController::class, 'conversation'])->name('conversations.show');
     });
 
 Route::middleware(['auth'])->group(function () {

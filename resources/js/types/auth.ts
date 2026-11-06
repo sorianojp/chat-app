@@ -22,6 +22,7 @@ export type User = {
 export type Auth = {
     user: User;
     canCreateTeams: boolean;
+    isSuperAdmin: boolean;
 };
 
 /* @chisel-passkeys */
