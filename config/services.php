@@ -45,6 +45,7 @@ return [
         'team_name' => env('STEP_SSO_TEAM_NAME', 'STEP Messenger'),
         'team_slug' => env('STEP_SSO_TEAM_SLUG', 'step-messenger'),
         'account_url' => env('STEP_SSO_ACCOUNT_URL'),
+        'unread_api_key' => env('STEP_UNREAD_API_KEY'),
     ],
 
     'firebase' => [

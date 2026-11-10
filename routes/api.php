@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\MobileSessionController;
 use App\Http\Controllers\Api\PresenceController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\SchoolClassController;
+use App\Http\Controllers\Api\StepUnreadCountController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\WebPushSubscriptionController;
 use Illuminate\Http\Request;
@@ -15,6 +16,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('mobile/auth/start', [MobileAuthController::class, 'start'])->middleware('throttle:10,1');
 Route::post('mobile/auth/exchange', [MobileAuthController::class, 'exchange'])->middleware('throttle:10,1');
+
+// Server-to-server from STEP (shared key), for the unread badge on STEP's Uhoo! button.
+Route::get('step/unread-count', StepUnreadCountController::class)->name('api.step.unread-count');
 
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::get('web-push/config', [WebPushSubscriptionController::class, 'config']);
